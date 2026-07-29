@@ -98,7 +98,7 @@ class TransitousJourneyProvider(private val api: TransitousApi) : TransitJourney
     }
 }
 
-private fun TransitLegDto.toTourLeg(): TourLeg {
+internal fun TransitLegDto.toTourLeg(): TourLeg {
     val fromPoint = GeoPoint(from.lat, from.lon)
     val toPoint = GeoPoint(to.lat, to.lon)
     val decodedGeometry = PolylineDecoder.decode(legGeometry.points, precision = 6)

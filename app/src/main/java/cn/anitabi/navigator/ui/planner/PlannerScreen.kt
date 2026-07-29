@@ -63,6 +63,7 @@ import cn.anitabi.navigator.core.model.EndPolicy
 import cn.anitabi.navigator.core.model.PilgrimagePoint
 import cn.anitabi.navigator.core.model.RouteObjective
 import cn.anitabi.navigator.core.model.TourPlan
+import cn.anitabi.navigator.core.model.TourLeg
 import cn.anitabi.navigator.core.model.TravelMode
 import cn.anitabi.navigator.ui.theme.Ink
 import cn.anitabi.navigator.ui.theme.Moss
@@ -71,6 +72,7 @@ import cn.anitabi.navigator.ui.theme.Paper
 import cn.anitabi.navigator.ui.theme.Sand
 import cn.anitabi.navigator.ui.theme.Vermilion
 import kotlin.math.abs
+import java.time.OffsetDateTime
 import androidx.core.content.ContextCompat
 import android.content.pm.PackageManager
 
@@ -376,8 +378,25 @@ private fun RoutePreviewScreen(
                         onMove = onMove,
                     )
                 }
+                if (plan.mode == TravelMode.TRANSIT) {
+                    item {
+                        Text(
+                            "完整步行与换乘行程",
+                            style = MaterialTheme.typography.titleMedium,
+                            modifier = Modifier.padding(top = 10.dp),
+                        )
+                    }
+                    itemsIndexed(plan.legs, key = { index, _ -> "transit-leg-$index" }) { index, leg ->
+                        TransitLegCard(leg = leg, index = index, legCount = plan.legs.size)
+                    }
+                }
                 item {
                     Column(modifier = Modifier.padding(vertical = 8.dp)) {
+                        Text(
+                            "OpenFreeMap · OpenMapTiles · © OpenStreetMap contributors",
+                            color = MutedInk,
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
                         plan.attribution.forEach { attribution ->
                             Text(attribution, color = MutedInk, style = MaterialTheme.typography.bodyMedium)
                         }
@@ -411,6 +430,48 @@ private fun RoutePreviewScreen(
                 ) {
                     Text("开始连续导航")
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TransitLegCard(leg: TourLeg, index: Int, legCount: Int) {
+    val transit = leg.transit
+    Card(
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFFCF7)),
+        border = BorderStroke(1.dp, Sand),
+        shape = RoundedCornerShape(10.dp),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Rounded.DirectionsBus, contentDescription = null, tint = Moss)
+                Text(
+                    text = buildString {
+                        append("第 ${index + 1}/$legCount 段 · ")
+                        append(transit?.line ?: transit?.vehicleMode ?: "步行")
+                        transit?.direction?.let { append(" · 开往 $it") }
+                    },
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(start = 8.dp),
+                )
+            }
+            Text(
+                "${formatTransitTime(transit?.departureTime)} → ${formatTransitTime(transit?.arrivalTime)}" +
+                    " · ${formatDistance(leg.distanceMeters)}",
+                color = MutedInk,
+                modifier = Modifier.padding(top = 6.dp),
+            )
+            transit?.departurePlatform?.let { Text("上车站台：$it", color = MutedInk) }
+            transit?.arrivalPlatform?.let { Text("下车站台：$it", color = MutedInk) }
+            transit?.intermediateStops?.takeIf { it.isNotEmpty() }?.let {
+                Text("中途站：${it.joinToString(" → ")}", color = MutedInk, maxLines = 2)
+            }
+            if (transit?.cancelled == true) {
+                Text("该班次已取消，开始导航后会自动重算", color = Vermilion, fontWeight = FontWeight.Bold)
+            } else if (transit?.realtime == true) {
+                Text("含实时信息", color = MutedInk)
             }
         }
     }
@@ -578,3 +639,10 @@ private fun formatDuration(seconds: Double): String {
     val minutes = totalMinutes % 60
     return if (hours > 0) "${hours}h ${minutes}m" else "${minutes}m"
 }
+
+private fun formatTransitTime(value: String?): String = value?.let {
+    runCatching { OffsetDateTime.parse(it).toLocalTime().toString() }.getOrDefault(it)
+} ?: "时间未知"
+
+private fun formatDistance(meters: Double): String =
+    if (meters >= 1000.0) "%.1f km".format(meters / 1000.0) else "${meters.toInt()} m"

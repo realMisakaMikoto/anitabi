@@ -65,6 +65,28 @@ class TourPlannerTest {
     }
 
     @Test
+    fun `transit dwell crosses midnight without losing the original offset`() = runBlocking {
+        val transit = FakeTransitProvider()
+        val planner = TourPlanner(FakeRoadProvider(), transit)
+
+        planner.planTransit(
+            TransitPlanRequest(
+                anime = anime,
+                selectedPoints = listOf(point("near", 0.1), point("far", 0.2)),
+                start = GeoPoint(0.0, 0.0),
+                endPolicy = EndPolicy.OPEN,
+                departureTime = "2026-07-29T23:40:00+08:00",
+                dwellMinutes = 15,
+            ),
+        )
+
+        assertEquals(
+            OffsetDateTime.parse("2026-07-30T00:05:00+08:00"),
+            OffsetDateTime.parse(transit.departures[1]),
+        )
+    }
+
+    @Test
     fun `reroute keeps unfinished stops and returns to the original start`() = runBlocking {
         val planner = TourPlanner(FakeRoadProvider(), FakeTransitProvider())
         val start = GeoPoint(0.0, 0.0)

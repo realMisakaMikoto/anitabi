@@ -101,6 +101,10 @@ fun NavigationRoute(viewModel: NavigationViewModel, onBack: (String?) -> Unit) {
                     .background(Color(0xFFFFFCF7))
                     .padding(18.dp),
             ) {
+                val activeLeg = plan.legs.getOrNull(state.progress?.legIndex ?: 0)
+                val targetName = activeLeg?.destinationPointId?.let { pointId ->
+                    plan.selectedPoints.firstOrNull { it.id == pointId }?.name
+                }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Rounded.MyLocation, contentDescription = null, tint = Vermilion)
                     Text(
@@ -114,6 +118,16 @@ fun NavigationRoute(viewModel: NavigationViewModel, onBack: (String?) -> Unit) {
                         "第 ${(state.progress?.legIndex ?: 0) + 1}/${plan.legs.size.coerceAtLeast(1)} 段",
                     color = MutedInk,
                     modifier = Modifier.padding(top = 8.dp),
+                )
+                Text(
+                    text = when {
+                        state.progress?.state == NavigationState.COMPLETED -> "全部巡礼点已完成"
+                        targetName != null -> "当前巡礼目标：$targetName"
+                        plan.mode == TravelMode.TRANSIT -> "当前目标：完成本换乘段"
+                        else -> "当前目标：返回起点"
+                    },
+                    color = MutedInk,
+                    modifier = Modifier.padding(top = 4.dp),
                 )
                 if (state.isRerouting) {
                     Text("检测到持续偏航，正在重算剩余路线…", color = Vermilion, modifier = Modifier.padding(top = 8.dp))
@@ -129,8 +143,7 @@ fun NavigationRoute(viewModel: NavigationViewModel, onBack: (String?) -> Unit) {
                     modifier = Modifier.padding(top = 8.dp),
                 )
                 if (plan.mode == TravelMode.TRANSIT) {
-                    val leg = plan.legs.getOrNull(state.progress?.legIndex ?: 0)
-                    val transit = leg?.transit
+                    val transit = activeLeg?.transit
                     Text(
                         text = buildString {
                             append("换乘段 ${(state.progress?.legIndex ?: 0) + 1}/${plan.legs.size}")

@@ -133,3 +133,25 @@
 - 当前本机仍缺 Android SDK 37，无法完成 Android 编译、Lint、R8、APK 和真机验收。
 - 尝试创建公开仓库 `realMisakaMikoto/anitabi` 时，GitHub 返回当前令牌无 `createRepository` 权限；未创建远端、未推送、未创建 Release。
 - 固定签名私钥和密码尚未由用户提供；因此按安全约束没有生成 release APK，也没有创建 `v0.1.0` tag。
+
+## 2026-07-29 - Task 7: requirement audit and public repository setup
+
+### Completed
+
+- Re-read this log and the implementation plan before starting the task.
+- Audited the application against the plan and filled specific gaps: invalid ORS credentials now have a dedicated error, unsafe Anitabi origin URLs are rejected, partial/invalid pilgrimage data assembly is isolated and tested, and transit refresh decisions are isolated and tested.
+- Expanded transit support and tests for line, direction, platforms, intermediate stops, realtime/cancelled state, and cross-midnight timestamps.
+- Added complete transit-leg details and map-data attribution to the route preview, plus the current pilgrimage target to the navigation screen.
+- Created the public GitHub repository `https://github.com/realMisakaMikoto/anitabi` using the signed-in browser session.
+
+### Verification
+
+- Ran the temporary Kotlin/JVM verification build with Kotlin 2.4.10: all 33 unit tests passed.
+- Ran `git diff --check`: no whitespace errors were reported.
+- Deleted the temporary verification Gradle scripts after the test run; their generated directories remain ignored.
+
+### Remaining
+
+- Push the audited commit and run the official Android SDK 37 CI build, lint, and APK assembly.
+- Fix any CI-only Android compilation or lint findings, then generate signing material and publish the signed release.
+- Transitous remains disabled until the maintainers explicitly approve this client, as required by their policy and the implementation plan.

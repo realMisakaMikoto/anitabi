@@ -26,6 +26,7 @@ import cn.anitabi.navigator.core.model.TourPlan
 import cn.anitabi.navigator.core.model.TravelMode
 import cn.anitabi.navigator.core.navigation.NavigationEngine
 import cn.anitabi.navigator.core.navigation.NavigationUpdate
+import cn.anitabi.navigator.core.navigation.TransitRefreshPolicy
 import java.time.OffsetDateTime
 import java.util.Locale
 import kotlinx.coroutines.CancellationException
@@ -231,9 +232,8 @@ class NavigationService : Service(), LocationListener, TextToSpeech.OnInitListen
         val currentPlan = plan ?: return
         if (currentPlan.mode != TravelMode.TRANSIT || reroute?.isActive == true) return
         val currentLeg = currentPlan.legs.getOrNull(update.progress.legIndex)
-        val completedStop = update.progress.state == NavigationState.NEXT_STOP && update.targetPointId != null
-        val cancelledLeg = update.progress.state == NavigationState.NAVIGATING && currentLeg?.transit?.cancelled == true
-        if (!completedStop && !cancelledLeg) return
+        if (!TransitRefreshPolicy.shouldRefresh(currentPlan, update.progress, update.targetPointId)) return
+        val cancelledLeg = currentLeg?.transit?.cancelled == true
         val key = "${update.progress.completedPointIds.size}:${update.progress.legIndex}:$cancelledLeg"
         if (key == lastTransitRefreshKey) return
         lastTransitRefreshKey = key

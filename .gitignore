@@ -1,6 +1,7 @@
 *.iml
 .gradle/
 .verification/
+.framework-verification/
 .idea/
 .android-sdk/
 local.properties

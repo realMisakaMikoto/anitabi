@@ -94,6 +94,7 @@ sealed class ApiException(message: String, cause: Throwable? = null) : Exception
     class RateLimited(body: String) : ApiException("API rate limit reached: $body")
     class Server(status: Int, body: String) : ApiException("API server error $status: $body")
     class Http(val status: Int, body: String) : ApiException("HTTP $status: $body")
+    class InvalidCredentials : ApiException("API credentials were rejected")
     class Network(cause: IOException) : ApiException("Network request failed", cause)
     class InvalidResponse(cause: Throwable) : ApiException("API response could not be parsed", cause)
     class MissingOrsKey : ApiException("An ORS API key is required")
@@ -101,6 +102,7 @@ sealed class ApiException(message: String, cause: Throwable? = null) : Exception
 
     companion object {
         fun fromStatus(status: Int, body: String): ApiException = when {
+            status == 401 || status == 403 -> InvalidCredentials()
             status == 404 -> NotFound(body)
             status == 429 -> RateLimited(body)
             status >= 500 -> Server(status, body)

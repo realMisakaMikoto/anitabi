@@ -45,6 +45,17 @@ class ApiParsingTest {
     }
 
     @Test
+    fun `Anitabi rejects non web origin links`() {
+        val point = AnitabiPointDto(
+            id = "unsafe",
+            geo = listOf(35.0, 139.0),
+            originUrl = "intent://open-an-app",
+        ).toPilgrimagePointOrNull()!!
+
+        assertNull(point.originUrl)
+    }
+
+    @Test
     fun `ORS GeoJSON and Transitous itinerary samples parse`() {
         val ors = json.decodeFromString(
             OrsDirectionsResponse.serializer(),
@@ -64,6 +75,7 @@ class ApiParsingTest {
         assertTrue(ApiException.fromStatus(404, "missing") is ApiException.NotFound)
         assertTrue(ApiException.fromStatus(429, "quota") is ApiException.RateLimited)
         assertTrue(ApiException.fromStatus(503, "down") is ApiException.Server)
+        assertTrue(ApiException.fromStatus(401, "do not expose this body") is ApiException.InvalidCredentials)
     }
 
     @Test

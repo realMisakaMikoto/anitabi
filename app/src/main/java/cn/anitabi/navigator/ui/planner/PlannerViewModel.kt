@@ -227,6 +227,7 @@ class PlannerViewModel(
         if (throwable is CancellationException) throw throwable
         val message = when (throwable) {
             is ApiException.MissingOrsKey -> "请先填写自己的免费 ORS Key"
+            is ApiException.InvalidCredentials -> "ORS Key 无效或已失效，请重新填写"
             is ApiException.RateLimited -> "今日 ORS 配额已用尽，请明天再试"
             is ApiException.TransitNotApproved -> "公交路由尚未获得 Transitous 使用同意"
             is NoTransitDataException -> "本区域暂无开放公交数据"

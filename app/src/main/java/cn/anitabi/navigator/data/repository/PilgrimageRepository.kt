@@ -1,13 +1,10 @@
 package cn.anitabi.navigator.data.repository
 
-import cn.anitabi.navigator.core.model.Anime
-import cn.anitabi.navigator.core.model.PilgrimagePoint
 import cn.anitabi.navigator.data.local.PilgrimageCacheDao
 import cn.anitabi.navigator.data.local.PilgrimageCacheEntity
 import cn.anitabi.navigator.data.network.anitabi.AnitabiApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
-import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
 class PilgrimageRepository(
@@ -28,17 +25,7 @@ class PilgrimageRepository(
             val detailsRequest = async { api.getPointDetails(subjectId) }
             liteRequest.await() to detailsRequest.await()
         }
-        val points = detailDtos.mapNotNull { it.toPilgrimagePointOrNull() }
-        val warnings = buildSet {
-            if (points.size < detailDtos.size) add(PilgrimageWarning.INVALID_COORDINATES_SKIPPED)
-            if (points.size < lite.pointsLength) add(PilgrimageWarning.PARTIAL_DATA)
-        }
-        val result = PilgrimageData(
-            anime = lite.toAnime(),
-            points = points,
-            expectedPointCount = lite.pointsLength,
-            warnings = warnings,
-        )
+        val result = assemblePilgrimageData(lite, detailDtos)
         cacheDao.upsert(
             PilgrimageCacheEntity(
                 subjectId = subjectId,
@@ -48,18 +35,4 @@ class PilgrimageRepository(
         )
         return result
     }
-}
-
-@Serializable
-data class PilgrimageData(
-    val anime: Anime,
-    val points: List<PilgrimagePoint>,
-    val expectedPointCount: Int,
-    val warnings: Set<PilgrimageWarning> = emptySet(),
-)
-
-@Serializable
-enum class PilgrimageWarning {
-    PARTIAL_DATA,
-    INVALID_COORDINATES_SKIPPED,
 }

@@ -69,7 +69,10 @@ data class AnitabiPointDto(
             coordinate = coordinate,
             imageUrl = image,
             origin = origin?.takeIf(String::isNotBlank),
-            originUrl = originUrl?.takeIf(String::isNotBlank),
+            originUrl = originUrl?.takeIf(String::isSafeWebUrl),
         )
     }
 }
+
+private fun String.isSafeWebUrl(): Boolean =
+    startsWith("https://", ignoreCase = true) || startsWith("http://", ignoreCase = true)
