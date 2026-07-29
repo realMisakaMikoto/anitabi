@@ -36,6 +36,8 @@ jobs:
     needs: verify
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    env:
+      ANDROID_AVD_HOME: ${{ runner.temp }}/avd
     steps:
       - uses: android-actions/setup-android@v4
       - uses: actions/download-artifact@v8
@@ -47,9 +49,11 @@ jobs:
       - name: Create and boot emulator
         run: |
           sudo chmod 666 /dev/kvm
+          mkdir -p "$ANDROID_AVD_HOME" smoke-output
           echo no | avdmanager create avd --force --name anitabi-smoke --package "system-images;android-36;google_apis;x86_64"
-          "$ANDROID_HOME/emulator/emulator" -avd anitabi-smoke -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -camera-back none -camera-front none > "$RUNNER_TEMP/emulator.log" 2>&1 &
-          adb wait-for-device
+          "$ANDROID_HOME/emulator/emulator" -list-avds
+          "$ANDROID_HOME/emulator/emulator" -avd anitabi-smoke -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -camera-back none -camera-front none > smoke-output/emulator.log 2>&1 &
+          timeout 180 adb wait-for-device || { cat smoke-output/emulator.log; exit 1; }
           timeout 300 bash -c 'until [ "$(adb shell getprop sys.boot_completed | tr -d "\r")" = "1" ]; do sleep 5; done'
           adb shell settings put global window_animation_scale 0
           adb shell settings put global transition_animation_scale 0
@@ -76,7 +80,5 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: anitabi-emulator-smoke
-          path: |
-            smoke-output
-            ${{ runner.temp }}/emulator.log
+          path: smoke-output
           if-no-files-found: warn
