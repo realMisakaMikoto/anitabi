@@ -176,3 +176,27 @@
 
 - Generate and securely configure a fixed release signing key, run the release/R8 workflow, and publish `v0.1.0`.
 - Device/emulator interaction checks and Transitous maintainer approval remain separate acceptance gates.
+
+## 2026-07-29 - Task 9: fixed signing and v0.1.0 release
+
+### Completed
+
+- Re-read this log before starting the task.
+- Generated a fixed RSA-4096 JKS release key outside the workspace at `C:\Users\csy15\.anitabi-signing\anitabi-release.jks`.
+- Stored both random passwords with Windows user-scoped DPAPI and added a private recovery README beside the key; no plaintext password was printed or committed.
+- Configured all four encrypted GitHub Actions repository secrets through the signed-in GitHub session.
+- Replaced the raw Room KSP schema argument with the official Room Gradle plugin, removing the debug/release parallel schema export race found by the release build.
+- Corrected release signature verification to invoke the installed Android build-tools `apksigner`, and fixed the workflow YAML scalar.
+- Published the non-draft, non-prerelease GitHub Release `v0.1.0` with the signed APK and checksum file.
+
+### Verification
+
+- Release workflow run `30435837520` passed: unit tests, release Lint, R8 assembly, signature verification, checksum generation, and release publication.
+- `apksigner` verified APK Signature Scheme v2 with one signer; certificate SHA-256 is `9679c83769368c7150f629d9cba3c0e5d633fa7f1043ce251fdba6c7c64fb00a`, matching the local fixed key.
+- Downloaded `anitabi-v0.1.0.apk` is 50,984,377 bytes. Its computed SHA-256 matches the published checksum: `e4c1c66cefaea54fde0c7f3f6bfbba461530465e5ef4530c02fa956bcd12624d`.
+- Release URL: `https://github.com/realMisakaMikoto/anitabi/releases/tag/v0.1.0`.
+
+### Remaining
+
+- Add and run an emulator install/launch smoke test, then document anything that still needs a physical phone.
+- Transitous stays compile-time disabled until its maintainers explicitly approve this client.
