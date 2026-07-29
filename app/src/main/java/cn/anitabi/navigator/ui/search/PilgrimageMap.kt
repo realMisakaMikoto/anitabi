@@ -12,10 +12,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import cn.anitabi.navigator.core.model.PilgrimagePoint
 import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.geometry.LatLng
@@ -35,7 +35,7 @@ import org.maplibre.geojson.Point
 
 @Composable
 fun PilgrimageMap(
-    subjectId: Long,
+    contentKey: String,
     points: List<PilgrimagePoint>,
     selectedPointIds: Set<String>,
     onPointToggle: (String) -> Unit,
@@ -49,7 +49,7 @@ fun PilgrimageMap(
     val currentOnBoundsChanged by rememberUpdatedState(onVisibleBoundsChanged)
     var map by remember { mutableStateOf<MapLibreMap?>(null) }
     var pointSource by remember { mutableStateOf<GeoJsonSource?>(null) }
-    var centeredSubjectId by remember { mutableStateOf<Long?>(null) }
+    var centeredContentKey by remember { mutableStateOf<String?>(null) }
 
     DisposableEffect(lifecycleOwner, mapView) {
         mapView.onCreate(null)
@@ -120,15 +120,15 @@ fun PilgrimageMap(
         pointSource?.setGeoJson(points.toFeatureCollection(selectedPointIds))
     }
 
-    LaunchedEffect(subjectId, points, map) {
+    LaunchedEffect(contentKey, points, map) {
         val readyMap = map ?: return@LaunchedEffect
-        if (points.isNotEmpty() && centeredSubjectId != subjectId) {
+        if (points.isNotEmpty() && centeredContentKey != contentKey) {
             val builder = LatLngBounds.Builder()
             points.forEach { point ->
                 builder.include(LatLng(point.coordinate.latitude, point.coordinate.longitude))
             }
             readyMap.animateCamera(CameraUpdateFactory.newLatLngBounds(builder.build(), 88))
-            centeredSubjectId = subjectId
+            centeredContentKey = contentKey
         }
     }
 

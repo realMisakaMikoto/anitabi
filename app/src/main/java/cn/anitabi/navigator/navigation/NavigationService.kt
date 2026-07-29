@@ -12,6 +12,7 @@ import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
 import android.os.Bundle
+import android.os.Build
 import android.os.IBinder
 import android.os.Looper
 import android.speech.tts.TextToSpeech
@@ -240,7 +241,13 @@ class NavigationService : Service(), LocationListener, TextToSpeech.OnInitListen
         val currentPlan = plan ?: return
         if (currentPlan.mode != TravelMode.TRANSIT || reroute?.isActive == true) return
         val currentLeg = currentPlan.legs.getOrNull(update.progress.legIndex)
-        if (!TransitRefreshPolicy.shouldRefresh(currentPlan, update.progress, update.targetPointId)) return
+        if (!TransitRefreshPolicy.shouldRefresh(
+                currentPlan,
+                update.progress,
+                update.targetPointId,
+                nowEpochMillis = System.currentTimeMillis(),
+            )
+        ) return
         val cancelledLeg = currentLeg?.transit?.cancelled == true
         val key = "${update.progress.completedPointIds.size}:${update.progress.legIndex}:$cancelledLeg"
         if (key == lastTransitRefreshKey) return
@@ -356,7 +363,13 @@ class NavigationService : Service(), LocationListener, TextToSpeech.OnInitListen
             .setContentIntent(openIntent)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
-            .setCategory(Notification.CATEGORY_NAVIGATION)
+            .setCategory(
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    Notification.CATEGORY_NAVIGATION
+                } else {
+                    Notification.CATEGORY_SERVICE
+                },
+            )
             .addAction(0, "结束", stopIntent)
             .build()
     }

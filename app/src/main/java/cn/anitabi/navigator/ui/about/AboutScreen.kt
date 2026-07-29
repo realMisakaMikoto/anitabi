@@ -14,7 +14,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.OpenInNew
+import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -150,6 +150,6 @@ private fun SourceLink(label: String, onClick: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(label, color = Vermilion, modifier = Modifier.weight(1f))
-        Icon(Icons.Rounded.OpenInNew, contentDescription = "打开网页", tint = Vermilion)
+        Icon(Icons.AutoMirrored.Rounded.OpenInNew, contentDescription = "打开网页", tint = Vermilion)
     }
 }

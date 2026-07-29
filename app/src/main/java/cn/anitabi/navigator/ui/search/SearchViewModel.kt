@@ -9,6 +9,7 @@ import cn.anitabi.navigator.data.network.ApiException
 import cn.anitabi.navigator.data.network.bangumi.BangumiApi
 import cn.anitabi.navigator.data.repository.PilgrimageData
 import cn.anitabi.navigator.data.repository.PilgrimageRepository
+import cn.anitabi.navigator.data.repository.mergePilgrimageData
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -38,30 +39,63 @@ class SearchViewModel(
             runCatching { bangumiApi.searchAnime(keyword) }
                 .onSuccess { results ->
                     mutableState.update {
-                        it.copy(searchResults = results, isLoading = false, selectedAnime = null, pilgrimageData = null)
+                        it.copy(searchResults = results, isLoading = false)
                     }
                 }
                 .onFailure(::handleFailure)
         }
     }
 
-    fun openAnime(anime: Anime) {
+    fun toggleAnime(anime: Anime) {
+        val current = state.value
+        if (anime.subjectId in current.selectedAnimeData) {
+            mutableState.update { value ->
+                val remainingData = value.selectedAnimeData - anime.subjectId
+                val remainingPointIds = mergePilgrimageData(remainingData.values)
+                    ?.points
+                    .orEmpty()
+                    .mapTo(mutableSetOf(), PilgrimagePoint::id)
+                value.copy(
+                    selectedAnimeData = remainingData,
+                    selectedPointIds = value.selectedPointIds.intersect(remainingPointIds),
+                    errorMessage = null,
+                )
+            }
+            return
+        }
+        if (anime.subjectId in current.loadingAnimeIds) return
         viewModelScope.launch {
             mutableState.update {
-                it.copy(isLoading = true, errorMessage = null, selectedAnime = anime, selectedPointIds = emptySet())
+                it.copy(loadingAnimeIds = it.loadingAnimeIds + anime.subjectId, errorMessage = null)
             }
             runCatching { pilgrimageRepository.load(anime.subjectId) }
                 .onSuccess { data ->
-                    mutableState.update { it.copy(pilgrimageData = data, isLoading = false, showList = false) }
+                    mutableState.update {
+                        it.copy(
+                            selectedAnimeData = it.selectedAnimeData + (anime.subjectId to data),
+                            loadingAnimeIds = it.loadingAnimeIds - anime.subjectId,
+                        )
+                    }
                 }
-                .onFailure(::handleFailure)
+                .onFailure { throwable ->
+                    mutableState.update { it.copy(loadingAnimeIds = it.loadingAnimeIds - anime.subjectId) }
+                    handleFailure(throwable)
+                }
+        }
+    }
+
+    fun openSelection() {
+        mutableState.update { current ->
+            if (current.selectedAnimeData.isEmpty()) {
+                current.copy(errorMessage = "请至少选择一部动画")
+            } else {
+                current.copy(selectionOpen = true, showList = false, errorMessage = null)
+            }
         }
     }
 
     fun backToResults() {
-        mutableState.update {
-            it.copy(selectedAnime = null, pilgrimageData = null, selectedPointIds = emptySet(), errorMessage = null)
-        }
+        mutableState.update { it.copy(selectionOpen = false, errorMessage = null) }
     }
 
     fun togglePoint(pointId: String) {
@@ -81,7 +115,7 @@ class SearchViewModel(
 
     fun selectVisiblePoints() {
         mutableState.update { current ->
-            val visible = current.pilgrimageData?.points.orEmpty()
+            val visible = current.combinedPilgrimageData?.points.orEmpty()
                 .filter { point -> current.visibleBounds?.contains(point) == true }
                 .map(PilgrimagePoint::id)
             val available = visible.filterNot(current.selectedPointIds::contains)
@@ -142,6 +176,8 @@ class SearchViewModel(
             is ApiException.Forbidden -> "当前公网 IP 被公共服务拒绝，请更换网络后重试"
             is ApiException.Network -> "网络不可用，可查看已缓存作品"
             is ApiException.Server -> "公共服务暂时不可用，请稍后再试"
+            is ApiException.InvalidResponse -> "公共服务返回了无法识别的数据"
+            is ApiException.Http -> "公共服务请求失败，请稍后再试"
             else -> throwable.message ?: "加载失败，请稍后再试"
         }
         mutableState.update { it.copy(isLoading = false, errorMessage = message) }
@@ -165,15 +201,25 @@ class SearchViewModel(
 data class SearchUiState(
     val query: String = "",
     val searchResults: List<Anime> = emptyList(),
-    val selectedAnime: Anime? = null,
-    val pilgrimageData: PilgrimageData? = null,
+    val selectedAnimeData: Map<Long, PilgrimageData> = emptyMap(),
+    val loadingAnimeIds: Set<Long> = emptySet(),
     val selectedPointIds: Set<String> = emptySet(),
     val visibleBounds: GeoBounds? = null,
     val isLoading: Boolean = false,
     val showList: Boolean = false,
+    val selectionOpen: Boolean = false,
     val plannerOpen: Boolean = false,
     val navigationOpen: Boolean = false,
     val hiddenNavigationTourId: String? = null,
     val aboutOpen: Boolean = false,
     val errorMessage: String? = null,
-)
+) {
+    val selectedAnimes: List<Anime>
+        get() = selectedAnimeData.values.map(PilgrimageData::anime)
+
+    val combinedPilgrimageData: PilgrimageData?
+        get() = mergePilgrimageData(selectedAnimeData.values)
+
+    val mapContentKey: String
+        get() = selectedAnimeData.keys.sorted().joinToString(separator = ",")
+}

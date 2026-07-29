@@ -97,6 +97,10 @@ class PlannerViewModel(
         mutableState.update { it.copy(errorMessage = "需要定位权限才能从当前位置出发") }
     }
 
+    fun navigationPermissionDenied(message: String) {
+        mutableState.update { it.copy(errorMessage = message) }
+    }
+
     fun setFixedEndPoint(pointId: String) {
         mutableState.update { it.copy(fixedEndPointId = pointId, plan = null) }
     }
@@ -234,10 +238,25 @@ class PlannerViewModel(
             } else {
                 "今日 ORS 配额已用尽，请明天再试"
             }
+            is ApiException.NotFound -> if (isTransit) {
+                "Transitous 未找到可用行程"
+            } else {
+                "ORS 未找到可用路线"
+            }
             is ApiException.Server -> if (isTransit) {
                 "Transitous 服务暂时不可用，请稍后再试"
             } else {
                 "ORS 服务暂时不可用，请稍后再试"
+            }
+            is ApiException.InvalidResponse -> if (isTransit) {
+                "Transitous 返回了无法识别的数据"
+            } else {
+                "ORS 返回了无法识别的数据"
+            }
+            is ApiException.Http -> if (isTransit) {
+                "Transitous 请求失败，请稍后再试"
+            } else {
+                "ORS 请求失败，请稍后再试"
             }
             is ApiException.Network -> "网络连接失败，请检查网络后重试"
             is NoTransitDataException -> "本区域暂无开放公交数据"

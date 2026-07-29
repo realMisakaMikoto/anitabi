@@ -1,6 +1,7 @@
 package cn.anitabi.navigator.ui.planner
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 class PlannerFormattingTest {
@@ -9,5 +10,22 @@ class PlannerFormattingTest {
         assertEquals("09:01", formatTransitTime("2026-07-30T00:01:00Z", "Asia/Tokyo"))
         assertEquals("00:01", formatTransitTime("2026-07-30T00:01:00Z", null))
         assertEquals("时间未知", formatTransitTime(null, "Asia/Tokyo"))
+    }
+
+    @Test
+    fun `navigation requires both location and notification permissions`() {
+        assertNull(navigationPermissionError(hasLocation = true, hasNotifications = true))
+        assertEquals(
+            "需要定位权限才能开始导航",
+            navigationPermissionError(hasLocation = false, hasNotifications = true),
+        )
+        assertEquals(
+            "需要通知权限才能在锁屏和后台持续导航",
+            navigationPermissionError(hasLocation = true, hasNotifications = false),
+        )
+        assertEquals(
+            "需要定位和通知权限才能开始导航",
+            navigationPermissionError(hasLocation = false, hasNotifications = false),
+        )
     }
 }

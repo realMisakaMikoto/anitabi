@@ -51,6 +51,46 @@ class TransitRefreshPolicyTest {
         assertTrue(TransitRefreshPolicy.shouldRefresh(plan, progress, targetPointId = null))
     }
 
+    @Test
+    fun `missed next departure after an internal transfer refreshes automatically`() {
+        val departure = java.time.OffsetDateTime.parse("2026-07-29T09:10:00+09:00").toInstant().toEpochMilli()
+        val plan = twoLegTransitPlan(nextDeparture = "2026-07-29T09:10:00+09:00")
+        val progress = NavigationProgress(
+            tourId = plan.id,
+            legIndex = 0,
+            state = NavigationState.NEXT_STOP,
+        )
+
+        assertTrue(
+            TransitRefreshPolicy.shouldRefresh(
+                plan,
+                progress,
+                targetPointId = null,
+                nowEpochMillis = departure + TransitRefreshPolicy.MISSED_CONNECTION_GRACE_MILLIS + 1,
+            ),
+        )
+    }
+
+    @Test
+    fun `connection inside grace period does not refresh`() {
+        val departure = java.time.OffsetDateTime.parse("2026-07-29T09:10:00+09:00").toInstant().toEpochMilli()
+        val plan = twoLegTransitPlan(nextDeparture = "2026-07-29T09:10:00+09:00")
+        val progress = NavigationProgress(
+            tourId = plan.id,
+            legIndex = 0,
+            state = NavigationState.NEXT_STOP,
+        )
+
+        assertFalse(
+            TransitRefreshPolicy.shouldRefresh(
+                plan,
+                progress,
+                targetPointId = null,
+                nowEpochMillis = departure + TransitRefreshPolicy.MISSED_CONNECTION_GRACE_MILLIS,
+            ),
+        )
+    }
+
     private fun transitPlan(cancelled: Boolean): TourPlan {
         val from = GeoPoint(35.0, 139.0)
         val to = GeoPoint(35.1, 139.1)
@@ -80,5 +120,22 @@ class TransitRefreshPolicyTest {
             estimatedDurationSeconds = 600.0,
             attribution = emptyList(),
         )
+    }
+
+    private fun twoLegTransitPlan(nextDeparture: String): TourPlan {
+        val plan = transitPlan(cancelled = false)
+        val transfer = GeoPoint(35.05, 139.05)
+        val first = plan.legs.single().copy(
+            to = transfer,
+            geometry = listOf(plan.legs.single().from, transfer),
+            transit = plan.legs.single().transit?.copy(arrivalTime = "2026-07-29T09:05:00+09:00"),
+            destinationPointId = null,
+        )
+        val second = plan.legs.single().copy(
+            from = transfer,
+            geometry = listOf(transfer, plan.legs.single().to),
+            transit = plan.legs.single().transit?.copy(departureTime = nextDeparture),
+        )
+        return plan.copy(legs = listOf(first, second))
     }
 }

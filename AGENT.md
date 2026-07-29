@@ -515,3 +515,56 @@
 - Revoke the ORS Key pasted into chat, generate a replacement in the HeiGIT dashboard, and enter the replacement only inside the now-installed signed v0.1.4 app. The formal app currently contains no ORS Key.
 - The phone still has a mock-location app configured. Real GNSS walking/driving, human confirmation of Chinese TTS audio, an 8-12 point field route, long-duration Xiaomi/OEM battery restrictions, and a real missed-transit event remain honest user-driven tests rather than fabricated acceptance claims.
 - Public evidence: `https://github.com/realMisakaMikoto/anitabi/actions/runs/30466264424`, `https://github.com/realMisakaMikoto/anitabi/actions/runs/30467039704`, `https://github.com/realMisakaMikoto/anitabi/actions/runs/30467427032`, and `https://github.com/realMisakaMikoto/anitabi/releases/tag/v0.1.4`.
+
+## 2026-07-30 - Task 21: multi-anime selection and plan-gap closeout
+
+### Preparation and implementation
+
+- Re-read the complete `AGENT.md` before the task, then re-read it again when the user added multi-anime selection as a new task. Re-read the original implementation plan during the final audit.
+- Added multi-anime selection to Bangumi results. Selected titles remain visible as removable chips and persist across additional searches; each title loads only from the existing user-triggered Anitabi repository/cache path.
+- Merged all selected titles onto one map while retaining point-by-point, list, and visible-map-area selection. Scoped every point ID as `subjectId::pointId` to prevent cross-title collisions, and prefixed multi-title point names with the work title so planning and navigation remain understandable.
+- Added a combined-tour identity for persisted routes and kept the existing 12-road-point and 8-transit-point limits.
+- Added a deterministic missed-connection policy: after an internal transfer, a non-walking departure more than two minutes in the past triggers the existing current-time transit replan. Arrival-at-pilgrimage and cancelled-leg automatic replans remain unchanged; no polling was added.
+- Fixed navigation permission completion so Android 13+ requires both location and notification permission and shows a specific message for either or both missing permissions.
+- Removed upstream HTTP response bodies from all public exception messages and added safe localized mappings for unrecognized responses and generic HTTP failures.
+- Added ORS MockWebServer contract coverage for all three road profiles. The new test exposed that default-valued `metrics`, `units`, `instructions`, and `language` fields were omitted by serialization; requests now explicitly send distance/duration matrix metrics, metres, instructions, and `zh-cn`.
+- Added a complete launcher icon set, release resource shrinking, Gradle 9.6.1, AndroidX Core 1.19.0, kotlinx.coroutines 1.11.0, Android 8-safe notification categories, and current non-deprecated icon/lifecycle imports. Bumped the candidate to `versionCode=6` / `versionName=0.2.0`.
+
+### Verification
+
+- Test-first checks initially failed on the missing merge, permission, missed-connection, ORS-injection, and error-redaction behavior, then passed after the implementation.
+- Local Android SDK 37 verification passed 47 JVM tests with 0 failures/errors/skips, debug compilation, APK assembly, and Lint with an empty issue report.
+- A fixed-signature R8/resource-shrunk release candidate built successfully. It is 42,660,757 bytes with SHA-256 `4d8698f5bab17246274450466e751b287178999a8d6edc72783b0dce679aa3c9`; the certificate SHA-256 remains `9679c83769368c7150f629d9cba3c0e5d633fa7f1043ce251fdba6c7c64fb00a`.
+- Installed the candidate over public v0.1.4 on the Xiaomi 15T Pro without uninstalling or clearing data. Android reports v0.2.0/versionCode 6; cold launch succeeded in 456 ms and the crash buffer was empty.
+- Physical UI evidence showed 3 selected works merged into 178 usable map points with the point-selection count and planning action intact. The user then independently tested and confirmed that the new feature works.
+- The user also explicitly confirmed that the previously tested Chinese navigation TTS is audible. Updated the v0.1.4 evidence without claiming anything beyond audibility.
+- Added v0.2.0 release notes, physical-candidate evidence, and an original-plan completion matrix. The public v0.2.0 GitHub release was intentionally not started because the user immediately requested another onboarding feature for the same upcoming release.
+
+### Remaining evidence boundaries
+
+- The phone still grants mock-location to a separate fake-GPS package; the application itself has no mock-location permission. Real 8-12 point GNSS field travel, multi-hour Xiaomi battery-policy survival, and an actual missed-service event remain field conditions rather than missing repository implementation.
+- The ORS Key previously pasted into chat was not reused. The signed app should only receive a newly generated replacement through its encrypted in-app input.
+
+## 2026-07-30 - Task 22: first-run permissions and ORS Key guide
+
+### Preparation and implementation
+
+- Re-read the complete `AGENT.md` before starting this task. Read the complete `ui-ux-pro-max` skill because the task changes a mobile first-run flow; its referenced design-search script was not installed, so followed the skill's accessibility, touch-target, safe-area, progressive-disclosure, multi-step-progress, form-feedback, and recovery checklists directly.
+- Added a non-skippable three-step first-run guide: explain why the app needs setup, request location plus Android 13+ notification permissions, then link directly to the HeiGIT account page and save the user's personal ORS Key. The map is not mounted until all applicable permissions and a locally stored Key are ready.
+- Added permission status cards, precise missing-permission messages, a retry path, and an app-system-settings link for denied or permanently denied permissions. Android 8-12 treats notification permission as already satisfied because those versions have no runtime notification permission.
+- Added a masked ORS Key field with an explicit show/hide control, nearby error text, concise account-registration instructions, encrypted save through the existing Android Keystore store, and support for an already saved Key during upgrade. Clearing or failing to decrypt a Key also clears the onboarding-complete marker.
+- Added the same HeiGIT acquisition link beside the later route-planner Key field so users can recover the instructions after onboarding.
+- Added first-launch assertions to debug and signed-release emulator smoke workflows. Updated navigation instrumentation setup to grant permissions and complete onboarding with an obviously invalid test-only Key so process-recovery tests continue exercising the production startup path without network use.
+- Fixed the APK audit script to use Python's standard zipfile extractor when `unzip` is unavailable, preserving the existing audit patterns and Linux CI behavior.
+
+### Verification and documentation
+
+- Added test-first onboarding readiness coverage. The targeted test initially failed because the readiness type and missing-permission mapping did not exist, then passed after implementation.
+- Local verification passed 49 JVM tests with 0 failures/errors/skips, debug APK assembly, androidTest APK compilation, debug Lint, and release Lint. Both Lint SARIF reports contain zero findings; `git diff --check` reports no whitespace errors.
+- The repository APK content audit passed against the current debug APK using the new Python fallback. Release assembly correctly refused to create an unsigned artifact when local fixed-signing variables were absent; final R8 and fixed-signature verification remain delegated to the protected GitHub release workflow.
+- Updated README, v0.2.0 release notes, plan-completion audit, physical-device evidence boundaries, and a v0.2.0 release acceptance record. The earlier signed-candidate hash is now explicitly labeled as predating onboarding rather than being misrepresented as the final artifact.
+
+### Current evidence boundary
+
+- No ADB device or emulator image was connected locally after onboarding was added. The phone and ADB mDNS discovery both returned no device, so no touch events were injected and no physical screenshot was fabricated. Android 8/API 26 and Android 17/API 37 clean-install onboarding screenshots are required from CI before release; Xiaomi onboarding remains a later cold-launch check when the device reconnects.
+- The previously exposed ORS Key was not reused, copied into tests, logged, or packaged. The instrumentation-only placeholder is deliberately invalid and is present only in the androidTest APK, never the production APK.

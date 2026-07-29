@@ -8,7 +8,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import cn.anitabi.navigator.ui.onboarding.OnboardingRoute
 import cn.anitabi.navigator.ui.search.SearchRoute
 import cn.anitabi.navigator.ui.search.SearchViewModel
 import cn.anitabi.navigator.ui.planner.PlannerViewModel
@@ -37,17 +42,27 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             AnitabiTheme {
+                var onboardingComplete by remember {
+                    mutableStateOf(container.orsKeyStore.hasCompletedOnboarding())
+                }
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
                         .background(Paper)
                         .navigationBarsPadding(),
                 ) {
-                    SearchRoute(
-                        viewModel = searchViewModel,
-                        plannerViewModel = plannerViewModel,
-                        navigationViewModel = navigationViewModel,
-                    )
+                    if (onboardingComplete) {
+                        SearchRoute(
+                            viewModel = searchViewModel,
+                            plannerViewModel = plannerViewModel,
+                            navigationViewModel = navigationViewModel,
+                        )
+                    } else {
+                        OnboardingRoute(
+                            keyStore = container.orsKeyStore,
+                            onComplete = { onboardingComplete = true },
+                        )
+                    }
                 }
             }
         }

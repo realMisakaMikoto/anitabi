@@ -4,6 +4,7 @@ import android.content.Context
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
+import androidx.core.content.edit
 import java.security.KeyStore
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
@@ -21,7 +22,7 @@ class OrsKeyStore(context: Context) {
         val payload = listOf(cipher.iv, encrypted).joinToString(SEPARATOR) {
             Base64.encodeToString(it, Base64.NO_WRAP)
         }
-        preferences.edit().putString(PREFERENCE_KEY, payload).apply()
+        preferences.edit { putString(PREFERENCE_KEY, payload) }
     }
 
     fun get(): String? {
@@ -42,8 +43,19 @@ class OrsKeyStore(context: Context) {
 
     fun hasKey(): Boolean = get() != null
 
+    fun hasCompletedOnboarding(): Boolean =
+        preferences.getBoolean(PREFERENCE_ONBOARDING_COMPLETE, false) && hasKey()
+
+    fun markOnboardingComplete() {
+        check(hasKey()) { "ORS key is required before onboarding can finish" }
+        preferences.edit { putBoolean(PREFERENCE_ONBOARDING_COMPLETE, true) }
+    }
+
     fun clear() {
-        preferences.edit().remove(PREFERENCE_KEY).apply()
+        preferences.edit {
+            remove(PREFERENCE_KEY)
+            remove(PREFERENCE_ONBOARDING_COMPLETE)
+        }
     }
 
     private fun getOrCreateKey(): SecretKey {
@@ -72,6 +84,7 @@ class OrsKeyStore(context: Context) {
         private const val GCM_TAG_LENGTH = 128
         private const val PREFERENCES_NAME = "secure_routing_settings"
         private const val PREFERENCE_KEY = "ors_key_encrypted"
+        private const val PREFERENCE_ONBOARDING_COMPLETE = "onboarding_complete"
         private const val SEPARATOR = ":"
     }
 }

@@ -181,6 +181,8 @@ class NavigationRuntimeInstrumentedTest {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             shell("pm grant $packageName ${Manifest.permission.POST_NOTIFICATIONS}")
         }
+        application.container.orsKeyStore.save("instrumentation-only-invalid-ors-key")
+        application.container.orsKeyStore.markOnboardingComplete()
     }
 
     private fun sendServiceAction(action: String) {

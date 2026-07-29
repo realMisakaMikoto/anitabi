@@ -17,13 +17,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.List
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Clear
-import androidx.compose.material.icons.rounded.List
 import androidx.compose.material.icons.rounded.Map
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Search
@@ -84,7 +85,7 @@ fun SearchRoute(
     val showNavigation = state.navigationOpen ||
         (navigationState.isRunning && navigationPlanId != state.hiddenNavigationTourId)
     BackHandler(
-        enabled = !showNavigation && (state.aboutOpen || state.selectedAnime != null),
+        enabled = !showNavigation && (state.aboutOpen || state.selectionOpen),
         onBack = when {
             state.aboutOpen -> viewModel::closeAbout
             state.plannerOpen -> viewModel::closePlanner
@@ -105,12 +106,13 @@ fun SearchRoute(
                 viewModel.openNavigation()
             },
         )
-    } else if (state.selectedAnime == null) {
+    } else if (!state.selectionOpen) {
         SearchScreen(
             state = state,
             onQueryChange = viewModel::updateQuery,
             onSearch = viewModel::search,
-            onAnimeClick = viewModel::openAnime,
+            onAnimeToggle = viewModel::toggleAnime,
+            onOpenSelection = viewModel::openSelection,
             onOpenAbout = viewModel::openAbout,
         )
     } else {
@@ -123,7 +125,7 @@ fun SearchRoute(
             onClearSelection = viewModel::clearSelection,
             onShowList = viewModel::setShowList,
             onPlan = {
-                state.pilgrimageData?.let { data ->
+                state.combinedPilgrimageData?.let { data ->
                     val points = data.points.filter { it.id in state.selectedPointIds }
                     plannerViewModel.configure(data.anime, points)
                     viewModel.openPlanner()
@@ -138,7 +140,8 @@ private fun SearchScreen(
     state: SearchUiState,
     onQueryChange: (String) -> Unit,
     onSearch: () -> Unit,
-    onAnimeClick: (Anime) -> Unit,
+    onAnimeToggle: (Anime) -> Unit,
+    onOpenSelection: () -> Unit,
     onOpenAbout: () -> Unit,
 ) {
     Surface(color = Paper, modifier = Modifier.fillMaxSize()) {
@@ -195,10 +198,30 @@ private fun SearchScreen(
                 StatusMessage(state.errorMessage)
             }
 
-            when {
-                state.isLoading -> LoadingState("正在翻阅作品目录…")
-                state.searchResults.isEmpty() -> EmptySearchState(hasQuery = state.query.isNotBlank())
-                else -> AnimeResults(results = state.searchResults, onAnimeClick = onAnimeClick)
+            if (state.selectedAnimes.isNotEmpty()) {
+                SelectedAnimeStrip(
+                    selectedAnimes = state.selectedAnimes,
+                    onAnimeToggle = onAnimeToggle,
+                )
+            }
+            Box(modifier = Modifier.weight(1f)) {
+                when {
+                    state.isLoading -> LoadingState("正在翻阅作品目录…")
+                    state.searchResults.isEmpty() -> EmptySearchState(hasQuery = state.query.isNotBlank())
+                    else -> AnimeResults(
+                        results = state.searchResults,
+                        selectedAnimeIds = state.selectedAnimeData.keys,
+                        loadingAnimeIds = state.loadingAnimeIds,
+                        onAnimeToggle = onAnimeToggle,
+                    )
+                }
+            }
+            if (state.selectedAnimes.isNotEmpty()) {
+                AnimeSelectionFooter(
+                    animeCount = state.selectedAnimes.size,
+                    pointCount = state.combinedPilgrimageData?.points?.size.orZero(),
+                    onOpenSelection = onOpenSelection,
+                )
             }
         }
     }
@@ -261,7 +284,42 @@ private fun HeroTag(text: String) {
 }
 
 @Composable
-private fun AnimeResults(results: List<Anime>, onAnimeClick: (Anime) -> Unit) {
+private fun SelectedAnimeStrip(
+    selectedAnimes: List<Anime>,
+    onAnimeToggle: (Anime) -> Unit,
+) {
+    Column(modifier = Modifier.padding(top = 6.dp)) {
+        Text(
+            text = "已选动画 · 点击标签可移除",
+            color = MutedInk,
+            style = MaterialTheme.typography.labelLarge,
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
+        )
+        LazyRow(
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 20.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            items(selectedAnimes, key = Anime::subjectId) { anime ->
+                FilterChip(
+                    selected = true,
+                    onClick = { onAnimeToggle(anime) },
+                    label = { Text(anime.nameCn ?: anime.name, maxLines = 1) },
+                    leadingIcon = {
+                        Icon(Icons.Rounded.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+                    },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AnimeResults(
+    results: List<Anime>,
+    selectedAnimeIds: Set<Long>,
+    loadingAnimeIds: Set<Long>,
+    onAnimeToggle: (Anime) -> Unit,
+) {
     LazyColumn(
         contentPadding = androidx.compose.foundation.layout.PaddingValues(20.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -270,12 +328,16 @@ private fun AnimeResults(results: List<Anime>, onAnimeClick: (Anime) -> Unit) {
             Text("找到 ${results.size} 部作品", style = MaterialTheme.typography.titleMedium, color = MutedInk)
         }
         items(results, key = Anime::subjectId) { anime ->
+            val selected = anime.subjectId in selectedAnimeIds
+            val loading = anime.subjectId in loadingAnimeIds
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { onAnimeClick(anime) },
-                colors = CardDefaults.cardColors(containerColor = Color(0xFFFFFCF7)),
-                border = BorderStroke(1.dp, Sand),
+                    .clickable(enabled = !loading) { onAnimeToggle(anime) },
+                colors = CardDefaults.cardColors(
+                    containerColor = if (selected) Color(0xFFFFE8E2) else Color(0xFFFFFCF7),
+                ),
+                border = BorderStroke(1.dp, if (selected) Vermilion else Sand),
                 shape = RoundedCornerShape(12.dp),
             ) {
                 Row(
@@ -317,8 +379,42 @@ private fun AnimeResults(results: List<Anime>, onAnimeClick: (Anime) -> Unit) {
                             modifier = Modifier.padding(top = 10.dp),
                         )
                     }
-                    Text("打开", color = Moss, fontWeight = FontWeight.SemiBold)
+                    when {
+                        loading -> CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                        selected -> Icon(Icons.Rounded.Check, contentDescription = "已选择", tint = Vermilion)
+                        else -> Text("选择", color = Moss, fontWeight = FontWeight.SemiBold)
+                    }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AnimeSelectionFooter(
+    animeCount: Int,
+    pointCount: Int,
+    onOpenSelection: () -> Unit,
+) {
+    Surface(color = Color(0xFFFFFCF7), shadowElevation = 10.dp) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("已选 $animeCount 部动画", fontWeight = FontWeight.Bold)
+                Text("合计 $pointCount 个巡礼点", color = MutedInk, style = MaterialTheme.typography.bodyMedium)
+            }
+            Button(
+                onClick = onOpenSelection,
+                enabled = pointCount > 0,
+                shape = RoundedCornerShape(50),
+                colors = ButtonDefaults.buttonColors(containerColor = Vermilion),
+            ) {
+                Text("查看地图")
             }
         }
     }
@@ -335,11 +431,11 @@ private fun PilgrimageSelectionScreen(
     onShowList: (Boolean) -> Unit,
     onPlan: () -> Unit,
 ) {
-    val data = state.pilgrimageData
+    val data = state.combinedPilgrimageData
     Surface(color = Paper, modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
             SelectionToolbar(
-                title = state.selectedAnime?.nameCn ?: state.selectedAnime?.name.orEmpty(),
+                title = data?.anime?.nameCn ?: data?.anime?.name.orEmpty(),
                 pointCount = data?.points?.size,
                 partialData = data?.warnings?.contains(PilgrimageWarning.PARTIAL_DATA) == true,
                 onBack = onBack,
@@ -356,7 +452,7 @@ private fun PilgrimageSelectionScreen(
                 )
                 else -> Box(modifier = Modifier.weight(1f)) {
                     PilgrimageMap(
-                        subjectId = data.anime.subjectId,
+                        contentKey = state.mapContentKey,
                         points = data.points,
                         selectedPointIds = state.selectedPointIds,
                         onPointToggle = onTogglePoint,
@@ -393,6 +489,8 @@ private fun PilgrimageSelectionScreen(
         }
     }
 }
+
+private fun Int?.orZero(): Int = this ?: 0
 
 @Composable
 private fun SelectionToolbar(
@@ -525,7 +623,7 @@ private fun SelectionFooter(
                 label = { Text(if (showList) "地图" else "列表") },
                 leadingIcon = {
                     Icon(
-                        if (showList) Icons.Rounded.Map else Icons.Rounded.List,
+                        if (showList) Icons.Rounded.Map else Icons.AutoMirrored.Rounded.List,
                         contentDescription = null,
                         modifier = Modifier.size(18.dp),
                     )

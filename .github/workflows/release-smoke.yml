@@ -14,7 +14,7 @@ on:
       tag:
         description: Existing GitHub Release tag to verify
         required: true
-        default: v0.1.4
+        default: v0.2.0
         type: string
 
 permissions:
@@ -91,6 +91,10 @@ jobs:
           adb exec-out screencap -p > smoke-output/home.png
           timeout 30 adb shell uiautomator dump /sdcard/window.xml || true
           adb pull /sdcard/window.xml smoke-output/window.xml || true
+          case "${{ steps.release.outputs.tag }}" in
+            v0.1.*) ;;
+            *) grep -q "初次使用设置" smoke-output/window.xml ;;
+          esac
           adb logcat -d -b crash > smoke-output/crash.log
           ! grep -q "cn.anitabi.navigator" smoke-output/crash.log
       - name: Upload release emulator evidence

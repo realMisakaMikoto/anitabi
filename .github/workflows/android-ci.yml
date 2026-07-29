@@ -98,6 +98,7 @@ jobs:
           adb exec-out screencap -p > smoke-output/home.png
           timeout 30 adb shell uiautomator dump /sdcard/window.xml || true
           adb pull /sdcard/window.xml smoke-output/window.xml || true
+          grep -q "初次使用设置" smoke-output/window.xml
           adb logcat -d -b crash > smoke-output/crash.log
           ! grep -q "cn.anitabi.navigator" smoke-output/crash.log
       - name: Build runtime instrumentation APK

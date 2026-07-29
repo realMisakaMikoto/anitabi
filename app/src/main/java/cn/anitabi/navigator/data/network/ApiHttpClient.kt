@@ -93,10 +93,10 @@ class ApiHttpClient(
 }
 
 sealed class ApiException(message: String, cause: Throwable? = null) : Exception(message, cause) {
-    class NotFound(body: String) : ApiException("Resource not found: $body")
-    class RateLimited(body: String) : ApiException("API rate limit reached: $body")
-    class Server(status: Int, body: String) : ApiException("API server error $status: $body")
-    class Http(val status: Int, body: String) : ApiException("HTTP $status: $body")
+    class NotFound : ApiException("Resource not found")
+    class RateLimited : ApiException("API rate limit reached")
+    class Server(val status: Int) : ApiException("API server error $status")
+    class Http(val status: Int) : ApiException("HTTP $status")
     class InvalidCredentials : ApiException("API credentials were rejected")
     class Forbidden : ApiException("API access was forbidden")
     class Network(cause: IOException) : ApiException("Network request failed", cause)
@@ -104,13 +104,14 @@ sealed class ApiException(message: String, cause: Throwable? = null) : Exception
     class MissingOrsKey : ApiException("An ORS API key is required")
 
     companion object {
+        @Suppress("UNUSED_PARAMETER")
         fun fromStatus(status: Int, body: String): ApiException = when {
             status == 401 -> InvalidCredentials()
             status == 403 -> Forbidden()
-            status == 404 -> NotFound(body)
-            status == 429 -> RateLimited(body)
-            status >= 500 -> Server(status, body)
-            else -> Http(status, body)
+            status == 404 -> NotFound()
+            status == 429 -> RateLimited()
+            status >= 500 -> Server(status)
+            else -> Http(status)
         }
     }
 }

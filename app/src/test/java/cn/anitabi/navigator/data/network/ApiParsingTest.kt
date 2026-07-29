@@ -7,6 +7,7 @@ import cn.anitabi.navigator.data.network.ors.OrsDirectionsResponse
 import cn.anitabi.navigator.data.network.transit.TransitPlanDto
 import kotlinx.serialization.builtins.ListSerializer
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -102,6 +103,16 @@ class ApiParsingTest {
         assertTrue(ApiException.fromStatus(503, "down") is ApiException.Server)
         assertTrue(ApiException.fromStatus(401, "do not expose this body") is ApiException.InvalidCredentials)
         assertTrue(ApiException.fromStatus(403, "blocked") is ApiException.Forbidden)
+    }
+
+    @Test
+    fun `HTTP errors never expose response bodies`() {
+        val secret = "upstream response must stay private"
+
+        listOf(404, 418, 429, 503).forEach { status ->
+            val exception = ApiException.fromStatus(status, secret)
+            assertFalse(exception.message.orEmpty().contains(secret))
+        }
     }
 
     @Test

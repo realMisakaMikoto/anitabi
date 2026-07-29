@@ -10,7 +10,14 @@ apk="$1"
 audit_dir="$(mktemp -d)"
 trap 'rm -rf "$audit_dir"' EXIT
 
-unzip -qq -o "$apk" -d "$audit_dir"
+if command -v unzip >/dev/null 2>&1; then
+  unzip -qq -o "$apk" -d "$audit_dir"
+elif command -v python3 >/dev/null 2>&1; then
+  python3 -m zipfile -e "$apk" "$audit_dir"
+else
+  echo "APK audit requires unzip or Python 3" >&2
+  exit 2
+fi
 
 forbidden_pattern='api\.openrouteservice\.org|organicmaps|com\.google\.android\.gms\.analytics|com\.android\.billingclient|com\.google\.firebase|ANITABI_STORE_PASSWORD|ANITABI_KEY_PASSWORD|BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY'
 if find "$audit_dir" -type f -print0 | xargs -0 strings -a | grep -Eiq "$forbidden_pattern"; then

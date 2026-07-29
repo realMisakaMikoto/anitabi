@@ -24,13 +24,14 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.DirectionsBike
+import androidx.compose.material.icons.automirrored.rounded.DirectionsBike
+import androidx.compose.material.icons.automirrored.rounded.DirectionsWalk
+import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material.icons.rounded.DirectionsBus
 import androidx.compose.material.icons.rounded.DirectionsCar
 import androidx.compose.material.icons.rounded.DragHandle
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Route
-import androidx.compose.material.icons.rounded.DirectionsWalk
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -43,6 +44,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -54,6 +56,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -98,10 +101,15 @@ fun PlannerRoute(
     ) {
         val pending = pendingNavigationPlan
         pendingNavigationPlan = null
-        if (pending != null && AndroidLocationProvider.hasLocationPermission(context)) {
+        val hasLocation = AndroidLocationProvider.hasLocationPermission(context)
+        val hasNotifications = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) ==
+            PackageManager.PERMISSION_GRANTED
+        val permissionError = navigationPermissionError(hasLocation, hasNotifications)
+        if (pending != null && permissionError == null) {
             onStartNavigation(pending)
-        } else {
-            viewModel.locationPermissionDenied()
+        } else if (permissionError != null) {
+            viewModel.navigationPermissionDenied(permissionError)
         }
     }
     val plan = state.plan
@@ -150,7 +158,7 @@ fun PlannerRoute(
                             add(Manifest.permission.ACCESS_FINE_LOCATION)
                             add(Manifest.permission.ACCESS_COARSE_LOCATION)
                         }
-                        if (!hasNotifications && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        if (!hasNotifications) {
                             add(Manifest.permission.POST_NOTIFICATIONS)
                         }
                     }
@@ -159,6 +167,16 @@ fun PlannerRoute(
             },
         )
     }
+}
+
+internal fun navigationPermissionError(
+    hasLocation: Boolean,
+    hasNotifications: Boolean,
+): String? = when {
+    !hasLocation && !hasNotifications -> "需要定位和通知权限才能开始导航"
+    !hasLocation -> "需要定位权限才能开始导航"
+    !hasNotifications -> "需要通知权限才能在锁屏和后台持续导航"
+    else -> null
 }
 
 @Composable
@@ -177,6 +195,7 @@ private fun PlannerSettingsScreen(
     onOrsKeyChange: (String) -> Unit,
     onGenerate: () -> Unit,
 ) {
+    val uriHandler = LocalUriHandler.current
     Surface(color = Paper, modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
             PlannerTopBar(title = "编排一日路线", onBack = onBack)
@@ -266,6 +285,14 @@ private fun PlannerSettingsScreen(
                             singleLine = true,
                             shape = RoundedCornerShape(10.dp),
                         )
+                        TextButton(onClick = { uriHandler.openUri("https://account.heigit.org/") }) {
+                            Icon(
+                                Icons.AutoMirrored.Rounded.OpenInNew,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                            )
+                            Text("如何获取 ORS Key", modifier = Modifier.padding(start = 6.dp))
+                        }
                     }
                 } else {
                     item {
@@ -593,8 +620,8 @@ private fun ModeChip(
 ) {
     val icon = when (mode) {
         TravelMode.DRIVE -> Icons.Rounded.DirectionsCar
-        TravelMode.BIKE -> Icons.Rounded.DirectionsBike
-        TravelMode.WALK -> Icons.Rounded.DirectionsWalk
+        TravelMode.BIKE -> Icons.AutoMirrored.Rounded.DirectionsBike
+        TravelMode.WALK -> Icons.AutoMirrored.Rounded.DirectionsWalk
         TravelMode.TRANSIT -> Icons.Rounded.DirectionsBus
     }
     FilterChip(

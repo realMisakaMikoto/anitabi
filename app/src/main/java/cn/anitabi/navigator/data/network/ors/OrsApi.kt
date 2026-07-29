@@ -15,6 +15,7 @@ class OrsApi(
     private val httpClient: ApiHttpClient,
     private val apiKey: () -> String?,
     private val json: Json = ApiHttpClient.defaultJson,
+    private val baseUrl: String = BASE_URL,
 ) {
     suspend fun matrix(mode: TravelMode, points: List<GeoPoint>): OrsMatrixResponse {
         require(mode != TravelMode.TRANSIT) { "ORS does not provide transit routing" }
@@ -23,7 +24,11 @@ class OrsApi(
             path = "matrix/${mode.orsProfile()}",
             body = json.encodeToString(
                 OrsMatrixRequest.serializer(),
-                OrsMatrixRequest(locations = points.map(GeoPoint::toGeoJsonPosition)),
+                OrsMatrixRequest(
+                    locations = points.map(GeoPoint::toGeoJsonPosition),
+                    metrics = listOf("distance", "duration"),
+                    units = "m",
+                ),
             ),
             deserializer = OrsMatrixResponse.serializer(),
         )
@@ -36,7 +41,11 @@ class OrsApi(
             path = "directions/${mode.orsProfile()}/geojson",
             body = json.encodeToString(
                 OrsDirectionsRequest.serializer(),
-                OrsDirectionsRequest(coordinates = points.map(GeoPoint::toGeoJsonPosition)),
+                OrsDirectionsRequest(
+                    coordinates = points.map(GeoPoint::toGeoJsonPosition),
+                    instructions = true,
+                    language = "zh-cn",
+                ),
             ),
             deserializer = OrsDirectionsResponse.serializer(),
         )
@@ -49,7 +58,7 @@ class OrsApi(
     ): T {
         val key = apiKey()?.takeIf(String::isNotBlank) ?: throw ApiException.MissingOrsKey()
         val request = Request.Builder()
-            .url("$BASE_URL/$path")
+            .url("${baseUrl.trimEnd('/')}/$path")
             .header("Authorization", key)
             .post(body.toRequestBody(JSON_MEDIA_TYPE))
             .build()
@@ -72,8 +81,8 @@ private fun TravelMode.orsProfile(): String = when (this) {
 @Serializable
 data class OrsMatrixRequest(
     val locations: List<List<Double>>,
-    val metrics: List<String> = listOf("distance", "duration"),
-    val units: String = "m",
+    val metrics: List<String>,
+    val units: String,
 )
 
 @Serializable
@@ -85,8 +94,8 @@ data class OrsMatrixResponse(
 @Serializable
 data class OrsDirectionsRequest(
     val coordinates: List<List<Double>>,
-    val instructions: Boolean = true,
-    val language: String = "zh-cn",
+    val instructions: Boolean,
+    val language: String,
 ) 
 
 @Serializable
