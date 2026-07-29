@@ -106,3 +106,30 @@
 - 新增覆盖完整多站状态序列、停留恢复、无巡礼点返程、公交定时推进、15 秒偏航确认、60 秒冷却、转向步骤推进和剩余路线返程重算。
 - `gradlew :app:dependencies --configuration debugCompileClasspath`：新增 AndroidX Core 后依赖树解析成功。
 - `gradlew testDebugUnitTest`：仍仅被本机缺失 Android SDK 路径阻断；前台服务、Compose、Manifest 与通知 API 尚未完成 Android 编译和真机权限/后台行为验收。
+
+## 2026-07-29 — 任务 6：许可、安全与发布准备（本地完成，外部验收待办）
+
+### 已完成
+
+- 加入完整 GPL v3 许可证正文，并在 README 明确采用 GPL-3.0-or-later；增加第三方 `NOTICE.md` 和 `SECURITY.md`。
+- 增加应用内“关于、隐私与数据来源”页面，显著显示 OpenFreeMap/OpenMapTiles/OSM、ORS/HeiGIT、Transitous 来源、Bangumi、Anitabi CC BY-NC-SA 4.0、公交启用状态和 GPL 声明。
+- 增加中文 README：零预算边界、新手 SDK 37 构建步骤、每用户 ORS Key、Transitous 同意门槛、隐私、已知限制、固定签名和 GitHub Release 操作。
+- 增加 Transitous 英文联系模板和逐项发布检查清单，覆盖政策、许可、签名、密钥扫描、弱网/GPS/偏航/锁屏/杀进程/跨午夜、公交覆盖降级和真机验收。
+- 重新核对官方政策：ORS Standard 当前仍为 0 欧元、Directions 2,000/日、Matrix 500/日；Transitous 仍要求重资源路由使用前联系；OpenFreeMap 仍要求地图数据署名。核对日期写入 README。
+- 将 Kotlin 更新到 2026-07-14 发布的稳定版 2.4.10；KSP 维持官方最新 2.3.10。
+- 公交构建开关改为 `ANITABI_TRANSITOUS_APPROVED`，默认 `false`；只有取得明确同意后才可设置为 `true`。
+- 禁止明文网络；禁用应用备份、设备迁移，并显式排除数据库、SharedPreferences 和文件，防止 ORS Key 密文及路线被备份。
+- 增加工作区外固定签名约束：四个签名值缺一即拒绝 release，keystore 位于项目目录内也拒绝，避免误发未签名或临时签名 APK。
+- 增加 GitHub Actions：main/PR 自动测试、Lint、debug APK；`v*` tag 自动在 runner 临时目录恢复签名、校验版本、运行 R8 release、验证 APK 签名、生成 SHA-256 并创建 GitHub Release。
+- 补齐公交导航信息：线路、方向、上下车站台、中途站、换乘/下车 TTS、取消班次自动重算，以及“错过班次或严重延误”手动重算；到达每个巡礼点后按实际时间重算剩余公交行程。
+- 创建本地 Git `main` 分支并完成首个提交；`gradlew` 在索引中标记为 Linux 可执行。
+
+### 验证
+
+- Kotlin 2.4.10 临时 JVM 工程累计运行 25 个 JUnit 测试：全部通过；临时验证脚本已删除，生成缓存继续由 `.gitignore` 排除。
+- `gradlew help` 与 `gradlew :app:dependencies --configuration debugCompileClasspath`：成功；Kotlin/Compose/KSP/AGP 和完整依赖元数据可解析。
+- 7 个 Android XML 文件均通过 XML 解析；2 个 GitHub Actions 工作流均通过 YAML 解析。
+- 安全扫描未发现疑似硬编码 Key/Token、旧 ORS 域名、Google/Organic Maps 导航 Intent、Billing、Firebase、分析或广告 SDK；HTTPS 以外只存在 Android XML namespace。
+- 当前本机仍缺 Android SDK 37，无法完成 Android 编译、Lint、R8、APK 和真机验收。
+- 尝试创建公开仓库 `realMisakaMikoto/anitabi` 时，GitHub 返回当前令牌无 `createRepository` 权限；未创建远端、未推送、未创建 Release。
+- 固定签名私钥和密码尚未由用户提供；因此按安全约束没有生成 release APK，也没有创建 `v0.1.0` tag。
