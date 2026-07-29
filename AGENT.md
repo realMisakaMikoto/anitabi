@@ -675,3 +675,20 @@
 ### Remaining field boundary
 
 - The three field scenarios are now reproducible and evidence-ready but remain unpassed until the Xiaomi phone reconnects and the real route, elapsed OEM time, or missed service actually occurs. The collector intentionally cannot replace those environmental facts.
+
+## 2026-07-30 - Task 25: repeated physical-boundary audit and blocked-state handoff
+
+### Audit
+
+- Re-read the complete current 677-line `AGENT.md` and the complete original pasted implementation plan before starting this new continuation task.
+- Verified that the worktree is clean, local `main` and `origin/main` both resolve to `929a4bffcd241a02704c179880b6d3d434323ec1`, and no unpushed implementation or evidence change exists.
+- Rechecked the exact installed Platform-Tools executable, ADB USB device list, ADB mDNS services, and Windows present-device inventory. No Android phone is connected or discoverable; the only present Xiaomi hardware is the previously identified Bluetooth earbuds.
+- Rechecked GitHub Actions state. Main run `30483414232` remains successful with the verify, Android 8/API 26, and Android 17/API 37 jobs complete. No newer failed, queued, or running workflow exists for current `main`.
+- Re-audited the authoritative v0.2.0 completion matrix and the field runbook against the original plan. All repository implementation, release, security, compatibility, onboarding, and deterministic test requirements have direct evidence. The only unproved items remain a real 8-12 point GNSS route, multi-hour Xiaomi/OEM survival, and an actual missed-service event.
+
+### Blocking determination
+
+- The same missing physical-device/field condition is now confirmed across three consecutive goal turns: Task 23 found the Xiaomi disconnected while closing onboarding evidence, Task 24 found it disconnected while making all three field scenarios evidence-ready, and this Task 25 again finds no USB or wireless Android device after the repository and remote state are already complete.
+- No further repository, emulator, documentation, or synthetic-location work can turn those environmental events into honest acceptance evidence. Continuing without the phone and real elapsed/event conditions would only create churn or fabricate scope.
+- The precise resume condition is external: reconnect and unlock the Xiaomi 15T Pro, authorize this computer for USB debugging, disable the selected fake-GPS/mock-location app for the GNSS scenario, and make the real route or transit scenario available. The existing `scripts/capture-field-evidence.ps1` and `docs/PHYSICAL_FIELD_TEST_RUNBOOK_v0.2.0.md` are ready to resume immediately.
+- No application, workflow, release, test, or acceptance file changed in this task; this log records the required new-task read, current-state audit, and honest blocked boundary.
