@@ -6,7 +6,7 @@
 
 系统：Android 16 / API 36，安全补丁 2026-06-01
 
-应用：`cn.anitabi.navigator` v0.1.4 debug 候选（versionCode 5）
+应用：`cn.anitabi.navigator` v0.1.4 debug 候选完成完整流程；公开固定签名 v0.1.4（versionCode 5）完成产物一致性与冷启动复验
 
 ## 结论
 
@@ -40,6 +40,8 @@
 ## 设备状态恢复与证据边界
 
 - 测试结束后 Wi‑Fi 已重新启用并连接，移动数据保持启用；没有残留导航前台服务或持续通知。
-- 为安装 debug 候选包，已卸载 v0.1.3 签名包，因此原应用本地数据被 Android 清除；签名 v0.1.4 发布后需重新安装。
+- 为安装 debug 候选包，已卸载 v0.1.3 签名包，因此原应用本地数据被 Android 清除。发布后又卸载 debug 包并安装公开 `anitabi-v0.1.4.apk`，Android 报告 `versionCode=5` / `versionName=0.1.4`；手机内 `base.apk` 与 Release 资产均为 43,103,613 字节，SHA-256 均为 `4a95482bdc9bdec9e357d334339f9a401f558b00f19b4160b519ea9af586240e`。
+- 公开签名版真机冷启动为 `Status: ok` / `LaunchState: COLD`，总耗时 633 ms；首屏状态栏避让正确，应用崩溃缓冲为空，导航服务和持续通知均不存在。
+- 卸载 debug 包同时清除了其测试路线和 Android Keystore 中的旧 ORS Key；正式版当前没有 Key，用户应撤销聊天中暴露过的 Key、生成新 Key 后再在应用内输入。
 - 手机仍配置了 mock-location 应用，本轮不能冒充真实 GNSS 实走；中文 TTS 的人耳试听、长时间 OEM 省电限制和真实错过班次仍需用户现场完成。
 - 聊天中暴露过的 ORS Key 必须由所有者撤销并重新生成；本文和仓库不记录其内容。

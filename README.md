@@ -3,7 +3,7 @@
 
 一个零预算、无自建后端、全程留在应用内的 Android 动漫圣地巡礼导航器。用户可以搜索 Bangumi 作品、从 Anitabi 选择巡礼点、在手机本地优化访问顺序，再用 MapLibre 连续导航全部地点。
 
-> 当前状态：36 个 JVM 单元测试、Android SDK 37 编译、Lint、R8、APK 内容审计和固定签名发布均由 GitHub Actions 验证；debug APK 已在 Android 8（API 26）和 Android 17（API 37）模拟器通过全程断网、两次强制停止/恢复、前台服务通知、模拟 GPS 自动到达、息屏时自动进入下一站、两站完成和 Room 进度持久化，实际签名版也已在两个版本完成安装与冷启动复验。公交已按 Transitous 官方政策启用；纠正版 [v0.1.3 APK](https://github.com/realMisakaMikoto/anitabi/releases/tag/v0.1.3) 已公开发布。真机定位、锁屏、TTS 与 OEM 后台行为仍待实体设备验收。
+> 当前状态：38 个 JVM 单元测试、Android SDK 37 编译、Lint、R8、APK 内容审计和固定签名发布均由 GitHub Actions 验证；debug APK 已在 Android 8（API 26）和 Android 17（API 37）模拟器通过全程断网、两次强制停止/恢复、前台服务通知、模拟 GPS 自动到达、息屏时自动进入下一站、两站完成和 Room 进度持久化，实际签名版也已在两个版本完成安装与冷启动复验。[v0.1.4 APK](https://github.com/realMisakaMikoto/anitabi/releases/tag/v0.1.4) 已公开发布，并在 Xiaomi 15T Pro 真机完成系统栏、正式 Anitabi、ORS 道路路线、Transitous 公交路线和连续导航复验。真实 GNSS 实走、人耳 TTS、长时间 OEM 省电和真实错过班次仍需用户现场完成。
 
 ## 功能
 
@@ -48,6 +48,8 @@
 
 5. APK 位于 `app\build\outputs\apk\debug\app-debug.apk`。安装后，在规划道路路线时粘贴你自己的 ORS Key；它会经 Android Keystore 加密后保存在本机。
 
+ORS Key 获取：打开 [HeiGIT 账户中心](https://account.heigit.org/)，注册并验证邮箱，登录后接受服务条款，在 Dashboard 复制免费的 Standard API Key。以 `eyJ...` 开头的 JWT 形态属于正常格式；只应粘贴到应用内，不要发送到聊天或提交到 Git。
+
 不要把 ORS Key 写入 `local.properties`、Gradle 文件、截图、日志或 GitHub Secrets。它是每位应用用户自己的 Key，不是项目共享 Key。
 
 ## Transitous 使用边界
@@ -85,7 +87,7 @@ GitHub 仓库需配置以下 Actions Secrets：
 
 推送 `v*` tag 后，[发布工作流](.github/workflows/release.yml)会测试、Lint、R8、签名 APK、生成 SHA-256，再创建 GitHub Release。私钥在 runner 的临时目录恢复，不写入工作区或构建产物。
 
-当前签名版与逐项证据见 [v0.1.3 发布验收记录](docs/releases/v0.1.3.md)。
+当前签名版与逐项证据见 [v0.1.4 发布验收记录](docs/releases/v0.1.4.md)。
 
 ## 隐私与安全
 

@@ -470,3 +470,48 @@
 - The system proves Chinese TTS synthesis and an audible stream configuration, but final acoustic confirmation still requires the user to listen.
 - One successful Transitous route emitted a MapLibre `Invalid geometry in line layer` warning and displayed a transit leg distance of `0 m`. The UI remained stable; this is recorded as a data/geometry quality follow-up rather than hidden.
 - The original plan's 8-12 point real-world walk, long-duration OEM battery restriction test, and real missed-transit event remain user-driven field tests. They cannot be honestly replaced by remote ADB automation.
+
+## 2026-07-29 - Task 20: system-bar correction, live routing fixes, and v0.1.4 release
+
+### Accountability and preparation
+
+- Re-read the complete existing `AGENT.md` and the original pasted implementation plan before starting this task.
+- The user correctly identified that Task 19's “no obvious clipping” conclusion was wrong: the app top bars overlapped the Android status bar, and bottom actions intruded into the gesture-navigation area. Corrected the historical v0.1.3 acceptance record explicitly instead of silently rewriting or defending the error.
+- Re-read the current official HeiGIT/openrouteservice account and FAQ material through Agent Reach and explained the actual Key flow: register at `https://account.heigit.org/`, verify the email, accept the terms, and copy the free Standard API Key from the dashboard. Confirmed that a JWT-shaped `eyJ...` value is normal.
+- The user pasted a personal ORS Key into chat. The value was never repeated, written to source, tests, documentation, `AGENT.md`, Git, build configuration, or application logs. It was transferred from the host clipboard directly into the app and stored only through the existing Android Keystore implementation. Because chat exposure makes the credential unsafe, the user must revoke and regenerate it.
+- Installed the official Google Android CLI `1.0.15857036`, Android SDK Platform 37.0 revision 2, Build-Tools 37.0.0, and Platform-Tools needed for a real local build. Added only an ignored `local.properties` containing the SDK path. Installed GnuWin UnZip while closing a missing-tool diagnostic; the final APK audit was run successfully with the explicit Git for Windows Bash toolchain.
+
+### Implementation
+
+- Added status-bar Insets to the search hero, point-selection toolbar, planner top bar, route-preview top bar, navigation top bar, and about-page top bar. Added one root navigation-bar Insets container in `MainActivity` so all bottom buttons and scroll content stay above the system gesture area.
+- Reproduced a production Anitabi parse failure for Bangumi `#328609`. The real payload used string `ep: "CD"` while the unused DTO field was typed as `Int`; removed unused `ep`/`s` bindings so `ignoreUnknownKeys` tolerates the service's volatile types. Added a regression fixture containing the string value.
+- Reproduced Transitous rail legs that legitimately omit `distance`. Transit mapping now deduplicates consecutive coordinates and derives a missing/nonpositive/nonfinite distance by summing Haversine distances along decoded polyline6 geometry; the same derived value is used by the leg and its route step.
+- Prevented MapLibre from receiving LineStrings with fewer than two distinct coordinates. This removes the reproduced `Invalid geometry in line layer` warning while retaining stationary legs in the plan model.
+- Mapped Transitous stop `tz` values into `TransitLegDetails` and converted UTC offset timestamps to each stop's IANA time zone before displaying `HH:mm`. New fields are nullable with defaults so old cached route JSON remains readable.
+- Added routing and formatting regression tests, bumped the app to `versionCode=5` / `versionName=0.1.4`, updated the manual release-smoke default, added v0.1.4 notes/acceptance records, and updated README with the current release and ORS Key instructions.
+
+### Local and physical verification
+
+- `testDebugUnitTest lintDebug assembleDebug` passed locally with 38 tests, zero failures/errors/skips, zero Lint errors, and SDK 37. `git diff --check` and the repository APK content audit also passed.
+- Installed the final v0.1.4 debug candidate on the authorized Xiaomi 15T Pro (`2506BPN68G`, Android 16/API 36, patch 2026-06-01). Android reported versionCode 5/versionName 0.1.4, cold launch succeeded, and the app crash buffer was empty.
+- Visually checked the 1280x2772 home, about, selection, planner, route-preview, and continuous-navigation screens with system bars visible. All top content is below the status bar; planner, preview, and navigation actions are above the gesture bar.
+- On cellular data, the fixed production Anitabi client loaded 74 usable points for Bangumi `#328609` and displayed the partial-data notice instead of failing the full payload.
+- Using the user's Key through the application UI, the production `https://api.heigit.org/openrouteservice/v2/` endpoint generated a two-stop road route of about 0.8 km with visible geometry. Continuous navigation started with the corrected top/bottom layout, then ended cleanly with no remaining `NavigationService` or ongoing notification.
+- A production Transitous query from Kanazawa-Hakkei to Shimokitazawa returned seven legs, 1h44m, and 47.2 km. Visible legs included 24.3 km and 2.5 km rail segments plus 354 m, 231 m, 429 m, and 781 m walks. No effective leg displayed `0 m`; the final two legs showed local times `06:22 -> 06:26` and `06:26 -> 06:40`; logcat contained neither invalid-line warnings nor crashes.
+- Restored Wi-Fi and mobile data after network-bound testing. Wi-Fi reconnected to the original network, and no navigation service or notification remained. Temporary task screenshots were moved outside the repository; the unrelated Room schema emitted by the first local build was not committed.
+
+### GitHub verification and release
+
+- Pushed isolated commit `3ca2bcb` on `agent/fix-physical-device-regressions`. Draft PR creation was rejected with the existing token's `createPullRequest` permission error. Following the repository's established fallback, fast-forwarded the reviewed commit to `main` without force-push or CI bypass.
+- Main Android CI `30466264424` passed the 38 tests, SDK 37 build, Lint, APK audit, artifact upload, and all Android 8/API 26 plus Android 17/API 37 runtime checks: cold launch, offline recovery, foreground navigation, screen-off mock-GPS automatic arrival, completion, persistence, network restoration, and diagnostics.
+- The workflow-change compatibility run `30466266597` independently rechecked the then-current public v0.1.3 APK on Android 8/17 and passed; it did not attempt to download an unpublished v0.1.4.
+- Tagged the CI-backed documentation commit `9e6c225` as annotated `v0.1.4`. Signed release run `30467039704` passed tests, release Lint, R8, APK audit, v2 signature verification, checksum creation, and public non-draft/non-prerelease publication.
+- The published `anitabi-v0.1.4.apk` is 43,103,613 bytes. Its downloaded SHA-256, checksum asset, and GitHub asset digest all equal `4a95482bdc9bdec9e357d334339f9a401f558b00f19b4160b519ea9af586240e`. The fixed certificate SHA-256 remains `9679c83769368c7150f629d9cba3c0e5d633fa7f1043ce251fdba6c7c64fb00a`.
+- Public signed-APK compatibility run `30467427032` downloaded the release asset and passed version inspection, install, cold launch, foreground-process, screenshot, and empty-crash-buffer checks on Android 8/API 26 and Android 17/API 37.
+- Uninstalled the debug-signed package from the physical phone and installed the exact public signed APK. This necessarily cleared the debug test data and Android Keystore copy of the exposed ORS Key. Android reported v0.1.4/versionCode 5; the installed base APK hash exactly matched the Release asset, cold launch completed in 633 ms, the status-bar fix remained visible, crash buffer was empty, and Wi-Fi was restored and connected.
+
+### Remaining user-driven boundaries
+
+- Revoke the ORS Key pasted into chat, generate a replacement in the HeiGIT dashboard, and enter the replacement only inside the now-installed signed v0.1.4 app. The formal app currently contains no ORS Key.
+- The phone still has a mock-location app configured. Real GNSS walking/driving, human confirmation of Chinese TTS audio, an 8-12 point field route, long-duration Xiaomi/OEM battery restrictions, and a real missed-transit event remain honest user-driven tests rather than fabricated acceptance claims.
+- Public evidence: `https://github.com/realMisakaMikoto/anitabi/actions/runs/30466264424`, `https://github.com/realMisakaMikoto/anitabi/actions/runs/30467039704`, `https://github.com/realMisakaMikoto/anitabi/actions/runs/30467427032`, and `https://github.com/realMisakaMikoto/anitabi/releases/tag/v0.1.4`.
