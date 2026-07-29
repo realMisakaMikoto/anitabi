@@ -1,12 +1,17 @@
 name: Release APK Compatibility
 
 on:
+  release:
+    types: [published]
+  push:
+    branches: [main]
+    paths: [".github/workflows/release-smoke.yml"]
   workflow_dispatch:
     inputs:
       tag:
         description: Existing GitHub Release tag to verify
         required: true
-        default: v0.1.0
+        default: v0.1.2
         type: string
 
 permissions:
@@ -25,17 +30,29 @@ jobs:
           - label: android-17-api-37
             image: system-images;android-37.0;google_apis;x86_64
     steps:
+      - name: Resolve release tag
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REQUESTED_TAG: ${{ inputs.tag || github.event.release.tag_name }}
+        run: |
+          tag="$REQUESTED_TAG"
+          if [ -z "$tag" ]; then
+            tag="$(gh release list --repo "$GITHUB_REPOSITORY" --limit 1 --json tagName --jq '.[0].tagName')"
+          fi
+          test -n "$tag"
+          printf 'tag=%s\n' "$tag" >> "$GITHUB_OUTPUT"
       - uses: android-actions/setup-android@v4
       - name: Download signed release APK
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p apk
-          gh release download "${{ inputs.tag }}" \
+          gh release download "${{ steps.release.outputs.tag }}" \
             --repo "$GITHUB_REPOSITORY" \
-            --pattern "anitabi-${{ inputs.tag }}.apk" \
+            --pattern "anitabi-${{ steps.release.outputs.tag }}.apk" \
             --dir apk
-          test -s "apk/anitabi-${{ inputs.tag }}.apk"
+          test -s "apk/anitabi-${{ steps.release.outputs.tag }}.apk"
       - name: Install emulator system image
         run: sdkmanager "platform-tools" "emulator" "${{ matrix.image }}"
       - name: Create and boot emulator
@@ -54,9 +71,9 @@ jobs:
           adb shell settings put global animator_duration_scale 0
       - name: Install and cold-launch signed release
         run: |
-          adb install "apk/anitabi-${{ inputs.tag }}.apk"
+          adb install "apk/anitabi-${{ steps.release.outputs.tag }}.apk"
           adb shell dumpsys package cn.anitabi.navigator > smoke-output/package.txt
-          expected_version="${{ inputs.tag }}"
+          expected_version="${{ steps.release.outputs.tag }}"
           expected_version="${expected_version#v}"
           grep -q "versionName=$expected_version" smoke-output/package.txt
           adb shell am force-stop cn.anitabi.navigator
@@ -76,6 +93,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: anitabi-release-${{ inputs.tag }}-${{ matrix.label }}
+          name: anitabi-release-${{ steps.release.outputs.tag }}-${{ matrix.label }}
           path: smoke-output
           if-no-files-found: warn
