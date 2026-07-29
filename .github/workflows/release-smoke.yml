@@ -3,6 +3,9 @@ name: Release APK Compatibility
 on:
   release:
     types: [published]
+  workflow_run:
+    workflows: ["Signed APK Release"]
+    types: [completed]
   push:
     branches: [main]
     paths: [".github/workflows/release-smoke.yml"]
@@ -19,6 +22,7 @@ permissions:
 
 jobs:
   emulator-smoke:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     strategy:
