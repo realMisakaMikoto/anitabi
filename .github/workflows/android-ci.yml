@@ -121,7 +121,8 @@ jobs:
             adb shell cmd connectivity airplane-mode enable
           else
             adb shell settings put global airplane_mode_on 1
-            adb shell am broadcast -a android.intent.action.AIRPLANE_MODE --ez state true
+            adb shell svc wifi disable
+            adb shell svc data disable
           fi
           adb shell am force-stop cn.anitabi.navigator
           adb shell am start -W -n cn.anitabi.navigator/.MainActivity > smoke-output/recovery-start.txt
@@ -151,7 +152,8 @@ jobs:
             adb shell cmd connectivity airplane-mode disable
           else
             adb shell settings put global airplane_mode_on 0
-            adb shell am broadcast -a android.intent.action.AIRPLANE_MODE --ez state false
+            adb shell svc wifi enable
+            adb shell svc data enable
           fi
       - name: Verify foreground navigation completion
         run: |

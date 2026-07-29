@@ -62,7 +62,7 @@ class NavigationRuntimeInstrumentedTest {
             plan,
             NavigationProgress(tourId = plan.id, state = NavigationState.NAVIGATING),
         )
-        setAirplaneMode(true)
+        setOfflineMode(true)
         val scenario = ActivityScenario.launch(MainActivity::class.java)
         try {
             awaitCondition("foreground service did not resume the saved route") {
@@ -93,7 +93,7 @@ class NavigationRuntimeInstrumentedTest {
             assertEquals(setOf(START_ID, FIRST_STOP_ID, SECOND_STOP_ID), completed?.completedPointIds)
             assertTrue(NavigationRuntime.state.value.errorMessage == null)
         } finally {
-            setAirplaneMode(false)
+            setOfflineMode(false)
             application.stopService(Intent(application, NavigationService::class.java))
             scenario.close()
         }
@@ -131,12 +131,13 @@ class NavigationRuntimeInstrumentedTest {
         throw AssertionError(message)
     }
 
-    private fun setAirplaneMode(enabled: Boolean) {
+    private fun setOfflineMode(enabled: Boolean) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             shell("cmd connectivity airplane-mode ${if (enabled) "enable" else "disable"}")
         } else {
             shell("settings put global airplane_mode_on ${if (enabled) "1" else "0"}")
-            shell("am broadcast -a android.intent.action.AIRPLANE_MODE --ez state $enabled")
+            shell("svc wifi ${if (enabled) "disable" else "enable"}")
+            shell("svc data ${if (enabled) "disable" else "enable"}")
         }
     }
 
