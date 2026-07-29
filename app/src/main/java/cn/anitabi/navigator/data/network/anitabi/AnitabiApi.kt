@@ -54,8 +54,6 @@ data class AnitabiPointDto(
     val name: String? = null,
     val cn: String? = null,
     val image: String? = null,
-    val ep: Int? = null,
-    val s: Int? = null,
     val geo: List<Double> = emptyList(),
     val origin: String? = null,
     @SerialName("originURL") val originUrl: String? = null,

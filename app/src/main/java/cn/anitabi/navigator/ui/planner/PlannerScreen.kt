@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
@@ -73,6 +74,8 @@ import cn.anitabi.navigator.ui.theme.Sand
 import cn.anitabi.navigator.ui.theme.Vermilion
 import kotlin.math.abs
 import java.time.OffsetDateTime
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import androidx.core.content.ContextCompat
 import android.content.pm.PackageManager
 
@@ -450,7 +453,8 @@ private fun TransitLegCard(leg: TourLeg, index: Int, legCount: Int) {
                 )
             }
             Text(
-                "${formatTransitTime(transit?.departureTime)} → ${formatTransitTime(transit?.arrivalTime)}" +
+                "${formatTransitTime(transit?.departureTime, transit?.departureTimeZone)} → " +
+                    "${formatTransitTime(transit?.arrivalTime, transit?.arrivalTimeZone)}" +
                     " · ${formatDistance(leg.distanceMeters)}",
                 color = MutedInk,
                 modifier = Modifier.padding(top = 6.dp),
@@ -562,6 +566,7 @@ private fun PlannerTopBar(title: String, onBack: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .background(Ink)
+            .statusBarsPadding()
             .padding(horizontal = 8.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -632,8 +637,13 @@ private fun formatDuration(seconds: Double): String {
     return if (hours > 0) "${hours}h ${minutes}m" else "${minutes}m"
 }
 
-private fun formatTransitTime(value: String?): String = value?.let {
-    runCatching { OffsetDateTime.parse(it).toLocalTime().toString() }.getOrDefault(it)
+internal fun formatTransitTime(value: String?, timeZone: String?): String = value?.let {
+    runCatching {
+        val parsed = OffsetDateTime.parse(it)
+        val localTime = timeZone?.let(ZoneId::of)?.let(parsed::atZoneSameInstant)?.toLocalTime()
+            ?: parsed.toLocalTime()
+        localTime.format(DateTimeFormatter.ofPattern("HH:mm"))
+    }.getOrDefault(it)
 } ?: "时间未知"
 
 private fun formatDistance(meters: Double): String =

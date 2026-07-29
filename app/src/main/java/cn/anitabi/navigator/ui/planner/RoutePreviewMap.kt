@@ -148,7 +148,10 @@ fun RoutePreviewMap(
 
 private fun TourPlan.toRouteFeatures(): FeatureCollection {
     val features = legs.mapNotNull { leg ->
-        val geometry = leg.geometry.ifEmpty { listOf(leg.from, leg.to) }
+        val geometry = leg.geometry.ifEmpty { listOf(leg.from, leg.to) }.fold(mutableListOf<GeoPoint>()) { points, point ->
+            if (points.lastOrNull() != point) points += point
+            points
+        }
         if (geometry.size < 2) null else Feature.fromGeometry(
             LineString.fromLngLats(geometry.map(GeoPoint::toMapLibrePoint)),
         )

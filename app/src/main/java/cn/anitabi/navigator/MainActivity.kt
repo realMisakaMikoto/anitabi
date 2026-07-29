@@ -4,11 +4,17 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.ui.Modifier
 import cn.anitabi.navigator.ui.search.SearchRoute
 import cn.anitabi.navigator.ui.search.SearchViewModel
 import cn.anitabi.navigator.ui.planner.PlannerViewModel
 import cn.anitabi.navigator.navigation.NavigationViewModel
 import cn.anitabi.navigator.ui.theme.AnitabiTheme
+import cn.anitabi.navigator.ui.theme.Paper
 
 class MainActivity : ComponentActivity() {
     private val container by lazy { (application as AnitabiApplication).container }
@@ -31,11 +37,18 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             AnitabiTheme {
-                SearchRoute(
-                    viewModel = searchViewModel,
-                    plannerViewModel = plannerViewModel,
-                    navigationViewModel = navigationViewModel,
-                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Paper)
+                        .navigationBarsPadding(),
+                ) {
+                    SearchRoute(
+                        viewModel = searchViewModel,
+                        plannerViewModel = plannerViewModel,
+                        navigationViewModel = navigationViewModel,
+                    )
+                }
             }
         }
     }

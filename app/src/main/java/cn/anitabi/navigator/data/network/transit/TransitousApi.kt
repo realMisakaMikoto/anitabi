@@ -78,6 +78,7 @@ data class TransitPlaceDto(
     val name: String,
     val lat: Double,
     val lon: Double,
+    val tz: String? = null,
     val stopId: String? = null,
     val arrival: String? = null,
     val departure: String? = null,

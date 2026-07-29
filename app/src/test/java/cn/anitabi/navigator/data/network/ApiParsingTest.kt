@@ -29,7 +29,7 @@ class ApiParsingTest {
     fun `Anitabi empty fields are tolerated and coordinates are swapped`() {
         val points = json.decodeFromString(
             ListSerializer(AnitabiPointDto.serializer()),
-            """[{"id":"p1","name":"","cn":null,"geo":[35.6812,139.7671],"origin":"","originURL":null}]""",
+            """[{"id":"p1","name":"","cn":null,"ep":"CD","geo":[35.6812,139.7671],"origin":"","originURL":null}]""",
         )
         val point = points.single().toPilgrimagePointOrNull()!!
 

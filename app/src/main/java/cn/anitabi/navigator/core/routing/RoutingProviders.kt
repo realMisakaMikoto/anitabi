@@ -102,7 +102,10 @@ internal fun TransitLegDto.toTourLeg(): TourLeg {
     val fromPoint = GeoPoint(from.lat, from.lon)
     val toPoint = GeoPoint(to.lat, to.lon)
     val decodedGeometry = PolylineDecoder.decode(legGeometry.points, precision = 6)
-    val geometry = decodedGeometry.ifEmpty { listOf(fromPoint, toPoint) }
+    val geometry = decodedGeometry.withoutConsecutiveDuplicates().takeIf { it.size >= 2 }
+        ?: listOf(fromPoint, toPoint).withoutConsecutiveDuplicates()
+    val distanceMeters = distance?.takeIf { it.isFinite() && it > 0.0 }
+        ?: geometry.zipWithNext().sumOf { (start, end) -> TourOptimizer.haversineMeters(start, end) }
     val lineName = routeShortName?.takeIf(String::isNotBlank)
         ?: routeLongName?.takeIf(String::isNotBlank)
     val instruction = when (mode) {
@@ -117,8 +120,8 @@ internal fun TransitLegDto.toTourLeg(): TourLeg {
         to = toPoint,
         mode = TravelMode.TRANSIT,
         geometry = geometry,
-        steps = listOf(RouteStep(instruction, distance ?: 0.0, duration.toDouble(), fromPoint)),
-        distanceMeters = distance ?: 0.0,
+        steps = listOf(RouteStep(instruction, distanceMeters, duration.toDouble(), fromPoint)),
+        distanceMeters = distanceMeters,
         durationSeconds = duration.toDouble(),
         source = "Transitous / MOTIS",
         transit = TransitLegDetails(
@@ -127,6 +130,8 @@ internal fun TransitLegDto.toTourLeg(): TourLeg {
             direction = headsign,
             departureTime = startTime,
             arrivalTime = endTime,
+            departureTimeZone = from.tz,
+            arrivalTimeZone = to.tz,
             departurePlatform = from.track ?: from.scheduledTrack,
             arrivalPlatform = to.track ?: to.scheduledTrack,
             intermediateStops = intermediateStops.map { it.name },
@@ -134,6 +139,12 @@ internal fun TransitLegDto.toTourLeg(): TourLeg {
             cancelled = cancelled,
         ),
     )
+}
+
+private fun List<GeoPoint>.withoutConsecutiveDuplicates(): List<GeoPoint> = buildList {
+    this@withoutConsecutiveDuplicates.forEach { point ->
+        if (lastOrNull() != point) add(point)
+    }
 }
 
 class NoTransitDataException(message: String) : Exception(message)

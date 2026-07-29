@@ -94,6 +94,8 @@ data class TransitLegDetails(
     val direction: String? = null,
     val departureTime: String? = null,
     val arrivalTime: String? = null,
+    val departureTimeZone: String? = null,
+    val arrivalTimeZone: String? = null,
     val departurePlatform: String? = null,
     val arrivalPlatform: String? = null,
     val intermediateStops: List<String> = emptyList(),
