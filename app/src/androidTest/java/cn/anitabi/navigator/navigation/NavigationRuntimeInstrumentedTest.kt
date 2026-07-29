@@ -90,7 +90,7 @@ class NavigationRuntimeInstrumentedTest {
                 application.container.tourRepository.get(plan.id)?.progress?.state == NavigationState.COMPLETED
             }
             val completed = application.container.tourRepository.get(plan.id)?.progress
-            assertEquals(setOf(FIRST_STOP_ID, SECOND_STOP_ID), completed?.completedPointIds)
+            assertEquals(setOf(START_ID, FIRST_STOP_ID, SECOND_STOP_ID), completed?.completedPointIds)
             assertTrue(NavigationRuntime.state.value.errorMessage == null)
         } finally {
             setAirplaneMode(false)
