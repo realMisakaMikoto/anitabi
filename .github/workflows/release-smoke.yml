@@ -1,0 +1,81 @@
+name: Release APK Compatibility
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing GitHub Release tag to verify
+        required: true
+        default: v0.1.0
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  emulator-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: android-8-api-26
+            image: system-images;android-26;google_apis;x86_64
+          - label: android-17-api-37
+            image: system-images;android-37.0;google_apis;x86_64
+    steps:
+      - uses: android-actions/setup-android@v4
+      - name: Download signed release APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p apk
+          gh release download "${{ inputs.tag }}" \
+            --repo "$GITHUB_REPOSITORY" \
+            --pattern "anitabi-${{ inputs.tag }}.apk" \
+            --dir apk
+          test -s "apk/anitabi-${{ inputs.tag }}.apk"
+      - name: Install emulator system image
+        run: sdkmanager "platform-tools" "emulator" "${{ matrix.image }}"
+      - name: Create and boot emulator
+        env:
+          ANDROID_AVD_HOME: ${{ runner.temp }}/avd
+        run: |
+          sudo chmod 666 /dev/kvm
+          mkdir -p "$ANDROID_AVD_HOME" smoke-output
+          echo no | avdmanager create avd --force --name anitabi-release-smoke --package "${{ matrix.image }}"
+          "$ANDROID_HOME/emulator/emulator" -avd anitabi-release-smoke -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -camera-back none -camera-front none > smoke-output/emulator.log 2>&1 &
+          timeout 180 adb wait-for-device || { cat smoke-output/emulator.log; exit 1; }
+          timeout 300 bash -c 'until [ "$(adb shell getprop sys.boot_completed | tr -d "\r")" = "1" ]; do sleep 5; done'
+          adb shell getprop ro.build.version.sdk > smoke-output/device-api.txt
+          adb shell settings put global window_animation_scale 0
+          adb shell settings put global transition_animation_scale 0
+          adb shell settings put global animator_duration_scale 0
+      - name: Install and cold-launch signed release
+        run: |
+          adb install "apk/anitabi-${{ inputs.tag }}.apk"
+          adb shell dumpsys package cn.anitabi.navigator > smoke-output/package.txt
+          expected_version="${{ inputs.tag }}"
+          expected_version="${expected_version#v}"
+          grep -q "versionName=$expected_version" smoke-output/package.txt
+          adb shell am force-stop cn.anitabi.navigator
+          adb logcat -c || true
+          adb shell am start -W -n cn.anitabi.navigator/.MainActivity | tee smoke-output/activity-start.txt
+          grep -q "Status: ok" smoke-output/activity-start.txt
+          adb shell pidof cn.anitabi.navigator | tee smoke-output/process-id.txt
+          test -s smoke-output/process-id.txt
+          adb shell dumpsys activity activities > smoke-output/activities.txt
+          grep -E "mResumedActivity|topResumedActivity" smoke-output/activities.txt | grep -q "cn.anitabi.navigator"
+          adb exec-out screencap -p > smoke-output/home.png
+          timeout 30 adb shell uiautomator dump /sdcard/window.xml || true
+          adb pull /sdcard/window.xml smoke-output/window.xml || true
+          adb logcat -d -b crash > smoke-output/crash.log
+          ! grep -q "cn.anitabi.navigator" smoke-output/crash.log
+      - name: Upload release emulator evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: anitabi-release-${{ inputs.tag }}-${{ matrix.label }}
+          path: smoke-output
+          if-no-files-found: warn
