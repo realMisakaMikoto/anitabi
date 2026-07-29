@@ -16,7 +16,12 @@
 
 ## 下载校验
 
-Release 同时提供 `anitabi-v0.1.2.apk` 与机器可读的 `anitabi-v0.1.2.apk.sha256`。正式 APK 继续使用与 v0.1.0、v0.1.1 相同的固定签名证书。
+- APK：`anitabi-v0.1.2.apk`
+- 大小：43,087,229 字节
+- SHA-256：`4852fa44abafc7165feceae98f17147106e772ffbfa4824bdf7f391705f84e61`
+- 签名证书 SHA-256：`9679c83769368c7150f629d9cba3c0e5d633fa7f1043ce251fdba6c7c64fb00a`
+
+Release 同时提供机器可读的 `anitabi-v0.1.2.apk.sha256`。正式 APK 继续使用与 v0.1.0、v0.1.1 相同的固定签名证书。
 
 ## 已验证边界
 
@@ -31,3 +36,5 @@ Release 同时提供 `anitabi-v0.1.2.apk` 与机器可读的 `anitabi-v0.1.2.apk
 - Transitous 公交未获得维护者明确同意，仍在编译期关闭，不会发送公交路由请求。
 
 完整逐项证据见仓库中的 `docs/releases/v0.1.2.md`。
+
+验证运行：[API 边界探针 30450517037](https://github.com/realMisakaMikoto/anitabi/actions/runs/30450517037)、[同版本源码运行时 CI 30451151980](https://github.com/realMisakaMikoto/anitabi/actions/runs/30451151980)、[签名发布 30451156419](https://github.com/realMisakaMikoto/anitabi/actions/runs/30451156419)、[签名 APK 兼容性复验 30451752045](https://github.com/realMisakaMikoto/anitabi/actions/runs/30451752045)。
