@@ -73,7 +73,7 @@ jobs:
           mkdir -p smoke-output
           adb install -r apk/app-debug.apk
           adb shell am force-stop cn.anitabi.navigator
-          adb logcat -c
+          adb logcat -c || true
           adb shell am start -W -n cn.anitabi.navigator/.MainActivity | tee smoke-output/activity-start.txt
           grep -q "Status: ok" smoke-output/activity-start.txt
           adb shell pidof cn.anitabi.navigator | tee smoke-output/process-id.txt
