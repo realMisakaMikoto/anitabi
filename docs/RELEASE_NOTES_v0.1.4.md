@@ -21,6 +21,7 @@
 - 38 个 JVM 单元测试、Android SDK 37 编译和 Lint 在本地通过。
 - Xiaomi 15T Pro（Android 16 / API 36）真机完成搜索、74 个 Anitabi 点位加载、真实 ORS 道路路线、真实 Transitous 7 段路线、路线预览和连续导航检查。
 - 真机 Transitous 结果为 47.2 km；末两段分别为 2.5 km 和 781 m，完整路线无 `0 m`，日志中无 MapLibre 无效几何及应用崩溃。
+- [主分支 Android CI 30466264424](https://github.com/realMisakaMikoto/anitabi/actions/runs/30466264424) 通过 38 个测试、SDK 37、Lint、APK 内容审计，以及 Android 8/17 的冷启动、离线恢复、前台服务、息屏自动到达和持久化回归。
 
 ## 已知边界
 
