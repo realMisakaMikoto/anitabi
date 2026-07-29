@@ -127,15 +127,19 @@ class OnboardingInstrumentedTest {
     private fun focusedWindow(): String {
         val windowLines = shell("dumpsys window windows").lineSequence().toList()
         val activityLines = shell("dumpsys activity activities").lineSequence().toList()
-        return windowLines.filter { line -> "mCurrentFocus" in line }
-            .ifEmpty {
+        return buildList {
+            addAll(
+                windowLines.filter { line ->
+                    "mCurrentFocus" in line || "mFocusedApp" in line
+                },
+            )
+            addAll(
                 activityLines.filter { line ->
                     "mResumedActivity" in line || "topResumedActivity" in line ||
                         "ResumedActivity" in line
-                }
-            }
-            .ifEmpty { windowLines.filter { line -> "mFocusedApp" in line } }
-            .joinToString("\n")
+                },
+            )
+        }.joinToString("\n")
     }
 
     private fun reportEvidence(message: String) {
