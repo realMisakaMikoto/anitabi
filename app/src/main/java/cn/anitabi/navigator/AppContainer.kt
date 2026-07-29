@@ -22,11 +22,7 @@ class AppContainer(context: Context) {
     val orsKeyStore = OrsKeyStore(context)
     val locationProvider = AndroidLocationProvider(context)
     private val httpClient = ApiHttpClient(
-        userAgentInterceptor = UserAgentInterceptor(
-            appName = "AnitabiNavigator",
-            appVersion = BuildConfig.VERSION_NAME,
-            contact = PROJECT_CONTACT,
-        ),
+        userAgentInterceptor = createAppUserAgentInterceptor(),
         json = json,
     )
 
@@ -48,3 +44,9 @@ class AppContainer(context: Context) {
         const val PROJECT_CONTACT = "https://github.com/realMisakaMikoto"
     }
 }
+
+internal fun createAppUserAgentInterceptor(): UserAgentInterceptor = UserAgentInterceptor(
+    appName = "AnitabiNavigator",
+    appVersion = BuildConfig.VERSION_NAME,
+    contact = AppContainer.PROJECT_CONTACT,
+)

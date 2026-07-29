@@ -1,5 +1,6 @@
 package cn.anitabi.navigator.data.network
 
+import cn.anitabi.navigator.data.network.anitabi.AnitabiLiteDto
 import cn.anitabi.navigator.data.network.anitabi.AnitabiPointDto
 import cn.anitabi.navigator.data.network.bangumi.BangumiSearchResponse
 import cn.anitabi.navigator.data.network.ors.OrsDirectionsResponse
@@ -53,6 +54,30 @@ class ApiParsingTest {
         ).toPilgrimagePointOrNull()!!
 
         assertNull(point.originUrl)
+    }
+
+    @Test
+    fun `Anitabi images are restricted to the documented image API`() {
+        val officialCover = "https://image.anitabi.cn/bangumi/115908.jpg?plan=h160"
+        val officialPoint = "https://image.anitabi.cn/points/115908/qys7fu.jpg?plan=h360"
+
+        assertEquals(officialCover, AnitabiLiteDto(id = 115908, cover = officialCover).toAnime().imageUrl)
+        assertEquals(
+            officialPoint,
+            AnitabiPointDto(id = "safe", image = officialPoint, geo = listOf(35.0, 139.0))
+                .toPilgrimagePointOrNull()
+                ?.imageUrl,
+        )
+        assertNull(
+            AnitabiLiteDto(id = 115908, cover = "https://anitabi.cn/cover.jpg").toAnime().imageUrl,
+        )
+        assertNull(
+            AnitabiPointDto(
+                id = "lookalike",
+                image = "https://image.anitabi.cn.example.org/point.jpg",
+                geo = listOf(35.0, 139.0),
+            ).toPilgrimagePointOrNull()?.imageUrl,
+        )
     }
 
     @Test

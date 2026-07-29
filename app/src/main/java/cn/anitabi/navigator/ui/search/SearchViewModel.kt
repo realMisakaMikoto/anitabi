@@ -139,7 +139,7 @@ class SearchViewModel(
         val message = when (throwable) {
             is ApiException.NotFound -> "Anitabi 暂无这部作品的巡礼数据"
             is ApiException.RateLimited -> "请求过于频繁，请稍后再试"
-            is ApiException.Forbidden -> "公共服务拒绝了当前网络的访问，请稍后或更换网络重试"
+            is ApiException.Forbidden -> "当前公网 IP 被公共服务拒绝，请更换网络后重试"
             is ApiException.Network -> "网络不可用，可查看已缓存作品"
             is ApiException.Server -> "公共服务暂时不可用，请稍后再试"
             else -> throwable.message ?: "加载失败，请稍后再试"

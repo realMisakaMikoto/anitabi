@@ -6,6 +6,7 @@ import cn.anitabi.navigator.core.model.PilgrimagePoint
 import cn.anitabi.navigator.data.network.ApiHttpClient
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.Request
 
 class AnitabiApi(private val httpClient: ApiHttpClient) {
@@ -43,7 +44,7 @@ data class AnitabiLiteDto(
         subjectId = id,
         name = title?.takeIf(String::isNotBlank) ?: cn?.takeIf(String::isNotBlank) ?: "Bangumi $id",
         nameCn = cn?.takeIf(String::isNotBlank),
-        imageUrl = cover,
+        imageUrl = cover.toAllowedAnitabiImageUrlOrNull(),
     )
 }
 
@@ -67,7 +68,7 @@ data class AnitabiPointDto(
                 ?: name?.takeIf(String::isNotBlank)
                 ?: "未命名地点",
             coordinate = coordinate,
-            imageUrl = image,
+            imageUrl = image.toAllowedAnitabiImageUrlOrNull(),
             origin = origin?.takeIf(String::isNotBlank),
             originUrl = originUrl?.takeIf(String::isSafeWebUrl),
         )
@@ -76,3 +77,10 @@ data class AnitabiPointDto(
 
 private fun String.isSafeWebUrl(): Boolean =
     startsWith("https://", ignoreCase = true) || startsWith("http://", ignoreCase = true)
+
+private fun String?.toAllowedAnitabiImageUrlOrNull(): String? {
+    val url = this?.toHttpUrlOrNull() ?: return null
+    return takeIf { url.scheme == "https" && url.host == ANITABI_IMAGE_HOST }
+}
+
+private const val ANITABI_IMAGE_HOST = "image.anitabi.cn"

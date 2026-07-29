@@ -1,0 +1,37 @@
+name: Anitabi API Boundary Probe
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - name: Probe documented data and image APIs once
+        run: |
+          set -euo pipefail
+          version="$(sed -n 's/.*versionName = "\([^"]*\)".*/\1/p' app/build.gradle.kts)"
+          user_agent="AnitabiNavigator/$version (https://github.com/realMisakaMikoto)"
+          lite_file="$RUNNER_TEMP/anitabi-lite.json"
+          image_file="$RUNNER_TEMP/anitabi-point.jpg"
+
+          curl --fail --silent --show-error --max-time 30 --retry 0 \
+            --user-agent "$user_agent" \
+            --header "Accept: application/json" \
+            --output "$lite_file" \
+            "https://api.anitabi.cn/bangumi/115908/lite"
+          test "$(jq -r '.id' "$lite_file")" = "115908"
+
+          sleep 3
+
+          curl --fail --silent --show-error --max-time 30 --retry 0 \
+            --user-agent "$user_agent" \
+            --header "Accept: image/avif,image/webp,image/*,*/*;q=0.8" \
+            --output "$image_file" \
+            "https://image.anitabi.cn/points/115908/qys7fu.jpg?plan=h160"
+          test -s "$image_file"
