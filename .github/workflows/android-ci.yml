@@ -8,6 +8,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: android-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   verify:
     runs-on: ubuntu-latest
@@ -112,8 +116,13 @@ jobs:
             cn.anitabi.navigator.test/androidx.test.runner.AndroidJUnitRunner \
             2>&1 | tee smoke-output/recovery-seed.txt
           grep -q "OK (1 test)" smoke-output/recovery-seed.txt
-          adb shell settings put global airplane_mode_on 1
-          adb shell am broadcast -a android.intent.action.AIRPLANE_MODE --ez state true
+          sdk="$(adb shell getprop ro.build.version.sdk | tr -d '\r')"
+          if [ "$sdk" -ge 28 ]; then
+            adb shell cmd connectivity airplane-mode enable
+          else
+            adb shell settings put global airplane_mode_on 1
+            adb shell am broadcast -a android.intent.action.AIRPLANE_MODE --ez state true
+          fi
           adb shell am force-stop cn.anitabi.navigator
           adb shell am start -W -n cn.anitabi.navigator/.MainActivity > smoke-output/recovery-start.txt
           for attempt in 1 2 3 4 5 6 7 8 9 10; do
@@ -138,8 +147,12 @@ jobs:
           adb shell dumpsys notification --noredact > smoke-output/recovery-notifications-restart.txt
           grep -q "cn.anitabi.navigator" smoke-output/recovery-notifications-restart.txt
           test "$(adb shell settings get global airplane_mode_on | tr -d '\r')" = "1"
-          adb shell settings put global airplane_mode_on 0
-          adb shell am broadcast -a android.intent.action.AIRPLANE_MODE --ez state false
+          if [ "$sdk" -ge 28 ]; then
+            adb shell cmd connectivity airplane-mode disable
+          else
+            adb shell settings put global airplane_mode_on 0
+            adb shell am broadcast -a android.intent.action.AIRPLANE_MODE --ez state false
+          fi
       - name: Verify foreground navigation completion
         run: |
           set -o pipefail

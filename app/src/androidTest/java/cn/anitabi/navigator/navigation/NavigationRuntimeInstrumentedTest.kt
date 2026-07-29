@@ -100,22 +100,12 @@ class NavigationRuntimeInstrumentedTest {
     }
 
     private fun prepareDevice() {
-        val instrumentation = InstrumentationRegistry.getInstrumentation()
         val packageName = application.packageName
         shell("settings put secure location_mode 3")
-        instrumentation.uiAutomation.grantRuntimePermission(
-            packageName,
-            Manifest.permission.ACCESS_COARSE_LOCATION,
-        )
-        instrumentation.uiAutomation.grantRuntimePermission(
-            packageName,
-            Manifest.permission.ACCESS_FINE_LOCATION,
-        )
+        shell("pm grant $packageName ${Manifest.permission.ACCESS_COARSE_LOCATION}")
+        shell("pm grant $packageName ${Manifest.permission.ACCESS_FINE_LOCATION}")
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            instrumentation.uiAutomation.grantRuntimePermission(
-                packageName,
-                Manifest.permission.POST_NOTIFICATIONS,
-            )
+            shell("pm grant $packageName ${Manifest.permission.POST_NOTIFICATIONS}")
         }
     }
 
@@ -142,9 +132,12 @@ class NavigationRuntimeInstrumentedTest {
     }
 
     private fun setAirplaneMode(enabled: Boolean) {
-        val value = if (enabled) "1" else "0"
-        shell("settings put global airplane_mode_on $value")
-        shell("am broadcast -a android.intent.action.AIRPLANE_MODE --ez state $enabled")
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            shell("cmd connectivity airplane-mode ${if (enabled) "enable" else "disable"}")
+        } else {
+            shell("settings put global airplane_mode_on ${if (enabled) "1" else "0"}")
+            shell("am broadcast -a android.intent.action.AIRPLANE_MODE --ez state $enabled")
+        }
     }
 
     private fun shell(command: String): String {
