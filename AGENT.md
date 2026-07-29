@@ -426,3 +426,19 @@
 ### Remaining external acceptance boundary
 
 - There is no Transitous approval gate. Only physical-device acceptance remains: real GNSS, audible Chinese TTS, secured lock-screen behavior, OEM battery/background restrictions, real mobile-network transitions, live ORS routing, full search-to-navigation flow, and user-driven transit scenarios across covered and uncovered areas.
+
+## 2026-07-29 - Task 18: physical-device test setup and ADB authorization check
+
+### Completed
+
+- Re-read the complete latest `AGENT.md` and the original pasted implementation plan before starting the physical-device task.
+- Detected a connected `Xiaomi 15T Pro` through both Windows Portable Devices and an installed `ADB Interface`; this replaces the earlier no-device condition recorded in Tasks 11–17.
+- Confirmed that no local `adb.exe` or Android SDK path was available, then installed the official Google Android SDK Platform-Tools 37.0.1 package through WinGet. The installation completed successfully, verified the downloaded package hash, and added user-level command aliases without changing project files.
+- Started ADB 1.0.41 / Platform-Tools 37.0.1 and confirmed the phone serial `JBR4LF6TQ4MFHY4X` is visible over USB.
+- Restarted the ADB server once to re-present the phone authorization prompt and polled the device state twice for 30 seconds each.
+
+### Current physical blocker
+
+- The phone remains in ADB state `unauthorized`. Android intentionally prevents installation, shell access, screenshots, logs, permission tests, location tests, notification checks, and process-recovery tests until the user approves this computer on the unlocked phone.
+- No APK was installed, no existing application data was modified, and no physical-device result was claimed.
+- Required next action on the Xiaomi 15T Pro: unlock it, accept the “Allow USB debugging” prompt (preferably with “Always allow from this computer”), or reconnect the USB cable in file-transfer mode if the prompt is not visible. Once ADB reports `device`, testing can continue without rebuilding or reinstalling the desktop tools.
