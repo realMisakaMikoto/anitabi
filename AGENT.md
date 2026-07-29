@@ -324,3 +324,31 @@
 - A physical Android phone and user-driven session remain necessary for real GNSS behavior, audible Chinese TTS, a secured lock screen, OEM battery restrictions, real mobile-network transitions, ORS-key live routing, and the complete search-to-navigation acceptance flow.
 - Wait for an Anitabi maintainer response to issue `#86` or restoration of documented API access for the affected network.
 - Send the prepared Transitous request from an identifiable Matrix account and obtain explicit maintainer approval before enabling or testing public-transit routing.
+
+## 2026-07-29 - Task 14: Anitabi network-boundary audit and v0.1.2 release
+
+### Completed
+
+- Re-read this complete log and the original implementation plan before starting the task.
+- Read the Anitabi maintainer's response on `anitabi/anitabi.cn-document#86` and rechecked the current official API document. Confirmed that programmatic data access belongs on `api.anitabi.cn`, image access belongs on `image.anitabi.cn`, and the main `anitabi.cn` domain must not be used as a resource API.
+- Audited every Anitabi URL and load path in the application. Data requests are constructed only for the documented lite and point-detail endpoints; `originURL` is handed to the system browser only after an explicit user click.
+- Restricted API-provided Anitabi cover and point images to HTTPS URLs whose host is exactly `image.anitabi.cn`, including rejection tests for the main domain and lookalike hosts.
+- Configured Coil's singleton image loader to use the same identifiable application User-Agent as JSON API requests, closing the previous gap where image requests used the network library's default identity.
+- Incremented the app to `versionCode=3` / `versionName=0.1.2`, added a one-shot boundary probe limited to the documented data and image hosts, and published the fixed signed release `v0.1.2`.
+- Made signed-release compatibility verification run automatically for published releases and verified the public v0.1.2 APK on both supported emulator endpoints.
+- Prepared a factual response for the upstream issue. Both the command-line GitHub credential and the connected GitHub integration returned HTTP 403 for comment/close operations, so the issue remains open and no reply or closure was falsely claimed.
+
+### Verification
+
+- One-shot boundary probe `30450517037` used `AnitabiNavigator/0.1.2 (https://github.com/realMisakaMikoto)`, successfully parsed subject `115908` from the documented data endpoint, waited three seconds, and successfully downloaded the documented `image.anitabi.cn` thumbnail. It did not request the main domain.
+- Same-version Android CI `30451151980` passed 34 JVM tests, SDK 37 compilation, Lint, debug APK audit, and the API 26/API 37 cold-launch, offline recovery, foreground navigation, automatic GPS/screen-off, completion, and persistence checks.
+- Signed release run `30451156419` passed release tests, Lint, R8, APK content audit, fixed-signature verification, checksum generation, and public Release publication.
+- Public APK compatibility run `30451752045` downloaded `anitabi-v0.1.2.apk` from the Release and passed installation, `versionName=0.1.2`, cold launch, foreground-process, and empty-crash-buffer checks on Android 8/API 26 and Android 17/API 37.
+- The APK is 43,087,229 bytes. Its computed/published SHA-256 and GitHub asset digest agree: `4852fa44abafc7165feceae98f17147106e772ffbfa4824bdf7f391705f84e61`; the fixed signing certificate remains `9679c83769368c7150f629d9cba3c0e5d633fa7f1043ce251fdba6c7c64fb00a`.
+- A low-frequency retry from the current Windows egress still returned Cloudflare 403 for both documented hosts with the exact v0.1.2 User-Agent, while the clean GitHub runner succeeded. This isolates the remaining 403 to that egress/IP state rather than an unauthorized URL in the released client.
+
+### Remaining external acceptance gates
+
+- A physical Android phone and user-driven session remain necessary for real GNSS, audible TTS, secured lock-screen behavior, OEM battery restrictions, mobile-network transitions, live ORS routing, and the full search-to-navigation flow.
+- The upstream Anitabi issue remains open only because available non-browser GitHub credentials cannot write to that repository; the client-side boundary and public API path are verified.
+- The Transitous request still requires explicit Matrix sending confirmation and maintainer approval before the compile-time transit gate can be enabled.
