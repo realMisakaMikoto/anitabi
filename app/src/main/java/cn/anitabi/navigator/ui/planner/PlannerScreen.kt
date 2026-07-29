@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
@@ -30,7 +29,7 @@ import androidx.compose.material.icons.rounded.DirectionsCar
 import androidx.compose.material.icons.rounded.DragHandle
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Route
-import androidx.compose.material.icons.rounded.Walk
+import androidx.compose.material.icons.rounded.DirectionsWalk
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -597,7 +596,7 @@ private fun ModeChip(
     val icon = when (mode) {
         TravelMode.DRIVE -> Icons.Rounded.DirectionsCar
         TravelMode.BIKE -> Icons.Rounded.DirectionsBike
-        TravelMode.WALK -> Icons.Rounded.Walk
+        TravelMode.WALK -> Icons.Rounded.DirectionsWalk
         TravelMode.TRANSIT -> Icons.Rounded.DirectionsBus
     }
     FilterChip(
