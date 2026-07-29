@@ -11,6 +11,7 @@ import android.content.Intent
 import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
+import android.os.Bundle
 import android.os.IBinder
 import android.os.Looper
 import android.speech.tts.TextToSpeech
@@ -90,6 +91,13 @@ class NavigationService : Service(), LocationListener, TextToSpeech.OnInitListen
             reroute = serviceScope.launch { rerouteFrom(current, update.progress) }
         }
     }
+
+    @Deprecated("Required by LocationListener on Android 8")
+    override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) = Unit
+
+    override fun onProviderEnabled(provider: String) = Unit
+
+    override fun onProviderDisabled(provider: String) = Unit
 
     override fun onInit(status: Int) {
         if (status == TextToSpeech.SUCCESS) {
