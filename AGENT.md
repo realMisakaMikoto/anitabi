@@ -646,3 +646,31 @@
 - The Android 8-only post-onboarding reboot completed before the independent navigation fixture. Both emulator jobs then passed offline process recovery, foreground navigation completion, screen-off mock-GPS automatic arrival, persisted completion, network restoration, diagnostic capture, and evidence upload. This proves the reset isolates only the defective platform UI state rather than hiding a product or navigation failure.
 - Updated the original-plan completion audit from `end-to-end workflow pending` to complete with the successful run ID. No new production behavior, personal ORS Key, Release asset, or v0.2.0 binary was created during these CI-compatibility fixes.
 - The remaining honest boundaries are unchanged: the Xiaomi phone is still disconnected, and real 8-12 point GNSS travel, multi-hour Xiaomi/OEM battery survival, and an actual missed-service event require physical field conditions.
+
+## 2026-07-30 - Task 24: physical-field acceptance harness and runbook
+
+### Preparation and device audit
+
+- Re-read the complete existing `AGENT.md` in UTF-8 chunks and then re-read the complete original pasted implementation plan before starting this task.
+- Confirmed the worktree started clean at commit `74ac0443290dccf4371977df00849d48ad41b381` and re-audited the current v0.2.0 plan-completion and physical-acceptance records.
+- Rechecked the installed Platform-Tools executable, ADB mDNS discovery, and Windows present-device inventory. No USB or wireless Android phone is connected; the only present Xiaomi devices are Bluetooth earbuds. No physical result was fabricated.
+- Confirmed the repository had no executable field-evidence collector and that the remaining records named the three field boundaries without fixing their start conditions, sampling requirements, or pass/fail criteria.
+
+### Implementation
+
+- Added `scripts/capture-field-evidence.ps1`, an ASCII-only, read-only ADB collector for real GNSS, Xiaomi/OEM background, and real missed-transit scenarios. It does not change mock-location, battery, network, permission, or application state and does not read or print the ORS Key.
+- Added strict preflight checks for one authorized device, the exact public v0.2.0 package and Release APK SHA-256, a running `NavigationService`, and a visible application notification. Real-GNSS collection refuses to start while any mock-location app remains allowed; the OEM scenario refuses durations shorter than 120 minutes.
+- During a field run the collector records timestamped PID, foreground-service, notification, app-crash, location/mock, Doze, power, and battery samples. It saves final service, notification, location, device-idle, power, battery-statistics, connectivity, and crash-buffer snapshots to a timestamped Windows temporary directory and deliberately reports `EVIDENCE_CAPTURED_MANUAL_REVIEW_REQUIRED` rather than inventing an automatic pass.
+- Added `docs/PHYSICAL_FIELD_TEST_RUNBOOK_v0.2.0.md` with safe, user-executable steps and explicit acceptance criteria for a real 8-12 point GNSS route, at least two hours under actual Xiaomi/OEM policy, and a naturally missed non-walking transit departure followed by an automatic current-time replan.
+- Linked the new runbook and collector from the v0.2.0 plan audit and physical-device acceptance record. Raw location evidence remains outside Git and the runbook forbids committing personal location, screenshots with personal data, or API credentials.
+
+### Verification
+
+- The PowerShell parser accepted the collector with zero syntax errors, and a byte scan proved the `.ps1` file is ASCII-only as required for Windows PowerShell 5.1 compatibility.
+- The mock-location parser correctly distinguishes `No operations.` from an allowed fake-GPS package. New-file trailing-whitespace and linked-file existence checks passed; `git diff --check` reported no whitespace errors.
+- Executing the collector with the phone disconnected produced the required fail-closed result: `No authorized Android device is connected. Unlock the phone and authorize USB debugging.` It did not create a false evidence run or modify the device.
+- PSScriptAnalyzer is not installed on this host, so no analyzer result was claimed. The authoritative checks for this documentation/script-only task are the PowerShell parser, ASCII scan, preflight behavior, targeted parser cases, and diff checks; production Android source and the public v0.2.0 APK were not changed.
+
+### Remaining field boundary
+
+- The three field scenarios are now reproducible and evidence-ready but remain unpassed until the Xiaomi phone reconnects and the real route, elapsed OEM time, or missed service actually occurs. The collector intentionally cannot replace those environmental facts.

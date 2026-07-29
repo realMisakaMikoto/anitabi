@@ -25,3 +25,8 @@
 - 主分支 CI `30474785852` 的 Android 8/API 26 与 Android 17/API 37 全新安装均显示首次导览；下载的 320×640 截图中状态栏避让正确，三步进度与正文可读，“开始设置”按钮完整位于首屏和底部安全区内。这是模拟器证据，不替代上述小米真机边界。
 - 最终公开签名 APK 由发布运行 `30475526252` 生成，公开兼容性运行 `30475867612` 又在 Android 8/API 26 与 Android 17/API 37 下载并安装真实 Release 资产。逐张检查两张 320×640 首屏截图后，确认公开包同样没有状态栏遮挡，“开始设置”按钮完整可见，崩溃缓冲为空。
 - 公开 `anitabi-v0.2.0.apk` 为 42,677,141 字节，SHA-256 为 `e3d36b47695b452978680726c5eb09133e04c0f207149a6324f3e08ac8f9a9ec`；这替代上文仅用于导览加入前候选的旧哈希。发布地址：`https://github.com/realMisakaMikoto/anitabi/releases/tag/v0.2.0`。
+
+## 后续现场采证
+
+- 真实 GNSS 8–12 点、至少两小时小米/OEM 后台运行、真实错过公交班次三项的统一前置条件、步骤和通过判据见 [`PHYSICAL_FIELD_TEST_RUNBOOK_v0.2.0.md`](PHYSICAL_FIELD_TEST_RUNBOOK_v0.2.0.md)。
+- `scripts/capture-field-evidence.ps1` 只读采集 ADB 证据并把原始结果留在 Windows 临时目录；它不修改假定位或省电设置，不读取 ORS Key，也不把未发生的现场事件判定为通过。
