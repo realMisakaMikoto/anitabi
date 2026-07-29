@@ -442,3 +442,31 @@
 - The phone remains in ADB state `unauthorized`. Android intentionally prevents installation, shell access, screenshots, logs, permission tests, location tests, notification checks, and process-recovery tests until the user approves this computer on the unlocked phone.
 - No APK was installed, no existing application data was modified, and no physical-device result was claimed.
 - Required next action on the Xiaomi 15T Pro: unlock it, accept the “Allow USB debugging” prompt (preferably with “Always allow from this computer”), or reconnect the USB cable in file-transfer mode if the prompt is not visible. Once ADB reports `device`, testing can continue without rebuilding or reinstalling the desktop tools.
+
+## 2026-07-29 - Task 19: signed v0.1.3 physical-device acceptance
+
+### Completed
+
+- Continued only after ADB reported the authorized Xiaomi 15T Pro as `device`; no reinstall, uninstall, or application-data clearing was performed.
+- Confirmed Android 16/API 36, security patch 2026-06-01, and the installed app identity `versionName=0.1.3` / `versionCode=4`.
+- Pulled the installed base APK and proved its 43,087,229-byte content and SHA-256 `c86d2b44db5c95f0518b5d876f3f9d7e7baac69ebc179472341fe12a97cd532b` exactly match the public signed v0.1.3 Release APK.
+- Performed a true cold start: `Status: ok`, `LaunchState: COLD`, 332 ms total, `MainActivity` top-resumed, live process, and empty crash buffer. Inspected the 1280x2772 screen and confirmed the Chinese home UI rendered without obvious clipping or corruption.
+- Drove the production UI through a live `Your Name` Bangumi search, opened Bangumi `#160209` (`Your Name` / `你的名字。`), and loaded covers and results successfully.
+- Reproduced the known Anitabi Wi-Fi egress block and verified the app displayed the explicit public-IP rejection message without crashing or retry looping. Temporarily disabled Wi-Fi, confirmed cellular became the active default network, and loaded 68 Anitabi points, tiles, clusters, and images. Restored both Wi-Fi and mobile data to their original enabled state after testing.
+- Selected Tokyo points through the real list UI. A short pair produced the localized no-open-transit-data state without a crash. A longer pair (`マンション桂` to `LABI新宿東口館前`) produced a live Transitous route with three WALK/transit legs, map preview, times, and a working continuous-navigation action.
+- Verified public-transit mode removes the ORS Key field and exposes its date/time/dwell controls. Verified driving mode with no Key fails locally with `请先填写自己的免费 ORS Key`; no unauthenticated ORS request was sent.
+- Started continuous navigation and verified location and notification permissions became granted, `NavigationService` ran as a location foreground service, and notification 1001 was ongoing/non-clearable with current instruction text and an End action.
+- Verified the app registered two-second GPS high-accuracy and network balanced location requests, retained the route and service while backgrounded, returned via a 99 ms hot start, and removed both registrations when navigation ended.
+- Disabled all phone networking for seven seconds while navigation was active. Cached map/instructions and the foreground service remained available, mobile connectivity rebuilt after restoration, and the crash buffer stayed empty.
+- Tested Xiaomi screen-off/Dozing behavior: the same PID, location foreground service, and notification remained present while the keyguard was showing. The navigation was then ended through the application UI; the service and notification were removed.
+- Verified Google TTS did more than bind: system logs contain a `zho-CHN` synthesis request and dispatch to a Chinese voice. `STREAM_TTS` was unmuted and routed to the speaker. ADB cannot certify that a human actually heard the sound.
+- Confirmed the service is not exported: a shell attempt to send its internal STOP action was rejected by Android, while the in-app End action succeeded.
+- Stored the detailed, privacy-safe evidence and remaining boundaries in `docs/PHYSICAL_DEVICE_ACCEPTANCE_v0.1.3.md`. Temporary screenshots and APK copies remain outside the repository.
+
+### Findings and remaining acceptance boundaries
+
+- Android reports the current phone fix as a mock location, and the configured fake-GPS package has `MOCK_LOCATION: allow`. This validates the app's location plumbing but is not claimed as real GNSS. The user's mock-location setting was not changed.
+- No ORS Key exists in the phone UI, workspace-local configuration, or matching environment-variable names. Live road routing still requires the user to enter their own Key on the phone; no shared or fabricated credential was used.
+- The system proves Chinese TTS synthesis and an audible stream configuration, but final acoustic confirmation still requires the user to listen.
+- One successful Transitous route emitted a MapLibre `Invalid geometry in line layer` warning and displayed a transit leg distance of `0 m`. The UI remained stable; this is recorded as a data/geometry quality follow-up rather than hidden.
+- The original plan's 8-12 point real-world walk, long-duration OEM battery restriction test, and real missed-transit event remain user-driven field tests. They cannot be honestly replaced by remote ADB automation.
