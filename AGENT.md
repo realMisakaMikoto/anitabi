@@ -670,6 +670,7 @@
 - The mock-location parser correctly distinguishes `No operations.` from an allowed fake-GPS package. New-file trailing-whitespace and linked-file existence checks passed; `git diff --check` reported no whitespace errors.
 - Executing the collector with the phone disconnected produced the required fail-closed result: `No authorized Android device is connected. Unlock the phone and authorize USB debugging.` It did not create a false evidence run or modify the device.
 - PSScriptAnalyzer is not installed on this host, so no analyzer result was claimed. The authoritative checks for this documentation/script-only task are the PowerShell parser, ASCII scan, preflight behavior, targeted parser cases, and diff checks; production Android source and the public v0.2.0 APK were not changed.
+- Main Android CI run `30483414232` passed after the field harness was pushed. Its verify job passed all 49 JVM tests, SDK 37 build, Lint, APK content audit, and artifact upload; both Android 8/API 26 and Android 17/API 37 then passed clean launch, complete onboarding, offline process recovery, foreground navigation completion, screen-off automatic GPS arrival, network restoration, diagnostics, and evidence upload. No rerun or diagnostic failure was generated.
 
 ### Remaining field boundary
 
