@@ -7,6 +7,7 @@ on:
       - "AGENT.md"
       - "README.md"
       - "docs/**"
+      - ".github/workflows/release-smoke.yml"
   pull_request:
 
 permissions:
