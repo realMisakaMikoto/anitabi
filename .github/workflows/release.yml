@@ -41,7 +41,8 @@ jobs:
           ANITABI_TRANSITOUS_APPROVED: ${{ vars.ANITABI_TRANSITOUS_APPROVED }}
         run: ./gradlew testDebugUnitTest lintRelease assembleRelease --stacktrace
       - name: Verify APK signature
-        run: "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify --verbose --print-certs app/build/outputs/apk/release/app-release.apk
+        run: |
+          "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify --verbose --print-certs app/build/outputs/apk/release/app-release.apk
       - name: Name artifact and create checksum
         run: |
           cp app/build/outputs/apk/release/app-release.apk "anitabi-${GITHUB_REF_NAME}.apk"
