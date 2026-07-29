@@ -367,3 +367,26 @@
 ### Current gate
 
 - No explicit approval or additional limits have been received yet. `ANITABI_TRANSITOUS_APPROVED` remains `false`, and the app must not send Transitous routing requests until a clear maintainer reply is recorded and implemented.
+
+## 2026-07-29 - Task 16: final CI and notification-noise closeout
+
+### Completed
+
+- Re-read the complete latest `AGENT.md` before starting this closeout task.
+- Detected two newer remote log commits created while CI was running, inspected them before integration, and fast-forwarded instead of overwriting the completed Anitabi release record or the parallel Transitous Matrix request record.
+- Restricted the main Android CI push trigger so changes limited to `AGENT.md`, `README.md`, or `docs/**` do not rerun the full build and two-emulator matrix. Production source, Gradle, and workflow changes continue to receive the full verification suite.
+- Audited recent GitHub Actions state. Runs `30450291924` and `30451750697` were deliberately superseded by newer main commits under the configured concurrency group; the replacement runs passed. No workflow remains active.
+- Preserved the Transitous compile-time gate after the Matrix request was delivered: delivery and a read receipt are not treated as maintainer approval.
+
+### Verification
+
+- Final Android CI `30452036186` passed 34 JVM tests, Android SDK 37 compilation, Lint, debug APK content audit, and every API 26/API 37 runtime step: cold launch, offline process recovery, foreground navigation completion, automatic GPS arrival while the screen was off, networking restoration, and diagnostic upload.
+- The documentation-only log commits `05632e7` and `4fb4fb1` each produced zero workflow runs. Because their messages also contained skip directives, they are supporting evidence rather than exclusive proof of the path filter; this Task 16 log commit intentionally omits a skip directive for a direct post-push check.
+- Signed release `v0.1.2` remains public, non-draft, and non-prerelease. Its APK remains 43,087,229 bytes with SHA-256 `4852fa44abafc7165feceae98f17147106e772ffbfa4824bdf7f391705f84e61`.
+- Agent Reach update check reports installed version `v1.5.0` is current.
+
+### Remaining external acceptance gates
+
+- Wait for a clear Transitous maintainer reply in Matrix before setting `ANITABI_TRANSITOUS_APPROVED=true` or sending any public-transit routing request.
+- A physical Android phone and user-driven session remain necessary for real GNSS, audible Chinese TTS, secured lock-screen behavior, OEM battery restrictions, mobile-network transitions, live ORS routing, and the full search-to-navigation flow.
+- Anitabi issue `#86` remains open because the available GitHub credentials cannot comment on or close the upstream issue; no external reply or closure is falsely claimed.
