@@ -155,3 +155,24 @@
 - Push the audited commit and run the official Android SDK 37 CI build, lint, and APK assembly.
 - Fix any CI-only Android compilation or lint findings, then generate signing material and publish the signed release.
 - Transitous remains disabled until the maintainers explicitly approve this client, as required by their policy and the implementation plan.
+
+## 2026-07-29 - Task 8: official Android CI and debug APK
+
+### Completed
+
+- Re-read this log before starting the task.
+- Added the new public repository as `origin` and pushed the complete `main` history.
+- Diagnosed the Android 17 SDK install failure and corrected both workflows to install the published package `platforms;android-37.0` with build tools 37.0.0.
+- Fixed official Android compilation findings: removed obsolete explicit Compose `weight` imports and replaced the unavailable `Walk` icon with `DirectionsWalk`.
+- Kept changes surgical and pushed each CI repair to `main` for independent verification.
+
+### Verification
+
+- GitHub Actions run `30434075089` passed on Ubuntu with Android SDK 37: `testDebugUnitTest`, `lintDebug`, and `assembleDebug` all succeeded.
+- The workflow uploaded `anitabi-debug`; downloaded `app-debug.apk` is 69,787,278 bytes with SHA-256 `B2C1279007C2951C0A5160E2EC86AC77E2CFD8C0997DEF88C32334629987D52D`.
+- Official CI run: `https://github.com/realMisakaMikoto/anitabi/actions/runs/30434075089`.
+
+### Remaining
+
+- Generate and securely configure a fixed release signing key, run the release/R8 workflow, and publish `v0.1.0`.
+- Device/emulator interaction checks and Transitous maintainer approval remain separate acceptance gates.
