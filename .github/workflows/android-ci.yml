@@ -206,6 +206,9 @@ jobs:
           if [ "$sdk" -ge 28 ]; then
             adb shell cmd connectivity airplane-mode disable
           else
+            adb root
+            adb wait-for-device
+            test "$(adb shell id -u | tr -d '\r')" = "0"
             adb shell settings put global airplane_mode_on 0
             adb shell am broadcast -a android.intent.action.AIRPLANE_MODE --ez state false
           fi

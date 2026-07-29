@@ -610,3 +610,11 @@
 ### Pending remote evidence
 
 - The new end-to-end test still needs to pass on both CI emulator versions before the onboarding audit row can return from `implementation complete, end-to-end workflow pending` to fully verified. Xiaomi physical onboarding and the original real-GNSS/long-duration OEM/real missed-service boundaries remain separate.
+
+### First end-to-end CI diagnosis and compatibility fix
+
+- Main run `30477795243` kept the existing application evidence green: its 49-test/build/Lint/APK-audit job and both emulator cold-launch checks passed. Only the newly added onboarding test failed; later navigation steps were skipped rather than producing misleading secondary results.
+- Downloaded and inspected both emulator artifacts before changing code. Android 8 logcat and `runtime-activities.txt` proved that the real Package Installer permission activity was on screen, but Android 8 reported it through `mResumedActivity` instead of the newer window-focus fields the test initially inspected. The focus probe now accepts both activity- and window-manager representations.
+- Android 17 failed before its first Compose interaction because Compose UI Test 1.11.4 resolved the old Espresso 3.5.0 implementation, which reflectively calls the removed `InputManager.getInstance()` API. Pinned the androidTest-only Espresso dependency to 3.7.0, whose AndroidX release notes document the `getSystemService` compatibility fix. Production dependencies and APK behavior are unchanged.
+- Made the always-run Android 8 network-restoration cleanup acquire and verify emulator root even when the preceding offline step was skipped. This prevents a test failure from being obscured by a second cleanup-only permission failure.
+- Local verification after all three fixes passed 49 JVM tests with 0 failures/errors/skips, debug Android-test compilation and packaging, and debug Lint with 0 findings. Dependency insight confirms Espresso 3.7.0 wins over the transitive 3.5.0 version; `git diff --check` is clean and the generated Room schema was removed.
