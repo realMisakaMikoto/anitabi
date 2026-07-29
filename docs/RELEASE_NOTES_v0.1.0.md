@@ -9,7 +9,7 @@
 - 驾车、骑行、步行最多 12 个巡礼点；支持自由终点、指定终点和返回起点。
 - 使用用户自己的 ORS Standard Key 进行 Matrix 和多停靠 Directions，请求地址为 `api.heigit.org`。
 - 应用内路线预览、手动重排、定位前台服务、中文 TTS、到达/停留/下一站、偏航限频重算和 Room 进度恢复。
-- 公交实现保留在源码中，但本版本未取得 Transitous 维护者明确同意，因此编译期关闭，不会发送公交路由请求。
+- 公交实现保留在源码中，但本版本因项目当时误读 Transitous 政策而在编译期关闭，不会发送公交路由请求；该误读已在 v0.1.3 纠正。
 
 ## 下载校验
 
@@ -26,7 +26,7 @@
 - 每位用户必须自行申请并在应用内输入免费 ORS Key。
 - 公共服务均为 best-effort，没有 SLA；第一版不支持完整离线地图或断网重新规划。
 - Android 编译、单测、Lint、R8、签名验证和 APK 内容审计已通过；实际签名 APK 已在 Android 8（API 26）与 Android 17（API 37）模拟器冷启动，同版本源码另已通过 Android 16（API 36）debug 冷启动。实体手机上的 GPS、锁屏通知、后台限制和 TTS 音频仍待验收。
-- Transitous 公交保持关闭，不能将源码中存在公交实现理解为本 APK 已启用公交。
+- Transitous 公交在此历史版本中保持关闭，不能将源码中存在公交实现理解为此 APK 已启用公交；这不是官方审批要求。
 - 发布后验证环境访问 Anitabi 官方 API 时被 Cloudflare 403 拦截，已向上游提交 [anitabi.cn-document#86](https://github.com/anitabi/anitabi.cn-document/issues/86)；这可能导致部分网络无法加载巡礼点。
 - v0.1.0 APK 对该 403 会显示通用 API 错误；主分支已改为明确提示“公共服务拒绝了当前网络的访问”，修复将在后续版本包含。
 

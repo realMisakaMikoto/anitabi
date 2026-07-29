@@ -10,6 +10,7 @@ import cn.anitabi.navigator.core.model.TravelMode
 import java.time.OffsetDateTime
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class TourPlannerTest {
@@ -61,7 +62,29 @@ class TourPlannerTest {
             OffsetDateTime.parse(transit.departures[1]),
         )
         assertEquals(2, plan.legs.size)
+        assertEquals(2, transit.departures.size)
         assertEquals(TravelMode.TRANSIT, plan.mode)
+    }
+
+    @Test
+    fun `transit planner rejects more than eight points before requesting journeys`() = runBlocking {
+        val transit = FakeTransitProvider()
+        val planner = TourPlanner(FakeRoadProvider(), transit)
+
+        val result = runCatching {
+            planner.planTransit(
+                TransitPlanRequest(
+                    anime = anime,
+                    selectedPoints = (1..9).map { point("point-$it", it.toDouble()) },
+                    start = GeoPoint(0.0, 0.0),
+                    endPolicy = EndPolicy.OPEN,
+                    departureTime = "2026-07-29T09:00:00+09:00",
+                ),
+            )
+        }
+
+        assertTrue(result.exceptionOrNull() is IllegalArgumentException)
+        assertTrue(transit.departures.isEmpty())
     }
 
     @Test

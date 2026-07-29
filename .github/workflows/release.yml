@@ -38,7 +38,6 @@ jobs:
           ANITABI_STORE_PASSWORD: ${{ secrets.ANITABI_STORE_PASSWORD }}
           ANITABI_KEY_ALIAS: ${{ secrets.ANITABI_KEY_ALIAS }}
           ANITABI_KEY_PASSWORD: ${{ secrets.ANITABI_KEY_PASSWORD }}
-          ANITABI_TRANSITOUS_APPROVED: ${{ vars.ANITABI_TRANSITOUS_APPROVED }}
         run: ./gradlew testDebugUnitTest lintRelease assembleRelease --stacktrace
       - name: Audit release APK contents
         run: bash .github/scripts/audit-apk.sh app/build/outputs/apk/release/app-release.apk

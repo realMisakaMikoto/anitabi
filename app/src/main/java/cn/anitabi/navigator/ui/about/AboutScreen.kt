@@ -63,7 +63,7 @@ fun AboutScreen(onBack: () -> Unit) {
                     AboutCard("隐私") {
                         Text("不含广告、分析、账号、云同步或位置日志。路线与进度只保存在本机。")
                         Text(
-                            "规划或偏航重算时，必要坐标会发送给 ORS；公交启用后发送给 Transitous。地图瓦片由 OpenFreeMap 提供。",
+                            "规划或偏航重算时，必要坐标会发送给 ORS；规划或重算公交路线时发送给 Transitous。地图瓦片由 OpenFreeMap 提供。",
                             color = MutedInk,
                             modifier = Modifier.padding(top = 6.dp),
                         )
@@ -90,12 +90,8 @@ fun AboutScreen(onBack: () -> Unit) {
                             uriHandler.openUri("https://transitous.org/sources/")
                         }
                         Text(
-                            if (BuildConfig.TRANSITOUS_APPROVED) {
-                                "已记录 Transitous 路由使用同意；服务为 best-effort，覆盖范围不保证完整。"
-                            } else {
-                                "当前版本未记录 Transitous 维护者同意，公交路由保持关闭。"
-                            },
-                            color = if (BuildConfig.TRANSITOUS_APPROVED) MutedInk else Vermilion,
+                            "仅在用户生成或重算公交路线时逐段请求，最多 8 个巡礼点；服务为 best-effort，覆盖范围不保证完整。",
+                            color = MutedInk,
                             modifier = Modifier.padding(top = 6.dp),
                         )
                     }

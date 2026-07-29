@@ -21,7 +21,6 @@ class MainActivity : ComponentActivity() {
             repository = container.tourRepository,
             keyStore = container.orsKeyStore,
             locationProvider = container.locationProvider,
-            transitApproved = BuildConfig.TRANSITOUS_APPROVED,
         )
     }
     private val navigationViewModel by viewModels<NavigationViewModel> {

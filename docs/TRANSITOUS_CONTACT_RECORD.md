@@ -1,8 +1,10 @@
-# Transitous 路由使用联系模板
+# Transitous 路由使用沟通记录
 
-以下内容已填入公开仓库、版本和联系人，可直接通过 Transitous API 页面列出的 Matrix 社区发送。
+Transitous 官方政策要求项目为 FOSS/非营利，并要求正确的 User-Agent、正式 API 地址和可见的数据来源链接；对于可能造成较高负载或对负载有疑虑的用法，官方建议提前联系。政策没有要求等待明确批准后才能启用。
 
-## English template
+以下原始说明已于 2026-07-29 通过官网列出的 Matrix 社区发送，用于主动告知项目的低频路由用途。联系是负载沟通记录，不是应用功能的审批门槛。原消息最后错误地把“获得批准”写成启用条件；这是发送者对政策的误读，不是 Transitous 的要求，已在 v0.1.3 中纠正。
+
+## Original message
 
 Subject: Permission request for low-volume routing use by Anitabi Navigator
 
@@ -26,9 +28,8 @@ Thank you,
 
 realMisakaMikoto / https://github.com/realMisakaMikoto
 
-## 取得回复后
+## 后续处理
 
-1. 保存维护者的明确同意和附加限制，不要只保存“已发送”。
-2. 把日期、联系渠道和限制写入项目私有发布记录；不要公开对方不希望公开的个人信息。
-3. 只有明确同意后，才设置 `ANITABI_TRANSITOUS_APPROVED=true`。
-4. 每次发布重新检查 <https://transitous.org/api/>；如政策改变或维护者撤回同意，立即关闭该变量。
+1. 保存维护者提出的附加限制，并落实到代码、发布检查清单和文档。
+2. 不公开对方不希望公开的个人信息。
+3. 每次发布重新检查 <https://transitous.org/api/>；如果政策或项目请求负载变化，重新评估并主动沟通。

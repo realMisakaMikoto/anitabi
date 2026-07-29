@@ -67,7 +67,9 @@ class TourPlanner(
     }
 
     suspend fun planTransit(request: TransitPlanRequest): TourPlan {
-        require(request.selectedPoints.size in 2..8) { "Transit supports 2 to 8 pilgrimage points" }
+        require(request.selectedPoints.size in 2..MAX_TRANSIT_POINTS) {
+            "Transit supports 2 to $MAX_TRANSIT_POINTS pilgrimage points"
+        }
         require(request.dwellMinutes >= 0) { "Dwell time cannot be negative" }
         val startPoint = request.startPointId?.let { id ->
             request.selectedPoints.singleOrNull { it.id == id }
@@ -290,6 +292,10 @@ class TourPlanner(
                 destinationPointId = destinationPointIds.getOrNull(index),
             )
         }
+
+    companion object {
+        const val MAX_TRANSIT_POINTS = 8
+    }
 }
 
 data class RoadPlanRequest(

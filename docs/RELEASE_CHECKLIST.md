@@ -1,6 +1,6 @@
 # 发布检查清单
 
-以下项目全部满足后才能创建 `v*` tag。公交没有获得明确同意不阻止道路版发布，但必须保持关闭。
+以下项目全部满足后才能创建 `v*` tag。
 
 本文件是每次发布使用的模板，不直接勾选。每个版本应在 `docs/releases/` 保存一份带证据的实际验收记录；未验证项必须明确保留为未完成。
 
@@ -8,8 +8,9 @@
 
 - [ ] 重新核对 OpenFreeMap 署名、隐私和使用条款；地图仍显示 OpenFreeMap、OpenMapTiles、© OpenStreetMap contributors。
 - [ ] 重新核对 ORS Standard 套餐、限制、API 域名和服务条款；没有项目共享 Key。
-- [ ] 重新核对 Transitous API 使用政策和数据来源。
-- [ ] 若启用公交，已保存维护者明确同意与附加限制，并设置 `ANITABI_TRANSITOUS_APPROVED=true`；否则变量为 `false` 或未设置。
+- [ ] 重新核对 Transitous API 使用政策和数据来源；项目仍为公开 FOSS、非营利且免费分发。
+- [ ] Transitous 只使用正式 API 地址并发送应用名、版本、联系方式 User-Agent；关于页与公交路线保留数据来源链接。
+- [ ] 公交请求仍限制为最多 8 点、用户操作/路线事件触发、逐段串行、无后台轮询、无批量下载、无并发抓取和无自动重试；若预计负载明显增加，已先联系维护者。
 - [ ] Anitabi 数据请求仅访问 `api.anitabi.cn`，自动图片请求仅访问 `image.anitabi.cn`，两者都发送可识别 User-Agent；截图仍显示 `origin` 并保留 `originURL`；未打包全量数据。
 - [ ] `LICENSE`、`NOTICE.md`、关于页和 GPL-3.0-or-later 声明一致。
 

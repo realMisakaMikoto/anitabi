@@ -1,7 +1,6 @@
 package cn.anitabi.navigator.data.network.transit
 
 import cn.anitabi.navigator.core.model.GeoPoint
-import cn.anitabi.navigator.data.network.ApiException
 import cn.anitabi.navigator.data.network.ApiHttpClient
 import kotlinx.serialization.Serializable
 import okhttp3.HttpUrl.Companion.toHttpUrl
@@ -9,16 +8,14 @@ import okhttp3.Request
 
 class TransitousApi(
     private val httpClient: ApiHttpClient,
-    private val approved: () -> Boolean,
+    private val planUrl: String = PLAN_URL,
 ) {
     suspend fun plan(
         from: GeoPoint,
         to: GeoPoint,
         departureTime: String,
     ): TransitPlanDto {
-        if (!approved()) throw ApiException.TransitNotApproved()
-
-        val url = PLAN_URL.toHttpUrl().newBuilder()
+        val url = planUrl.toHttpUrl().newBuilder()
             .addQueryParameter("fromPlace", from.toTransitPlace())
             .addQueryParameter("toPlace", to.toTransitPlace())
             .addQueryParameter("time", departureTime)
@@ -33,7 +30,7 @@ class TransitousApi(
     }
 
     companion object {
-        private const val PLAN_URL = "https://api.transitous.org/api/v6/plan"
+        internal const val PLAN_URL = "https://api.transitous.org/api/v6/plan"
     }
 }
 

@@ -36,9 +36,8 @@ class PlannerViewModel(
     private val repository: TourRepository,
     private val keyStore: OrsKeyStore,
     private val locationProvider: CurrentLocationProvider,
-    private val transitApproved: Boolean,
 ) : ViewModel() {
-    private val mutableState = MutableStateFlow(PlannerUiState(transitApproved = transitApproved))
+    private val mutableState = MutableStateFlow(PlannerUiState())
     val state: StateFlow<PlannerUiState> = mutableState.asStateFlow()
 
     fun configure(anime: Anime, points: List<PilgrimagePoint>) {
@@ -52,18 +51,14 @@ class PlannerViewModel(
             departureDate = now.toLocalDate().toString(),
             departureTime = now.toLocalTime().toString(),
             hasStoredOrsKey = keyStore.hasKey(),
-            transitApproved = transitApproved,
         )
     }
 
     fun setMode(mode: TravelMode) {
         mutableState.update { current ->
             when {
-                mode == TravelMode.TRANSIT && !current.transitApproved -> current.copy(
-                    errorMessage = "公交路由尚未取得 Transitous 维护者同意",
-                )
-                mode == TravelMode.TRANSIT && current.selectedPoints.size > 8 -> current.copy(
-                    errorMessage = "公交最多选择 8 个巡礼点",
+                mode == TravelMode.TRANSIT && current.selectedPoints.size > TourPlanner.MAX_TRANSIT_POINTS -> current.copy(
+                    errorMessage = "公交最多选择 ${TourPlanner.MAX_TRANSIT_POINTS} 个巡礼点",
                 )
                 else -> current.copy(mode = mode, errorMessage = null, plan = null)
             }
@@ -225,11 +220,26 @@ class PlannerViewModel(
 
     private fun handleFailure(throwable: Throwable) {
         if (throwable is CancellationException) throw throwable
+        val isTransit = state.value.mode == TravelMode.TRANSIT
         val message = when (throwable) {
             is ApiException.MissingOrsKey -> "请先填写自己的免费 ORS Key"
-            is ApiException.InvalidCredentials, is ApiException.Forbidden -> "ORS Key 无效或已失效，请重新填写"
-            is ApiException.RateLimited -> "今日 ORS 配额已用尽，请明天再试"
-            is ApiException.TransitNotApproved -> "公交路由尚未获得 Transitous 使用同意"
+            is ApiException.InvalidCredentials -> "ORS Key 无效或已失效，请重新填写"
+            is ApiException.Forbidden -> if (isTransit) {
+                "Transitous 拒绝了当前网络的访问，请停止重试并更换网络"
+            } else {
+                "ORS Key 无效或已失效，请重新填写"
+            }
+            is ApiException.RateLimited -> if (isTransit) {
+                "Transitous 请求过于频繁，请稍后再试"
+            } else {
+                "今日 ORS 配额已用尽，请明天再试"
+            }
+            is ApiException.Server -> if (isTransit) {
+                "Transitous 服务暂时不可用，请稍后再试"
+            } else {
+                "ORS 服务暂时不可用，请稍后再试"
+            }
+            is ApiException.Network -> "网络连接失败，请检查网络后重试"
             is NoTransitDataException -> "本区域暂无开放公交数据"
             is NoRouteException -> "所选地点之间存在不可达路段"
             is MissingLocationPermissionException -> "需要定位权限才能从当前位置出发"
@@ -245,11 +255,10 @@ class PlannerViewModel(
         private val repository: TourRepository,
         private val keyStore: OrsKeyStore,
         private val locationProvider: CurrentLocationProvider,
-        private val transitApproved: Boolean,
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T =
-            PlannerViewModel(planner, repository, keyStore, locationProvider, transitApproved) as T
+            PlannerViewModel(planner, repository, keyStore, locationProvider) as T
     }
 }
 
@@ -267,7 +276,6 @@ data class PlannerUiState(
     val dwellMinutesInput: String = "15",
     val orsKeyInput: String = "",
     val hasStoredOrsKey: Boolean = false,
-    val transitApproved: Boolean = false,
     val plan: TourPlan? = null,
     val draftOrder: List<PilgrimagePoint> = emptyList(),
     val orderChanged: Boolean = false,

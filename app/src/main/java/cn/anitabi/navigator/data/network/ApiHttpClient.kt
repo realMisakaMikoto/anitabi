@@ -41,7 +41,10 @@ class ApiHttpClient(
     private val json: Json = defaultJson,
     clientBuilder: OkHttpClient.Builder = OkHttpClient.Builder(),
 ) {
-    private val client = clientBuilder.addInterceptor(userAgentInterceptor).build()
+    private val client = clientBuilder
+        .retryOnConnectionFailure(false)
+        .addInterceptor(userAgentInterceptor)
+        .build()
 
     suspend fun <T> execute(
         request: Request,
@@ -99,7 +102,6 @@ sealed class ApiException(message: String, cause: Throwable? = null) : Exception
     class Network(cause: IOException) : ApiException("Network request failed", cause)
     class InvalidResponse(cause: Throwable) : ApiException("API response could not be parsed", cause)
     class MissingOrsKey : ApiException("An ORS API key is required")
-    class TransitNotApproved : ApiException("Transit routing is disabled until Transitous approval is recorded")
 
     companion object {
         fun fromStatus(status: Int, body: String): ApiException = when {

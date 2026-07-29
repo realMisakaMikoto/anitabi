@@ -30,7 +30,7 @@ Release 同时提供机器可读的 `anitabi-v0.1.1.apk.sha256`。
 
 - 实体手机上的真实 GPS、中文 TTS 音频、锁屏、OEM 后台限制、弱网和跨午夜行为仍需真机验收。
 - 部分网络访问 Anitabi 官方 API 会被 Cloudflare 403 拦截；上游问题为 [anitabi.cn-document#86](https://github.com/anitabi/anitabi.cn-document/issues/86)。
-- Transitous 公交未获得维护者明确同意，仍在编译期关闭，不会发送公交路由请求。
+- Transitous 公交在此历史版本中因项目误读政策而在编译期关闭，不会发送公交路由请求；官方政策并不要求先取得明确批准，该错误已在 v0.1.3 纠正。
 
 完整逐项证据见仓库中的 `docs/releases/v0.1.1.md`。
 

@@ -36,7 +36,7 @@ class AppContainer(context: Context) {
     val tourPlanner = TourPlanner(
         roadProvider = OrsRoadRoutingProvider(OrsApi(httpClient, orsKeyStore::get, json)),
         transitProvider = TransitousJourneyProvider(
-            TransitousApi(httpClient) { BuildConfig.TRANSITOUS_APPROVED },
+            TransitousApi(httpClient),
         ),
     )
 

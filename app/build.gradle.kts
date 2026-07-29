@@ -22,10 +22,6 @@ val releaseSigningValues = listOf(
     releaseKeyPassword,
 )
 val releaseSigningReady = releaseSigningValues.all { it != null }
-val transitousApproved = providers.gradleProperty("ANITABI_TRANSITOUS_APPROVED")
-    .orElse(providers.environmentVariable("ANITABI_TRANSITOUS_APPROVED"))
-    .orNull
-    ?.equals("true", ignoreCase = true) == true
 if (releaseSigningValues.any { it != null } && !releaseSigningReady) {
     throw GradleException("Release signing requires all four ANITABI_* signing values")
 }
@@ -44,9 +40,8 @@ android {
         applicationId = "cn.anitabi.navigator"
         minSdk = 26
         targetSdk = 37
-        versionCode = 3
-        versionName = "0.1.2"
-        buildConfigField("boolean", "TRANSITOUS_APPROVED", transitousApproved.toString())
+        versionCode = 4
+        versionName = "0.1.3"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

@@ -64,6 +64,7 @@ import cn.anitabi.navigator.core.model.RouteObjective
 import cn.anitabi.navigator.core.model.TourPlan
 import cn.anitabi.navigator.core.model.TourLeg
 import cn.anitabi.navigator.core.model.TravelMode
+import cn.anitabi.navigator.core.routing.TourPlanner
 import cn.anitabi.navigator.ui.theme.Ink
 import cn.anitabi.navigator.ui.theme.Moss
 import cn.anitabi.navigator.ui.theme.MutedInk
@@ -197,15 +198,7 @@ private fun PlannerSettingsScreen(
                             state.mode,
                             "公交",
                             onModeChange,
-                            enabled = state.transitApproved && state.selectedPoints.size <= 8,
-                        )
-                    }
-                    if (!state.transitApproved) {
-                        Text(
-                            "公交保持关闭：发布前必须先取得 Transitous 维护者同意。",
-                            color = MutedInk,
-                            style = MaterialTheme.typography.bodyMedium,
-                            modifier = Modifier.padding(top = 8.dp),
+                            enabled = state.selectedPoints.size <= TourPlanner.MAX_TRANSIT_POINTS,
                         )
                     }
                 }
