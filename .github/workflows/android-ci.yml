@@ -171,6 +171,13 @@ jobs:
             adb shell settings put global airplane_mode_on 0
             adb shell am broadcast -a android.intent.action.AIRPLANE_MODE --ez state false
           fi
+      - name: Capture runtime diagnostics
+        if: always()
+        run: |
+          adb logcat -d -v threadtime > smoke-output/runtime-logcat.txt || true
+          adb logcat -d -b crash -v threadtime > smoke-output/runtime-crash-always.log || true
+          adb shell dumpsys dropbox --print data_app_crash > smoke-output/runtime-dropbox.txt || true
+          adb shell dumpsys activity activities > smoke-output/runtime-activities.txt || true
       - name: Upload emulator evidence
         if: always()
         uses: actions/upload-artifact@v7
