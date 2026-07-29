@@ -221,3 +221,31 @@
 
 - A physical Android phone is still required to validate real GPS updates, foreground-notification and lock-screen behavior, OEM battery/background restrictions, audible TTS, live routing, and weak-network recovery.
 - Transitous remains compile-time disabled; enabling it still requires explicit permission from the Transitous maintainers.
+
+## 2026-07-29 - Task 11: requirement audit, compatibility matrix, and release evidence
+
+### Completed
+
+- Re-read this complete log and the original pasted implementation plan before starting the task.
+- Re-audited the repository, workflows, public release, service policies, local Android-device availability, and every plan item that can be verified without a physical phone or external maintainer approval.
+- Rechecked the official policies and current endpoints for OpenFreeMap, openrouteservice, Transitous, Android 17/API 37, Bangumi, and Anitabi. Confirmed that Transitous still requires prior contact for routing/resource-intensive use and kept it compile-time disabled.
+- Live-probed Bangumi and OpenFreeMap successfully. Reproduced Cloudflare HTTP 403 on the documented Anitabi API and opened upstream issue `anitabi/anitabi.cn-document#86` with the endpoint, app identity, failure mode, and Cloudflare Ray ID.
+- Split HTTP 403 from 401 in the application error model, added a clear Anitabi network-rejection message, preserved the ORS invalid-key behavior for both statuses, and added a regression assertion.
+- Added an APK content audit that rejects the retired ORS domain, prohibited SDKs, signing-password markers, private-key markers, and keystore files; wired it into debug CI and release builds.
+- Added API 26/API 37 emulator coverage to main CI, fixed Android 8 log-buffer clearing as a non-fatal diagnostic, and added a manually dispatchable workflow that tests the exact APK attached to a GitHub Release.
+- Filled the Transitous approval request with the public repository, version, contact, traffic limits, attribution, and privacy details. No Matrix account was signed in, so the request was not sent and no approval was claimed.
+- Expanded the release audit and release notes with exact evidence, updated the public `v0.1.0` GitHub Release description, and recorded the remaining physical-device and external-service gates without claiming they passed.
+
+### Verification
+
+- Main CI run `30439622908` passed all 33 unit tests, Android SDK 37 compilation, Lint, debug assembly, APK content audit, and cold-launch jobs on Android 8/API 26 and Android 17/API 37.
+- Exact signed-release run `30440179352` downloaded `anitabi-v0.1.0.apk` from the public Release and passed installation and cold launch on API 26 and API 37. Both reported `versionCode=1`, `versionName=0.1.0`, `minSdk=26`, `targetSdk=37`, a live app process, and an empty crash buffer; both screenshots rendered normally.
+- Static inspection of the published APK found the expected current service endpoints and none of the forbidden old domain, prohibited SDK, signing-secret, private-key, or keystore markers. Its SHA-256 remains `e4c1c66cefaea54fde0c7f3f6bfbba461530465e5ef4530c02fa956bcd12624d`.
+- No ADB executable or physical Android device was available on this machine, so no real-device result was fabricated.
+- Public evidence: `https://github.com/realMisakaMikoto/anitabi/actions/runs/30439622908`, `https://github.com/realMisakaMikoto/anitabi/actions/runs/30440179352`, and `https://github.com/realMisakaMikoto/anitabi/releases/tag/v0.1.0`.
+
+### Remaining
+
+- Validate the released APK on a physical Android phone: real GPS updates, ORS-key live routing, continuous multi-stop navigation, arrival/dwell/next-stop transitions, audible Chinese TTS, notification and lock-screen behavior, OEM background/process-kill recovery, weak-network handling, and upgrade/restore behavior.
+- Wait for the Anitabi maintainers to respond to issue `#86` or otherwise restore documented API access for the affected network.
+- Send the prepared Transitous request from an identifiable Matrix account and obtain explicit maintainer approval before enabling or testing public-transit routing.
