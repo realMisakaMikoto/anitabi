@@ -104,6 +104,8 @@ jobs:
           adb uninstall cn.anitabi.navigator || true
           adb install app/build/outputs/apk/debug/app-debug.apk
           adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+          adb shell appops set cn.anitabi.navigator android:mock_location allow
+          adb shell appops set cn.anitabi.navigator.test android:mock_location allow
           adb shell settings put secure location_mode 3
           adb shell pm grant cn.anitabi.navigator android.permission.ACCESS_COARSE_LOCATION
           adb shell pm grant cn.anitabi.navigator android.permission.ACCESS_FINE_LOCATION
@@ -161,6 +163,19 @@ jobs:
           grep -q "OK (1 test)" smoke-output/navigation-runtime.txt
           adb logcat -d -b crash > smoke-output/runtime-crash.log
           ! grep -q "cn.anitabi.navigator" smoke-output/runtime-crash.log
+      - name: Verify automatic GPS arrival while screen is off
+        run: |
+          set -o pipefail
+          adb shell am force-stop cn.anitabi.navigator
+          adb shell am instrument -w \
+            -e class 'cn.anitabi.navigator.navigation.NavigationRuntimeInstrumentedTest#foregroundServiceAutoArrivesFromMockGpsWhileScreenOff' \
+            cn.anitabi.navigator.test/androidx.test.runner.AndroidJUnitRunner \
+            2>&1 | tee smoke-output/automatic-gps-runtime.txt
+          grep -q "GPS_FIX_1_ADVANCED_WHILE_SCREEN_OFF" smoke-output/automatic-gps-runtime.txt
+          grep -q "GPS_FIX_2_COMPLETED_AND_PERSISTED" smoke-output/automatic-gps-runtime.txt
+          grep -q "OK (1 test)" smoke-output/automatic-gps-runtime.txt
+          adb logcat -d -b crash > smoke-output/automatic-gps-crash.log
+          ! grep -q "cn.anitabi.navigator" smoke-output/automatic-gps-crash.log
       - name: Restore emulator networking
         if: always()
         run: |

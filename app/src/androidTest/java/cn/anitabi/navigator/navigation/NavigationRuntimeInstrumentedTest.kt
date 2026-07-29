@@ -1,11 +1,18 @@
 package cn.anitabi.navigator.navigation
 
 import android.Manifest
+import android.app.Instrumentation
 import android.app.Notification
 import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
+import android.location.Criteria
+import android.location.Location
+import android.location.LocationManager
 import android.os.Build
+import android.os.Bundle
+import android.os.PowerManager
+import android.os.SystemClock
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -27,6 +34,7 @@ import java.io.FileInputStream
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -104,6 +112,67 @@ class NavigationRuntimeInstrumentedTest {
         }
     }
 
+    @Test
+    fun foregroundServiceAutoArrivesFromMockGpsWhileScreenOff() = runBlocking {
+        prepareDevice()
+        application.stopService(Intent(application, NavigationService::class.java))
+        NavigationRuntime.set(NavigationRuntimeState())
+        val locationManager = installMockGpsProvider()
+        val powerManager = application.getSystemService(Context.POWER_SERVICE) as PowerManager
+        val plan = fixturePlan(AUTOMATIC_TOUR_ID)
+        application.container.tourRepository.save(
+            plan,
+            NavigationProgress(tourId = plan.id, state = NavigationState.NAVIGATING),
+        )
+        val managesAirplaneMode = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P
+        if (managesAirplaneMode) {
+            setAirplaneMode(true)
+        } else {
+            assertEquals("1", shell("settings get global airplane_mode_on").trim())
+        }
+        val scenario = ActivityScenario.launch(MainActivity::class.java)
+        try {
+            awaitCondition("foreground service did not start for automatic arrival") {
+                NavigationRuntime.state.value.let { state ->
+                    state.plan?.id == plan.id && state.isRunning &&
+                        state.progress?.state == NavigationState.NAVIGATING
+                }
+            }
+            shell("input keyevent 223")
+            awaitCondition("emulator screen did not turn off") { !powerManager.isInteractive }
+
+            injectMockGps(locationManager, plan.legs[0].to)
+            awaitCondition("mock GPS did not advance to the second leg while the screen was off") {
+                NavigationRuntime.state.value.progress?.let { progress ->
+                    progress.legIndex == 1 && progress.state == NavigationState.NAVIGATING &&
+                        FIRST_STOP_ID in progress.completedPointIds
+                } == true
+            }
+            assertFalse(powerManager.isInteractive)
+            assertNotNull(activeNavigationNotification())
+            reportEvidence("GPS_FIX_1_ADVANCED_WHILE_SCREEN_OFF")
+
+            wakeDevice()
+            injectMockGps(locationManager, plan.legs[1].to)
+            awaitCondition("mock GPS did not complete the second leg") {
+                NavigationRuntime.state.value.progress?.state == NavigationState.COMPLETED
+            }
+            awaitCondition("automatic completion was not persisted") {
+                application.container.tourRepository.get(plan.id)?.progress?.state == NavigationState.COMPLETED
+            }
+            val completed = application.container.tourRepository.get(plan.id)?.progress
+            assertEquals(setOf(START_ID, FIRST_STOP_ID, SECOND_STOP_ID), completed?.completedPointIds)
+            assertTrue(NavigationRuntime.state.value.errorMessage == null)
+            reportEvidence("GPS_FIX_2_COMPLETED_AND_PERSISTED")
+        } finally {
+            if (!powerManager.isInteractive) wakeDevice()
+            runCatching { locationManager.removeTestProvider(LocationManager.GPS_PROVIDER) }
+            if (managesAirplaneMode) setAirplaneMode(false)
+            application.stopService(Intent(application, NavigationService::class.java))
+            scenario.close()
+        }
+    }
+
     private fun prepareDevice() {
         val packageName = application.packageName
         shell("settings put secure location_mode 3")
@@ -116,6 +185,51 @@ class NavigationRuntimeInstrumentedTest {
 
     private fun sendServiceAction(action: String) {
         application.startService(Intent(application, NavigationService::class.java).setAction(action))
+    }
+
+    @Suppress("DEPRECATION")
+    private fun installMockGpsProvider(): LocationManager {
+        val manager = application.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+        runCatching { manager.removeTestProvider(LocationManager.GPS_PROVIDER) }
+        manager.addTestProvider(
+            LocationManager.GPS_PROVIDER,
+            false,
+            true,
+            false,
+            false,
+            true,
+            true,
+            true,
+            Criteria.POWER_LOW,
+            Criteria.ACCURACY_FINE,
+        )
+        manager.setTestProviderEnabled(LocationManager.GPS_PROVIDER, true)
+        return manager
+    }
+
+    private fun injectMockGps(manager: LocationManager, point: GeoPoint) {
+        manager.setTestProviderLocation(
+            LocationManager.GPS_PROVIDER,
+            Location(LocationManager.GPS_PROVIDER).apply {
+                latitude = point.latitude
+                longitude = point.longitude
+                accuracy = 3f
+                time = System.currentTimeMillis()
+                elapsedRealtimeNanos = SystemClock.elapsedRealtimeNanos()
+            },
+        )
+    }
+
+    private fun wakeDevice() {
+        shell("input keyevent 224")
+        shell("wm dismiss-keyguard")
+    }
+
+    private fun reportEvidence(message: String) {
+        InstrumentationRegistry.getInstrumentation().sendStatus(
+            0,
+            Bundle().apply { putString(Instrumentation.REPORT_KEY_STREAMRESULT, "$message\n") },
+        )
     }
 
     private fun activeNavigationNotification(): Notification? {
@@ -203,6 +317,7 @@ class NavigationRuntimeInstrumentedTest {
     companion object {
         private const val RECOVERY_TOUR_ID = "runtime-recovery-fixture"
         private const val SERVICE_TOUR_ID = "runtime-service-fixture"
+        private const val AUTOMATIC_TOUR_ID = "runtime-automatic-fixture"
         private const val START_ID = "runtime-start"
         private const val FIRST_STOP_ID = "runtime-stop-a"
         private const val SECOND_STOP_ID = "runtime-stop-b"
