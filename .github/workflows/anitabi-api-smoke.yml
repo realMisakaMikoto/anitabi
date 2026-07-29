@@ -1,6 +1,9 @@
 name: Anitabi API Boundary Probe
 
 on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/anitabi-api-smoke.yml"]
   workflow_dispatch:
 
 permissions:
