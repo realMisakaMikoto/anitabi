@@ -390,3 +390,38 @@
 - Wait for a clear Transitous maintainer reply in Matrix before setting `ANITABI_TRANSITOUS_APPROVED=true` or sending any public-transit routing request.
 - A physical Android phone and user-driven session remain necessary for real GNSS, audible Chinese TTS, secured lock-screen behavior, OEM battery restrictions, mobile-network transitions, live ORS routing, and the full search-to-navigation flow.
 - Anitabi issue `#86` remains open because the available GitHub credentials cannot comment on or close the upstream issue; no external reply or closure is falsely claimed.
+
+## 2026-07-29 - Task 17: correct Transitous policy interpretation, enable transit, and release v0.1.3
+
+### Accountability and policy correction
+
+- Re-read the complete latest `AGENT.md` and the original pasted implementation plan before starting this task.
+- Re-read the current official Transitous API policy through Agent Reach. The user was correct: “If you have any doubt about the load your requests will be causing … please contact us” is conditional guidance, and “Please contact us before using any potentially resource-intensive API endpoints” is a contact request, not a requirement to wait for explicit approval. The policy contains no approval state or authorization token.
+- The earlier plan and Tasks 0–16 incorrectly upgraded that wording into a mandatory approval gate. That interpretation, the resulting build flag, and the previous “remaining external gate” statements were wrong. This task supersedes those statements rather than silently rewriting the historical log.
+- The Matrix message sent in Task 15 remains useful advance load communication and was delivered/read, but it is not an approval workflow and no maintainer reply is required to enable the documented low-volume use.
+
+### Implementation
+
+- Removed `ANITABI_TRANSITOUS_APPROVED` from Gradle and GitHub Actions, removed the generated `BuildConfig` flag, deleted `ApiException.TransitNotApproved`, and removed the approval dependency from `TransitousApi`, `AppContainer`, `MainActivity`, `PlannerViewModel`, `PlannerUiState`, the transit mode chip, and the about page.
+- Enabled transit mode whenever the selection is within the real eight-point limit. Centralized that limit as `TourPlanner.MAX_TRANSIT_POINTS` and kept the planner’s fail-before-request validation.
+- Kept the official `https://api.transitous.org/api/v6/plan` endpoint, per-leg sequential request chain, user/event-triggered planning, Room persistence, visible Transitous sources link, and identifiable app/version/contact User-Agent. Explicitly disabled OkHttp connection-failure retries so a failed request is not repeated invisibly.
+- Added transit-specific 403, 429, server, and network messages instead of incorrectly describing all such failures as an ORS Key problem.
+- Added a MockWebServer contract test covering method, path, all plan query parameters, User-Agent, response parsing, and the production endpoint constant. Added a nine-point rejection test proving zero journey requests occur, and strengthened the sequential two-leg test.
+- Incremented the app to `versionCode=4` / `versionName=0.1.3`; corrected README, the release checklist, current release notes, historical release records, about-page text, and renamed the old approval template to `TRANSITOUS_CONTACT_RECORD.md` while preserving and annotating the exact original message.
+
+### Verification and release
+
+- The local host still has no Android SDK, so the initial local Gradle command stopped before compilation with the explicit SDK-location error. No local result was fabricated; GitHub’s SDK 37 runners performed the authoritative build.
+- Main Android CI `30454672103` passed 36 JVM unit tests, SDK 37 compilation, debug Lint, APK audit, and all API 26/API 37 runtime checks: cold launch, offline process recovery, foreground navigation completion, screen-off automatic GPS arrival, networking restoration, and diagnostics upload.
+- Sent exactly one live Transitous routing request using `AnitabiNavigator/0.1.3 (https://github.com/realMisakaMikoto)`, Tokyo Station/Skytree coordinates, the production endpoint, and the same query contract as the app. It returned 9 itineraries; the first contained 3 legs. No polling, concurrency, retry, or additional probe was performed.
+- PR creation from branch `agent/enable-transitous-policy-correction` was rejected by the available GitHub token with `createPullRequest` permission error. The reviewed commit was fast-forwarded to current `main`, matching the repository’s prior fallback; no force push or test bypass was used.
+- Signed release run `30455370261` passed tests, release Lint, R8, APK audit, v2 signature verification, checksum creation, and public Release publication. `v0.1.3` is public, non-draft, and non-prerelease.
+- The downloaded APK is 43,087,229 bytes. Its calculated SHA-256, published checksum file, and GitHub asset digest all equal `c86d2b44db5c95f0518b5d876f3f9d7e7baac69ebc179472341fe12a97cd532b`. The fixed certificate SHA-256 remains `9679c83769368c7150f629d9cba3c0e5d633fa7f1043ce251fdba6c7c64fb00a`.
+- Exact signed-release compatibility run `30455908192` downloaded the public v0.1.3 APK and passed version inspection, install, cold launch, foreground-process, screenshot, and empty-crash-buffer checks on Android 8/API 26 and Android 17/API 37.
+- Discovered that GitHub suppresses Release events recursively generated by `GITHUB_TOKEN`. Added a successful-`Signed APK Release` `workflow_run` trigger for future automatic compatibility checks, and excluded release-smoke-only changes from the full Android CI to avoid duplicate runs and notification noise. The exact v0.1.3 compatibility run was executed once by the workflow’s narrow push trigger after this fix.
+- Agent Reach update check reports installed version `v1.5.0` is current.
+- Public evidence: `https://github.com/realMisakaMikoto/anitabi/actions/runs/30454672103`, `https://github.com/realMisakaMikoto/anitabi/actions/runs/30455370261`, `https://github.com/realMisakaMikoto/anitabi/actions/runs/30455908192`, and `https://github.com/realMisakaMikoto/anitabi/releases/tag/v0.1.3`.
+
+### Remaining external acceptance boundary
+
+- There is no Transitous approval gate. Only physical-device acceptance remains: real GNSS, audible Chinese TTS, secured lock-screen behavior, OEM battery/background restrictions, real mobile-network transitions, live ORS routing, full search-to-navigation flow, and user-driven transit scenarios across covered and uncovered areas.

@@ -16,6 +16,24 @@
 - 仅在用户生成路线、手动重算或到站/取消事件触发时请求；不后台轮询、不批量下载、不爬取、无自动重试。
 - 已生成路线保存在本机，断网时继续使用旧路线；关于页与路线结果保留 Transitous 数据来源链接。
 
+## 下载校验
+
+- APK：`anitabi-v0.1.3.apk`
+- 大小：43,087,229 字节
+- SHA-256：`c86d2b44db5c95f0518b5d876f3f9d7e7baac69ebc179472341fe12a97cd532b`
+- 签名证书 SHA-256：`9679c83769368c7150f629d9cba3c0e5d633fa7f1043ce251fdba6c7c64fb00a`
+
+Release 同时提供机器可读的 `anitabi-v0.1.3.apk.sha256`。正式 APK 继续使用与 v0.1.0、v0.1.1、v0.1.2 相同的固定签名证书。
+
+## 验证
+
+- 36 个 JVM 单元测试、SDK 37 编译、Lint、R8、APK 内容审计和签名校验通过。
+- 一次带 v0.1.3 User-Agent 的东京两点真实请求成功返回 9 条可选行程；未进行重复或并发探测。
+- debug APK 在 Android 8 与 Android 17 完成离线恢复、前台导航、息屏模拟 GPS 自动到达和进度持久化。
+- 公开签名 APK 在 Android 8 与 Android 17 完成下载、版本核对、安装、冷启动、前台进程和空崩溃缓冲检查。
+
+验证运行：[主分支 Android CI 30454672103](https://github.com/realMisakaMikoto/anitabi/actions/runs/30454672103)、[签名发布 30455370261](https://github.com/realMisakaMikoto/anitabi/actions/runs/30455370261)、[签名 APK 兼容性复验 30455908192](https://github.com/realMisakaMikoto/anitabi/actions/runs/30455908192)。
+
 ## 已知限制
 
 - Transitous 为 best-effort 服务，在日本只覆盖部分地区；无行程时应用会提示“本区域暂无开放公交数据”。
