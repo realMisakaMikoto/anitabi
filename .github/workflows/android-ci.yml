@@ -120,9 +120,11 @@ jobs:
           if [ "$sdk" -ge 28 ]; then
             adb shell cmd connectivity airplane-mode enable
           else
+            adb root
+            adb wait-for-device
+            test "$(adb shell id -u | tr -d '\r')" = "0"
             adb shell settings put global airplane_mode_on 1
-            adb shell svc wifi disable
-            adb shell svc data disable
+            adb shell am broadcast -a android.intent.action.AIRPLANE_MODE --ez state true
           fi
           adb shell am force-stop cn.anitabi.navigator
           adb shell am start -W -n cn.anitabi.navigator/.MainActivity > smoke-output/recovery-start.txt
@@ -148,13 +150,6 @@ jobs:
           adb shell dumpsys notification --noredact > smoke-output/recovery-notifications-restart.txt
           grep -q "cn.anitabi.navigator" smoke-output/recovery-notifications-restart.txt
           test "$(adb shell settings get global airplane_mode_on | tr -d '\r')" = "1"
-          if [ "$sdk" -ge 28 ]; then
-            adb shell cmd connectivity airplane-mode disable
-          else
-            adb shell settings put global airplane_mode_on 0
-            adb shell svc wifi enable
-            adb shell svc data enable
-          fi
       - name: Verify foreground navigation completion
         run: |
           set -o pipefail
@@ -166,6 +161,16 @@ jobs:
           grep -q "OK (1 test)" smoke-output/navigation-runtime.txt
           adb logcat -d -b crash > smoke-output/runtime-crash.log
           ! grep -q "cn.anitabi.navigator" smoke-output/runtime-crash.log
+      - name: Restore emulator networking
+        if: always()
+        run: |
+          sdk="$(adb shell getprop ro.build.version.sdk | tr -d '\r')"
+          if [ "$sdk" -ge 28 ]; then
+            adb shell cmd connectivity airplane-mode disable
+          else
+            adb shell settings put global airplane_mode_on 0
+            adb shell am broadcast -a android.intent.action.AIRPLANE_MODE --ez state false
+          fi
       - name: Upload emulator evidence
         if: always()
         uses: actions/upload-artifact@v7
