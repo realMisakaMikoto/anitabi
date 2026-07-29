@@ -575,3 +575,9 @@
 - Android 17 alone failed later in offline recovery. The seed instrumentation reported `OK (1 test)`, but ten UI dumps all showed onboarding instead of the saved `Runtime Smoke Tour`. The cause was deterministic: `OrsKeyStore` used asynchronous `SharedPreferences.apply()` and the one-shot instrumentation process could exit before its encrypted Key and completion marker reached disk.
 - Changed the three security-state writes to synchronous `commit`, which is appropriate for these tiny user-confirmed writes and makes process-death persistence deterministic. Added an immediate instrumentation assertion and reduced the welcome page from two cards to one concise progressive-disclosure card so the primary CTA fits the smallest CI viewport.
 - Re-ran 49 JVM tests, androidTest compilation, and debug Lint locally after the fix; all passed and Lint remained at zero findings. A fresh remote run is required before tagging.
+
+### Successful remote rerun
+
+- Main Android CI `30474785852` passed the 49-test/build/Lint/APK-audit job and both Android 8/API 26 and Android 17/API 37 emulator jobs. Each clean install asserted the onboarding screen, then completed offline process recovery, foreground navigation, screen-off mock-GPS automatic arrival, completion, persistence, networking restoration, diagnostic capture, and empty crash-buffer checks.
+- Downloaded and visually inspected both 320x640 onboarding screenshots. Status-bar clearance is correct, the three-step progress trail and text are legible, and the shortened welcome card keeps the full-width `Start setup` button visible above the bottom safe area on both versions.
+- The previously failing Android 17 recovery now passes after synchronous secure-state persistence. This closes the observed CI failure rather than merely rerunning it.
