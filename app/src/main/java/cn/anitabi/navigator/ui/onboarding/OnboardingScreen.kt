@@ -347,14 +347,9 @@ private fun WelcomeStep(onContinue: () -> Unit) {
         modifier = Modifier.padding(top = 10.dp),
     )
     GuideCard(
-        title = "为什么需要这些？",
-        body = "定位用于当前位置与连续导航；通知用于锁屏和后台导航；ORS Key 用于驾车、骑行和步行路线。",
+        title = "权限、费用与隐私",
+        body = "定位用于当前位置和导航，通知用于锁屏与后台导航；道路路线使用你自己的免费 ORS Key。Key 加密只存本机，应用没有广告、分析或位置日志。",
         modifier = Modifier.padding(top = 24.dp),
-    )
-    GuideCard(
-        title = "费用与隐私",
-        body = "使用你自己的免费 Standard Key。Key 经 Android Keystore 加密，只保存在本机；应用没有广告、分析或位置日志。",
-        modifier = Modifier.padding(top = 12.dp),
     )
     PrimaryButton(text = "开始设置", onClick = onContinue)
 }

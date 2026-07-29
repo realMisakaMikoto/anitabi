@@ -183,6 +183,7 @@ class NavigationRuntimeInstrumentedTest {
         }
         application.container.orsKeyStore.save("instrumentation-only-invalid-ors-key")
         application.container.orsKeyStore.markOnboardingComplete()
+        check(application.container.orsKeyStore.hasCompletedOnboarding())
     }
 
     private fun sendServiceAction(action: String) {

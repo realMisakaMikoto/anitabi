@@ -568,3 +568,10 @@
 
 - No ADB device or emulator image was connected locally after onboarding was added. The phone and ADB mDNS discovery both returned no device, so no touch events were injected and no physical screenshot was fabricated. Android 8/API 26 and Android 17/API 37 clean-install onboarding screenshots are required from CI before release; Xiaomi onboarding remains a later cold-launch check when the device reconnects.
 - The previously exposed ORS Key was not reused, copied into tests, logged, or packaged. The instrumentation-only placeholder is deliberately invalid and is present only in the androidTest APK, never the production APK.
+
+### First remote CI diagnosis
+
+- Main run `30473343833` passed its 49-test/build/Lint/APK-audit job and the complete Android 8 runtime matrix. Both Android 8 and Android 17 clean installs also passed the new onboarding cold-launch assertion; the downloaded Android 17 screenshot showed correct status-bar clearance but put the welcome CTA just below the 320x640 viewport.
+- Android 17 alone failed later in offline recovery. The seed instrumentation reported `OK (1 test)`, but ten UI dumps all showed onboarding instead of the saved `Runtime Smoke Tour`. The cause was deterministic: `OrsKeyStore` used asynchronous `SharedPreferences.apply()` and the one-shot instrumentation process could exit before its encrypted Key and completion marker reached disk.
+- Changed the three security-state writes to synchronous `commit`, which is appropriate for these tiny user-confirmed writes and makes process-death persistence deterministic. Added an immediate instrumentation assertion and reduced the welcome page from two cards to one concise progressive-disclosure card so the primary CTA fits the smallest CI viewport.
+- Re-ran 49 JVM tests, androidTest compilation, and debug Lint locally after the fix; all passed and Lint remained at zero findings. A fresh remote run is required before tagging.

@@ -22,7 +22,7 @@ class OrsKeyStore(context: Context) {
         val payload = listOf(cipher.iv, encrypted).joinToString(SEPARATOR) {
             Base64.encodeToString(it, Base64.NO_WRAP)
         }
-        preferences.edit { putString(PREFERENCE_KEY, payload) }
+        preferences.edit(commit = true) { putString(PREFERENCE_KEY, payload) }
     }
 
     fun get(): String? {
@@ -48,11 +48,11 @@ class OrsKeyStore(context: Context) {
 
     fun markOnboardingComplete() {
         check(hasKey()) { "ORS key is required before onboarding can finish" }
-        preferences.edit { putBoolean(PREFERENCE_ONBOARDING_COMPLETE, true) }
+        preferences.edit(commit = true) { putBoolean(PREFERENCE_ONBOARDING_COMPLETE, true) }
     }
 
     fun clear() {
-        preferences.edit {
+        preferences.edit(commit = true) {
             remove(PREFERENCE_KEY)
             remove(PREFERENCE_ONBOARDING_COMPLETE)
         }
