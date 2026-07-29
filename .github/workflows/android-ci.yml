@@ -103,6 +103,23 @@ jobs:
           ! grep -q "cn.anitabi.navigator" smoke-output/crash.log
       - name: Build runtime instrumentation APK
         run: ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest --stacktrace
+      - name: Verify complete first-run onboarding
+        run: |
+          set -o pipefail
+          adb uninstall cn.anitabi.navigator.test || true
+          adb uninstall cn.anitabi.navigator || true
+          adb install app/build/outputs/apk/debug/app-debug.apk
+          adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+          adb shell pm clear cn.anitabi.navigator
+          adb shell am instrument -w \
+            -e class 'cn.anitabi.navigator.ui.onboarding.OnboardingInstrumentedTest#completesPermissionsKeyAndRestartFlow' \
+            cn.anitabi.navigator.test/androidx.test.runner.AndroidJUnitRunner \
+            2>&1 | tee smoke-output/onboarding-smoke.txt
+          grep -q "ONBOARDING_PERMISSION_DIALOG_SHOWN" smoke-output/onboarding-smoke.txt
+          grep -q "ONBOARDING_KEY_GUIDE_SHOWN" smoke-output/onboarding-smoke.txt
+          grep -q "ONBOARDING_EMPTY_KEY_BLOCKED" smoke-output/onboarding-smoke.txt
+          grep -q "ONBOARDING_COMPLETED_TO_SEARCH" smoke-output/onboarding-smoke.txt
+          grep -q "ONBOARDING_RESTARTED_IN_SEARCH" smoke-output/onboarding-smoke.txt
       - name: Verify offline process recovery
         run: |
           set -o pipefail

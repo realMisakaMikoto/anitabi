@@ -68,6 +68,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -351,7 +352,11 @@ private fun WelcomeStep(onContinue: () -> Unit) {
         body = "定位用于当前位置和导航，通知用于锁屏与后台导航；道路路线使用你自己的免费 ORS Key。Key 加密只存本机，应用没有广告、分析或位置日志。",
         modifier = Modifier.padding(top = 24.dp),
     )
-    PrimaryButton(text = "开始设置", onClick = onContinue)
+    PrimaryButton(
+        text = "开始设置",
+        onClick = onContinue,
+        modifier = Modifier.testTag("onboarding-start"),
+    )
 }
 
 @Composable
@@ -410,6 +415,9 @@ private fun PermissionStep(
     PrimaryButton(
         text = if (permissionsReady) "权限已就绪，继续" else "授权定位与通知",
         onClick = onRequestPermissions,
+        modifier = Modifier.testTag(
+            if (permissionsReady) "onboarding-permission-continue" else "onboarding-permission-request",
+        ),
     )
 }
 
@@ -459,7 +467,12 @@ private fun KeyStep(
     onOpenOrsAccount: () -> Unit,
     onFinish: () -> Unit,
 ) {
-    Text("领取你的免费路线 Key", style = MaterialTheme.typography.headlineMedium, color = Ink)
+    Text(
+        "领取你的免费路线 Key",
+        style = MaterialTheme.typography.headlineMedium,
+        color = Ink,
+        modifier = Modifier.testTag("onboarding-key-step"),
+    )
     Text(
         "道路路线由 openrouteservice 提供。每位用户都要使用自己的免费 Standard Key。",
         style = MaterialTheme.typography.bodyLarge,
@@ -476,7 +489,8 @@ private fun KeyStep(
         modifier = Modifier
             .fillMaxWidth()
             .padding(top = 12.dp)
-            .height(52.dp),
+            .height(52.dp)
+            .testTag("onboarding-open-ors"),
         shape = RoundedCornerShape(10.dp),
     ) {
         Icon(Icons.AutoMirrored.Rounded.OpenInNew, contentDescription = null)
@@ -487,7 +501,8 @@ private fun KeyStep(
         onValueChange = onKeyChange,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 18.dp),
+            .padding(top = 18.dp)
+            .testTag("onboarding-key-input"),
         label = { Text("ORS API Key（必填）") },
         placeholder = {
             Text(if (hasStoredKey) "本机已有 Key；留空即可继续" else "粘贴你的 ORS Key")
@@ -515,12 +530,15 @@ private fun KeyStep(
             it,
             color = MaterialTheme.colorScheme.error,
             style = MaterialTheme.typography.bodyMedium,
-            modifier = Modifier.padding(top = 6.dp),
+            modifier = Modifier
+                .padding(top = 6.dp)
+                .testTag("onboarding-key-error"),
         )
     }
     PrimaryButton(
         text = if (hasStoredKey && keyInput.isBlank()) "使用已保存的 Key 并进入" else "安全保存并进入",
         onClick = onFinish,
+        modifier = Modifier.testTag("onboarding-key-submit"),
     )
 }
 
@@ -551,10 +569,11 @@ private fun GuideCard(
 private fun PrimaryButton(
     text: String,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     Button(
         onClick = onClick,
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .padding(top = 24.dp)
             .height(52.dp),

@@ -589,3 +589,24 @@
 - Public compatibility run `30475867612` downloaded the actual Release APK and passed version inspection, installation, cold launch, onboarding-screen assertion, foreground-process, screenshot, and empty-crash-buffer checks on Android 8/API 26 and Android 17/API 37.
 - Downloaded and inspected the two public-APK 320x640 screenshots separately. Both show correct status-bar clearance, readable progress/content, and a fully visible `Start setup` button above the bottom safe area. This verifies the released artifact on emulators; it does not turn the still-disconnected Xiaomi onboarding flow into a physical-device claim.
 - Updated the v0.2.0 release and physical-acceptance records with the final public run IDs, artifact size, hashes, screenshot result, and the remaining real-device boundary. No application code changed during this evidence-only closeout.
+
+## 2026-07-30 - Task 23: original-plan audit and end-to-end onboarding verification
+
+### Preparation and audit
+
+- Re-read the complete 591-line `AGENT.md` and the complete original pasted implementation plan before starting this continuation task, then inspected the current worktree rather than relying on the previous summary.
+- Rechecked the Xiaomi connection through the installed Platform-Tools executable, ADB mDNS, and Windows present-device inventory. No USB or wireless Android device is currently connected; the only Xiaomi entries are Bluetooth earbuds, so no physical onboarding result was fabricated.
+- Re-audited the original plan against the v0.2.0 completion matrix, source tree, test inventory, TODO/FIXME scan, public Release, and existing evidence. Corrected the stale audit row that still described v0.2.0 as awaiting publication.
+- Found one verifiable evidence gap in the latest onboarding work: CI asserted the first screen, while the navigation fixture directly seeded its test Key and therefore did not prove the complete user path through the permission request, empty-Key guard, Key entry, main screen, and restart persistence.
+
+### Implementation and local verification
+
+- Added stable Compose semantics tags only to the onboarding actions and fields, plus an Android instrumentation test that clicks through the real `MainActivity` flow. The test confirms the Android runtime-permission dialog appears, grants only the disposable emulator package, verifies the HeiGIT/ORS Key step, proves an empty Key cannot continue, enters the existing obviously invalid test-only Key, reaches the Bangumi search screen, and relaunches the activity to prove completion persisted.
+- Added Compose UI test support only to the `androidTest` configuration. No production dependency, network request, personal ORS Key, shared credential, or release-APK secret was added.
+- Wired the test into both Android 8/API 26 and Android 17/API 37 main CI jobs with five required evidence milestones. The workflow uninstalls and reinstalls the app/test APKs built together before running the test, preventing the cross-job ephemeral debug-signature mismatch already diagnosed in Task 12. The existing offline navigation fixture then starts from another clean install.
+- The first local compile exposed and removed one invalid standalone `fetchSemanticsNodes` import; this was a test-source compile issue and no product failure was hidden. Switched to the current non-deprecated Compose v2 empty-rule API.
+- Final local verification passed 49 JVM tests with 0 failures/errors/skips, debug and androidTest APK compilation, debug Lint with 0 results, the APK content audit, YAML parsing, and `git diff --check`. The generated Room schema copy was removed again and is not part of the change.
+
+### Pending remote evidence
+
+- The new end-to-end test still needs to pass on both CI emulator versions before the onboarding audit row can return from `implementation complete, end-to-end workflow pending` to fully verified. Xiaomi physical onboarding and the original real-GNSS/long-duration OEM/real missed-service boundaries remain separate.
