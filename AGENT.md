@@ -200,3 +200,24 @@
 
 - Add and run an emulator install/launch smoke test, then document anything that still needs a physical phone.
 - Transitous stays compile-time disabled until its maintainers explicitly approve this client.
+
+## 2026-07-29 - Task 10: Android emulator install and cold-launch smoke test
+
+### Completed
+
+- Re-read this log before starting the task.
+- Added a `main`-push emulator smoke job to the Android CI workflow, using an API 36 Google APIs x86_64 AVD with bounded SDK, boot, and app-launch timeouts.
+- Made the AVD location explicit and step-scoped after the first diagnostic run showed that the emulator could not find the AVD created in the runner's temporary directory.
+- Installed the CI-built debug APK, force-stopped it, cold-launched `MainActivity`, and captured the start result, process ID, foreground activity state, UI hierarchy, screenshot, emulator log, and crash buffer as an Actions artifact.
+
+### Verification
+
+- GitHub Actions run `30437176966` passed both jobs: the SDK 37 unit-test/Lint/debug-APK job and the emulator install/launch job.
+- The cold launch returned `Status: ok`, `LaunchState: COLD`, and process ID `2258`; the Android crash log artifact is empty.
+- Visual inspection of `home.png` confirms that the Chinese home screen, navigation chips, anime search field, Bangumi action, privacy/data-source link, and empty-state copy render correctly.
+- Official CI run: `https://github.com/realMisakaMikoto/anitabi/actions/runs/30437176966`.
+
+### Remaining
+
+- A physical Android phone is still required to validate real GPS updates, foreground-notification and lock-screen behavior, OEM battery/background restrictions, audible TTS, live routing, and weak-network recovery.
+- Transitous remains compile-time disabled; enabling it still requires explicit permission from the Transitous maintainers.
