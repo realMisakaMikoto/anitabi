@@ -623,3 +623,8 @@
 
 - Main run `30478838791` passed the 49-test/build/Lint/APK-audit job. Android 17/API 37 then passed the complete onboarding test and every existing offline recovery, foreground navigation, screen-off automatic-arrival, cleanup, diagnostic, and evidence-upload step.
 - Android 8 reached and displayed the real Package Installer permission dialog, and its activity dump contained the expected `mResumedActivity`. The remaining detector bug was a short-circuit: `dumpsys window` emitted a non-empty but unusable `mCurrentFocus=null` line, so the test never consulted the valid activity-manager result. Changed the probe to combine all relevant window- and activity-focus lines instead of treating any current-focus line as authoritative. This is androidTest-only code and does not change the application.
+
+### Third end-to-end CI diagnosis
+
+- Main run `30479687810` again passed the full 49-test/build/Lint/APK-audit job, and Android 17/API 37 passed the complete onboarding plus all navigation recovery/arrival/cleanup evidence. Android 8 now emitted `ONBOARDING_PERMISSION_DIALOG_SHOWN`, proving the combined focus probe fixed the preceding failure.
+- The next Android 8-only failure was an explicit `NoSuchMethodError`: the two-argument framework `UiAutomation.grantRuntimePermission` overload used by the test is unavailable there. Replaced that test helper with the platform `pm grant` shell command already used successfully by this repository's emulator fixtures. The test still first opens and verifies the real permission UI; it grants permissions only to the freshly installed disposable emulator package.

@@ -99,20 +99,15 @@ class OnboardingInstrumentedTest {
     }
 
     private fun grantRequiredPermissions() {
-        instrumentation.uiAutomation.grantRuntimePermission(
-            application.packageName,
-            Manifest.permission.ACCESS_COARSE_LOCATION,
-        )
-        instrumentation.uiAutomation.grantRuntimePermission(
-            application.packageName,
-            Manifest.permission.ACCESS_FINE_LOCATION,
-        )
+        grantRuntimePermission(Manifest.permission.ACCESS_COARSE_LOCATION)
+        grantRuntimePermission(Manifest.permission.ACCESS_FINE_LOCATION)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            instrumentation.uiAutomation.grantRuntimePermission(
-                application.packageName,
-                Manifest.permission.POST_NOTIFICATIONS,
-            )
+            grantRuntimePermission(Manifest.permission.POST_NOTIFICATIONS)
         }
+    }
+
+    private fun grantRuntimePermission(permission: String) {
+        shell("pm grant ${application.packageName} $permission")
     }
 
     private fun returnFromPermissionDialog() {
