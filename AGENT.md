@@ -607,9 +607,9 @@
 - The first local compile exposed and removed one invalid standalone `fetchSemanticsNodes` import; this was a test-source compile issue and no product failure was hidden. Switched to the current non-deprecated Compose v2 empty-rule API.
 - Final local verification passed 49 JVM tests with 0 failures/errors/skips, debug and androidTest APK compilation, debug Lint with 0 results, the APK content audit, YAML parsing, and `git diff --check`. The generated Room schema copy was removed again and is not part of the change.
 
-### Pending remote evidence
+### Remote evidence requirement (closed below)
 
-- The new end-to-end test still needs to pass on both CI emulator versions before the onboarding audit row can return from `implementation complete, end-to-end workflow pending` to fully verified. Xiaomi physical onboarding and the original real-GNSS/long-duration OEM/real missed-service boundaries remain separate.
+- The initial requirement was for the new end-to-end test to pass on both CI emulator versions before the onboarding audit row could return to fully verified. Main run `30481986827`, recorded below, closes that emulator requirement. Xiaomi physical onboarding and the original real-GNSS/long-duration OEM/real missed-service boundaries remain separate.
 
 ### First end-to-end CI diagnosis and compatibility fix
 
@@ -638,3 +638,11 @@
 
 - Main run `30481174385` produced all five Android 8 onboarding milestones and `OK (1 test)`, closing the onboarding flow itself on API 26. Its following offline-recovery step failed because every UI hierarchy was covered by the surviving platform alert `System UI has stopped`; the seeded application state and onboarding test had succeeded underneath it.
 - Isolated that Google API 26 emulator defect from the established navigation matrix by rebooting only the Android 8 emulator after the onboarding evidence is complete, waiting for `sys.boot_completed`, and restoring disabled animation scales before legacy recovery checks. This does not skip, weaken, or alter either test: onboarding finishes before the reset, and offline/navigation fixtures reinstall their APKs and data afterward. Android 17 keeps the continuous no-reset path.
+
+### Successful end-to-end rerun
+
+- Main Android CI `30481986827` completed successfully. Its verify job passed all 49 JVM tests, debug build, Lint, APK content audit, and artifact upload.
+- Both Android 8/API 26 and Android 17/API 37 emitted all five required milestones: permission dialog shown, HeiGIT/ORS Key guide shown, empty Key blocked, completed to Bangumi search, and restarted directly in search. Each instrumentation run ended with `OK (1 test)`.
+- The Android 8-only post-onboarding reboot completed before the independent navigation fixture. Both emulator jobs then passed offline process recovery, foreground navigation completion, screen-off mock-GPS automatic arrival, persisted completion, network restoration, diagnostic capture, and evidence upload. This proves the reset isolates only the defective platform UI state rather than hiding a product or navigation failure.
+- Updated the original-plan completion audit from `end-to-end workflow pending` to complete with the successful run ID. No new production behavior, personal ORS Key, Release asset, or v0.2.0 binary was created during these CI-compatibility fixes.
+- The remaining honest boundaries are unchanged: the Xiaomi phone is still disconnected, and real 8-12 point GNSS travel, multi-hour Xiaomi/OEM battery survival, and an actual missed-service event require physical field conditions.
