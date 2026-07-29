@@ -10,7 +10,7 @@
 - [ ] 重新核对 ORS Standard 套餐、限制、API 域名和服务条款；没有项目共享 Key。
 - [ ] 重新核对 Transitous API 使用政策和数据来源。
 - [ ] 若启用公交，已保存维护者明确同意与附加限制，并设置 `ANITABI_TRANSITOUS_APPROVED=true`；否则变量为 `false` 或未设置。
-- [ ] Anitabi 截图仍显示 `origin` 并保留 `originURL`；未打包全量数据。
+- [ ] Anitabi 数据请求仅访问 `api.anitabi.cn`，自动图片请求仅访问 `image.anitabi.cn`，两者都发送可识别 User-Agent；截图仍显示 `origin` 并保留 `originURL`；未打包全量数据。
 - [ ] `LICENSE`、`NOTICE.md`、关于页和 GPL-3.0-or-later 声明一致。
 
 ## 自动验证

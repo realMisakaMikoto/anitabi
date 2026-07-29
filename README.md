@@ -2,7 +2,7 @@
 
 一个零预算、无自建后端、全程留在应用内的 Android 动漫圣地巡礼导航器。用户可以搜索 Bangumi 作品、从 Anitabi 选择巡礼点、在手机本地优化访问顺序，再用 MapLibre 连续导航全部地点。
 
-> 当前状态：33 个 JVM 单元测试、Android SDK 37 编译、Lint、R8、APK 内容审计和固定签名发布均已通过；当前主分支 debug APK 已在 Android 8（API 26）和 Android 17（API 37）模拟器通过全程断网、两次强制停止/恢复、前台服务通知、模拟 GPS 自动到达、息屏时自动进入下一站、两站完成和 Room 进度持久化，实际签名版也已在两个版本完成安装与冷启动复验。Android 8 兼容修复版 [v0.1.1 APK](https://github.com/realMisakaMikoto/anitabi/releases/tag/v0.1.1) 已公开发布。真机定位、锁屏、TTS 与 OEM 后台行为仍待实体设备验收；公交功能默认关闭，取得 Transitous 维护者明确同意前不得启用。
+> 当前状态：34 个 JVM 单元测试、Android SDK 37 编译、Lint、R8、APK 内容审计和固定签名发布均已通过；当前主分支 debug APK 已在 Android 8（API 26）和 Android 17（API 37）模拟器通过全程断网、两次强制停止/恢复、前台服务通知、模拟 GPS 自动到达、息屏时自动进入下一站、两站完成和 Room 进度持久化，实际签名版也已在两个版本完成安装与冷启动复验。Anitabi 网络边界加固版 [v0.1.2 APK](https://github.com/realMisakaMikoto/anitabi/releases/tag/v0.1.2) 已公开发布。真机定位、锁屏、TTS 与 OEM 后台行为仍待实体设备验收；公交功能默认关闭，取得 Transitous 维护者明确同意前不得启用。
 
 ## 功能
 
@@ -23,9 +23,11 @@
 | 道路路线 | [openrouteservice](https://openrouteservice.org/plans/) | 每位安装者申请自己的免费 Standard Key；当前 Directions 2,000/日、Matrix 500/日 |
 | 公交 | [Transitous](https://transitous.org/api/) | 仅 FOSS/非营利 best-effort 使用；路由属于重资源请求，启用前先联系维护者 |
 | 动漫 | [Bangumi API](https://bangumi.github.io/api/) | 无登录搜索，发送可识别 User-Agent |
-| 巡礼点 | [Anitabi API](https://github.com/anitabi/anitabi.cn-document/blob/main/api.md) | 非商业并署名；数据为 CC BY-NC-SA 4.0 |
+| 巡礼点 | [Anitabi API](https://github.com/anitabi/anitabi.cn-document/blob/main/api.md) | 非商业并署名；程序仅访问官方数据与图片 API，不请求主域；数据为 CC BY-NC-SA 4.0 |
 
 政策最后核对日期：2026-07-29。每次发布前请重新执行 [发布检查清单](docs/RELEASE_CHECKLIST.md)。
+
+如果应用提示“当前公网 IP 被公共服务拒绝”，说明 Cloudflare 拒绝的是当前 Wi-Fi 或移动网络的公网出口。请停止重复请求并更换网络，必要时联系运营商更换公网 IP；重装应用或修改 User-Agent 不能解除 IP 封禁。
 
 ## 新手构建步骤（Windows）
 
