@@ -3,7 +3,7 @@
 
 一个零预算、无自建后端、全程留在应用内的 Android 动漫圣地巡礼导航器。用户可以搜索 Bangumi 作品、从 Anitabi 选择巡礼点、在手机本地优化访问顺序，再用 MapLibre 连续导航全部地点。
 
-> 当前状态：49 个 JVM 单元测试、Android SDK 37 编译、Lint、R8、APK 内容审计和固定签名发布均由 GitHub Actions 验证；debug APK 已在 Android 8（API 26）和 Android 17（API 37）模拟器通过全程断网、两次强制停止/恢复、前台服务通知、模拟 GPS 自动到达、息屏时自动进入下一站、两站完成和 Room 进度持久化，实际签名版也会在两个版本完成安装与冷启动复验。[v0.2.0 APK](https://github.com/realMisakaMikoto/anitabi/releases/tag/v0.2.0) 新增首次启动导览与多作品联合巡礼；Xiaomi 15T Pro 已完成系统栏、正式 Anitabi、ORS 道路路线、Transitous 公交路线、多作品地图和连续导航复验。真实 GNSS 实走、长时间 OEM 省电和真实错过班次仍需用户现场完成；用户已确认真机 TTS 可听。
+> 当前状态：49 个 JVM 单元测试、Android SDK 37 编译、Lint、R8、APK 内容审计和固定签名发布均由 GitHub Actions 验证；debug APK 已在 Android 8（API 26）和 Android 17（API 37）模拟器通过全程断网、两次强制停止/恢复、前台服务通知、模拟 GPS 自动到达、息屏时自动进入下一站、两站完成和 Room 进度持久化，实际签名版也会在两个版本完成安装与冷启动复验。[v0.2.0 APK](https://github.com/realMisakaMikoto/anitabi/releases/tag/v0.2.0) 新增首次启动导览与多作品联合巡礼；Xiaomi 15T Pro 已完成系统栏、正式 Anitabi、ORS 道路路线、Transitous 公交路线、多作品地图和连续导航复验，用户已确认真机 TTS 可听且切回真实定位后功能正常。真实 GNSS 8–12 点整段实走、长时间 OEM 省电和真实错过班次仍需现场完成。
 
 ## 功能
 

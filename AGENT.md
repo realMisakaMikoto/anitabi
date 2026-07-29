@@ -692,3 +692,27 @@
 - No further repository, emulator, documentation, or synthetic-location work can turn those environmental events into honest acceptance evidence. Continuing without the phone and real elapsed/event conditions would only create churn or fabricate scope.
 - The precise resume condition is external: reconnect and unlock the Xiaomi 15T Pro, authorize this computer for USB debugging, disable the selected fake-GPS/mock-location app for the GNSS scenario, and make the real route or transit scenario available. The existing `scripts/capture-field-evidence.ps1` and `docs/PHYSICAL_FIELD_TEST_RUNBOOK_v0.2.0.md` are ready to resume immediately.
 - No application, workflow, release, test, or acceptance file changed in this task; this log records the required new-task read, current-state audit, and honest blocked boundary.
+
+## 2026-07-30 - Task 26: exact public v0.2.0 physical retest and real-location acceptance
+
+### Preparation and safety boundary
+
+- Re-read the complete current 694-line `AGENT.md` and the complete original pasted implementation plan before starting this resumed physical-device task.
+- Followed the user's explicit boundary: no APK installation, overwrite installation, uninstallation, data clearing, permission change, mock-location change, or input-method replacement was performed. Testing used only the already-installed application and read-only ADB inspection, plus normal force-stop/start and UI input actions.
+- Confirmed the Xiaomi 15T Pro reconnected as authorized ADB serial `JBR4LF6TQ4MFHY4X`; Windows also reported the expected Xiaomi WPD, ADB, and USB interfaces.
+
+### Exact-release and runtime verification
+
+- Confirmed Android 16/API 36, security patch 2026-06-01, `versionName=0.2.0`, and `versionCode=6`. The installed `base.apk` SHA-256 is `e3d36b47695b452978680726c5eb09133e04c0f207149a6324f3e08ac8f9a9ec`, exactly matching the public GitHub Release rather than the earlier pre-onboarding candidate.
+- Before launch the application had no process, no `NavigationService`, and no active notification. Fine/coarse location and notification permissions were all granted; system location, GPS Provider, and network Provider were enabled. The separate package `com.blogspot.newapphorizons.fakegps` still held mock-location access and was not changed.
+- Performed a no-data-clear cold launch of the existing public APK. Android returned `Status: ok`, `LaunchState: COLD`, and 302 ms total time; `MainActivity` became top-resumed, the process stayed alive, and the crash buffer contained no application crash.
+- The completed first-run guide and saved configuration survived the cold launch: the app went directly to the Bangumi search page instead of returning to onboarding.
+- Used the production UI and network client to run a Bangumi search; it returned 20 works. Selecting a result with no pilgrimage data displayed the explicit `Anitabi 暂无这部作品的巡礼数据` fallback without a crash.
+- Opened the physical about page and verified the visible GPL/privacy statement and OpenFreeMap, OpenMapTiles, OSM, ORS/HeiGIT, Transitous, Bangumi, and Anitabi attribution. The Xiaomi input method accepted the first ADB search input but refused a later replacement query; testing stopped rather than replacing the user's input method or installing a helper.
+- Finished with the exact public APK still installed, `MainActivity` foreground, no navigation service, no active app notification, and an empty application crash result.
+
+### User-confirmed real-location checkbox
+
+- The user explicitly confirmed that real positioning works even though the phone remains configured with a mock-location application and requested this item be checked. Recorded `真实定位功能可用` as passed in the v0.2.0 plan and physical-device acceptance records.
+- Kept the evidence scope precise: the user's field observation proves the real-location function works, while ADB independently proves permissions and providers are enabled but cannot attribute every fix to GNSS while mock authorization remains. The separate 8-12 point real route, multi-hour Xiaomi/OEM run, and actual missed-service event remain unchecked.
+- Updated README status and the v0.2.0 physical acceptance record with the exact-release retest. No production application source, APK, ORS Key, release artifact, or device configuration changed.
