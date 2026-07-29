@@ -352,3 +352,18 @@
 - A physical Android phone and user-driven session remain necessary for real GNSS, audible TTS, secured lock-screen behavior, OEM battery restrictions, mobile-network transitions, live ORS routing, and the full search-to-navigation flow.
 - The upstream Anitabi issue remains open only because available non-browser GitHub credentials cannot write to that repository; the client-side boundary and public API path are verified.
 - The Transitous request still requires explicit Matrix sending confirmation and maintainer approval before the compile-time transit gate can be enabled.
+
+## 2026-07-29 - Task 15: Transitous Matrix approval request
+
+### Completed
+
+- Re-read this complete log before starting the new task.
+- Used the user's signed-in Matrix session and confirmed that the account `@rmisakamikoto:matrix.org` had joined the official public room `#transitous:matrix.spline.de`.
+- After explicit action-time confirmation, sent the prepared English request describing the GPL/non-commercial project, public repository, exact `/api/v6/plan` use, eight-stop maximum, sequential user-triggered requests, offline tour caching, reroute conditions, 60-second deviation cooldown, absence of crawling/analytics/advertising, and the v0.1.2 identifiable User-Agent.
+- Verified that the complete message appeared in the room timeline at 20:38 China Standard Time and that the composer cleared after sending.
+- Preserved the message event link: `https://matrix.to/#/!jYtSkfiDtLJzothwYb:matrix.spline.de/$JfUWdfwG5Or1tpFJy0yy5yndMEC9Mu3fIhWjjq-oSkg?via=matrix.spline.de&via=matrix.org&via=kde.org`.
+- The room showed the message as seen by Heubi. This is delivery evidence only, not maintainer approval.
+
+### Current gate
+
+- No explicit approval or additional limits have been received yet. `ANITABI_TRANSITOUS_APPROVED` remains `false`, and the app must not send Transitous routing requests until a clear maintainer reply is recorded and implemented.
