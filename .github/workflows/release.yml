@@ -40,6 +40,8 @@ jobs:
           ANITABI_KEY_PASSWORD: ${{ secrets.ANITABI_KEY_PASSWORD }}
           ANITABI_TRANSITOUS_APPROVED: ${{ vars.ANITABI_TRANSITOUS_APPROVED }}
         run: ./gradlew testDebugUnitTest lintRelease assembleRelease --stacktrace
+      - name: Audit release APK contents
+        run: bash .github/scripts/audit-apk.sh app/build/outputs/apk/release/app-release.apk
       - name: Verify APK signature
         run: |
           "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify --verbose --print-certs app/build/outputs/apk/release/app-release.apk
@@ -50,10 +52,12 @@ jobs:
       - name: Publish GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: >-
-          gh release create "$GITHUB_REF_NAME"
-          "anitabi-${GITHUB_REF_NAME}.apk"
-          "anitabi-${GITHUB_REF_NAME}.apk.sha256"
-          --verify-tag
-          --generate-notes
-          --title "$GITHUB_REF_NAME"
+        run: |
+          notes_file="docs/RELEASE_NOTES_${GITHUB_REF_NAME}.md"
+          test -s "$notes_file"
+          gh release create "$GITHUB_REF_NAME" \
+            "anitabi-${GITHUB_REF_NAME}.apk" \
+            "anitabi-${GITHUB_REF_NAME}.apk.sha256" \
+            --verify-tag \
+            --notes-file "$notes_file" \
+            --title "$GITHUB_REF_NAME"

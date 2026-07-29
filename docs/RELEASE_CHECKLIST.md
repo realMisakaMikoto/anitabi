@@ -2,6 +2,8 @@
 
 以下项目全部满足后才能创建 `v*` tag。公交没有获得明确同意不阻止道路版发布，但必须保持关闭。
 
+本文件是每次发布使用的模板，不直接勾选。每个版本应在 `docs/releases/` 保存一份带证据的实际验收记录；未验证项必须明确保留为未完成。
+
 ## 政策与许可
 
 - [ ] 重新核对 OpenFreeMap 署名、隐私和使用条款；地图仍显示 OpenFreeMap、OpenMapTiles、© OpenStreetMap contributors。

@@ -24,6 +24,8 @@ jobs:
         run: sdkmanager "platforms;android-37.0" "build-tools;37.0.0"
       - name: Test, lint and build debug APK
         run: ./gradlew testDebugUnitTest lintDebug assembleDebug --stacktrace
+      - name: Audit debug APK contents
+        run: bash .github/scripts/audit-apk.sh app/build/outputs/apk/debug/app-debug.apk
       - name: Upload debug APK
         uses: actions/upload-artifact@v7
         with:
@@ -36,21 +38,29 @@ jobs:
     needs: verify
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: android-8-api-26
+            image: system-images;android-26;google_apis;x86_64
+          - label: android-17-api-37
+            image: system-images;android-37.0;google_apis;x86_64
     steps:
       - uses: android-actions/setup-android@v4
       - uses: actions/download-artifact@v8
         with:
           name: anitabi-debug
           path: apk
-      - name: Install Android 16 emulator
-        run: sdkmanager "platform-tools" "emulator" "system-images;android-36;google_apis;x86_64"
+      - name: Install emulator system image
+        run: sdkmanager "platform-tools" "emulator" "${{ matrix.image }}"
       - name: Create and boot emulator
         env:
           ANDROID_AVD_HOME: ${{ runner.temp }}/avd
         run: |
           sudo chmod 666 /dev/kvm
           mkdir -p "$ANDROID_AVD_HOME" smoke-output
-          echo no | avdmanager create avd --force --name anitabi-smoke --package "system-images;android-36;google_apis;x86_64"
+          echo no | avdmanager create avd --force --name anitabi-smoke --package "${{ matrix.image }}"
           "$ANDROID_HOME/emulator/emulator" -list-avds
           "$ANDROID_HOME/emulator/emulator" -avd anitabi-smoke -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -camera-back none -camera-front none > smoke-output/emulator.log 2>&1 &
           timeout 180 adb wait-for-device || { cat smoke-output/emulator.log; exit 1; }
@@ -79,6 +89,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: anitabi-emulator-smoke
+          name: anitabi-emulator-smoke-${{ matrix.label }}
           path: smoke-output
           if-no-files-found: warn

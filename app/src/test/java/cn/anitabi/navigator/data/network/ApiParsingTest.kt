@@ -76,6 +76,7 @@ class ApiParsingTest {
         assertTrue(ApiException.fromStatus(429, "quota") is ApiException.RateLimited)
         assertTrue(ApiException.fromStatus(503, "down") is ApiException.Server)
         assertTrue(ApiException.fromStatus(401, "do not expose this body") is ApiException.InvalidCredentials)
+        assertTrue(ApiException.fromStatus(403, "blocked") is ApiException.Forbidden)
     }
 
     @Test

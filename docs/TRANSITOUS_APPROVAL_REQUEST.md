@@ -1,6 +1,6 @@
 # Transitous 路由使用联系模板
 
-发送前请把方括号内容替换为实际项目仓库和联系人。建议通过 Transitous API 页面列出的 Matrix 社区联系维护者。
+以下内容已填入公开仓库、版本和联系人，可直接通过 Transitous API 页面列出的 Matrix 社区发送。
 
 ## English template
 
@@ -8,7 +8,7 @@ Subject: Permission request for low-volume routing use by Anitabi Navigator
 
 Hello Transitous maintainers,
 
-I am developing Anitabi Navigator, a personal, non-commercial Android pilgrimage navigation app. The source code will be public under GPL-3.0-or-later at [PUBLIC_REPOSITORY_URL], and APKs will be distributed for free through GitHub Releases only.
+I am developing Anitabi Navigator, a personal, non-commercial Android pilgrimage navigation app. The source code is public under GPL-3.0-or-later at https://github.com/realMisakaMikoto/anitabi, and APKs are distributed for free through GitHub Releases only.
 
 The app would use `https://api.transitous.org/api/v6/plan` only after explicit user actions:
 
@@ -18,13 +18,13 @@ The app would use `https://api.transitous.org/api/v6/plan` only after explicit u
 - rerouting only after arrival, a missed connection, or sustained deviation;
 - at least 60 seconds between deviation reroutes;
 - no bulk data download, background crawling, analytics, advertising, or commercial use;
-- User-Agent: `AnitabiNavigator/[VERSION] ([CONTACT_URL])`.
+- User-Agent: `AnitabiNavigator/0.1.0 (https://github.com/realMisakaMikoto)`.
 
 The public transit feature is disabled by default and will remain disabled unless you approve this routing usage. Please let me know whether this usage is acceptable and whether you require additional limits or attribution.
 
 Thank you,
 
-[NAME / CONTACT]
+realMisakaMikoto / https://github.com/realMisakaMikoto
 
 ## 取得回复后
 
