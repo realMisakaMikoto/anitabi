@@ -381,7 +381,7 @@
 ### Verification
 
 - Final Android CI `30452036186` passed 34 JVM tests, Android SDK 37 compilation, Lint, debug APK content audit, and every API 26/API 37 runtime step: cold launch, offline process recovery, foreground navigation completion, automatic GPS arrival while the screen was off, networking restoration, and diagnostic upload.
-- The documentation-only log commits `05632e7` and `4fb4fb1` each produced zero workflow runs. Because their messages also contained skip directives, they are supporting evidence rather than exclusive proof of the path filter; this Task 16 log commit intentionally omits a skip directive for a direct post-push check.
+- Task 16 log commit `71b8112` intentionally omitted a skip directive and produced zero workflow runs after push, directly verifying the `AGENT.md` path filter. Earlier documentation-only commits `05632e7` and `4fb4fb1` also produced zero runs.
 - Signed release `v0.1.2` remains public, non-draft, and non-prerelease. Its APK remains 43,087,229 bytes with SHA-256 `4852fa44abafc7165feceae98f17147106e772ffbfa4824bdf7f391705f84e61`.
 - Agent Reach update check reports installed version `v1.5.0` is current.
 
