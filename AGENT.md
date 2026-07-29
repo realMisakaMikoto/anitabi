@@ -628,3 +628,8 @@
 
 - Main run `30479687810` again passed the full 49-test/build/Lint/APK-audit job, and Android 17/API 37 passed the complete onboarding plus all navigation recovery/arrival/cleanup evidence. Android 8 now emitted `ONBOARDING_PERMISSION_DIALOG_SHOWN`, proving the combined focus probe fixed the preceding failure.
 - The next Android 8-only failure was an explicit `NoSuchMethodError`: the two-argument framework `UiAutomation.grantRuntimePermission` overload used by the test is unavailable there. Replaced that test helper with the platform `pm grant` shell command already used successfully by this repository's emulator fixtures. The test still first opens and verifies the real permission UI; it grants permissions only to the freshly installed disposable emulator package.
+
+### Fourth end-to-end CI diagnosis
+
+- Main run `30480445661` proved the Android 8 test now passes dialog detection and executes both `pm grant` commands. Its Google API 26 image then hit an emulator-system bug: SystemUI crashed while the permission activity was open, leaving Package Installer resumed and ignoring repeated Back injections even though the app's location permissions were already granted. The application process did not crash.
+- Added an API 26-only instrumentation cleanup that force-stops the stuck Google Package Installer after recording the dialog evidence and granting the disposable app. The test then accepts either the launcher's normal callback transition to the Key page or the existing `Permissions ready, continue` recovery action. Newer Android versions keep the already-passing normal Back path; production code remains unchanged.

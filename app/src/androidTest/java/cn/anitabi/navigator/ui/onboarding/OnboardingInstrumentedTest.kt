@@ -49,6 +49,7 @@ class OnboardingInstrumentedTest {
             reportEvidence("ONBOARDING_PERMISSION_DIALOG_SHOWN")
             grantRequiredPermissions()
             returnFromPermissionDialog()
+            continueAfterPermissionGrantIfNeeded()
 
             awaitTag("onboarding-key-input")
             composeRule.onNodeWithTag("onboarding-open-ors")
@@ -111,12 +112,31 @@ class OnboardingInstrumentedTest {
     }
 
     private fun returnFromPermissionDialog() {
+        if (Build.VERSION.SDK_INT == Build.VERSION_CODES.O) {
+            shell("am force-stop com.google.android.packageinstaller")
+            Thread.sleep(500L)
+            return
+        }
         repeat(4) {
             if (application.packageName in focusedWindow().lowercase()) return
             shell("input keyevent 4")
             Thread.sleep(500L)
         }
         throw AssertionError("The app did not regain focus after permissions were granted")
+    }
+
+    private fun continueAfterPermissionGrantIfNeeded() {
+        composeRule.waitUntil(timeoutMillis = 15_000L) {
+            composeRule.onAllNodesWithTag("onboarding-key-input").fetchSemanticsNodes().isNotEmpty() ||
+                composeRule.onAllNodesWithTag("onboarding-permission-continue")
+                    .fetchSemanticsNodes().isNotEmpty()
+        }
+        if (
+            composeRule.onAllNodesWithTag("onboarding-permission-continue")
+                .fetchSemanticsNodes().isNotEmpty()
+        ) {
+            composeRule.onNodeWithTag("onboarding-permission-continue").performClick()
+        }
     }
 
     private fun focusedWindow(): String {
