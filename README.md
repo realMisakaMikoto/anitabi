@@ -2,7 +2,7 @@
 
 一个零预算、无自建后端、全程留在应用内的 Android 动漫圣地巡礼导航器。用户可以搜索 Bangumi 作品、从 Anitabi 选择巡礼点、在手机本地优化访问顺序，再用 MapLibre 连续导航全部地点。
 
-> 当前状态：33 个 JVM 单元测试、Android SDK 37 编译、Lint、R8、APK 内容审计和固定签名发布均已通过；当前主分支 debug APK 已在 Android 8（API 26）和 Android 17（API 37）模拟器通过全程断网、两次强制停止/恢复、前台服务通知、两站导航完成和 Room 进度持久化，实际签名版也已在两个版本完成安装与冷启动复验。Android 8 兼容修复版 [v0.1.1 APK](https://github.com/realMisakaMikoto/anitabi/releases/tag/v0.1.1) 已公开发布。真机定位、锁屏、TTS 与 OEM 后台行为仍待实体设备验收；公交功能默认关闭，取得 Transitous 维护者明确同意前不得启用。
+> 当前状态：33 个 JVM 单元测试、Android SDK 37 编译、Lint、R8、APK 内容审计和固定签名发布均已通过；当前主分支 debug APK 已在 Android 8（API 26）和 Android 17（API 37）模拟器通过全程断网、两次强制停止/恢复、前台服务通知、模拟 GPS 自动到达、息屏时自动进入下一站、两站完成和 Room 进度持久化，实际签名版也已在两个版本完成安装与冷启动复验。Android 8 兼容修复版 [v0.1.1 APK](https://github.com/realMisakaMikoto/anitabi/releases/tag/v0.1.1) 已公开发布。真机定位、锁屏、TTS 与 OEM 后台行为仍待实体设备验收；公交功能默认关闭，取得 Transitous 维护者明确同意前不得启用。
 
 ## 功能
 

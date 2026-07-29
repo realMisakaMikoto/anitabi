@@ -18,7 +18,7 @@ The app would use `https://api.transitous.org/api/v6/plan` only after explicit u
 - rerouting only after arrival, a missed connection, or sustained deviation;
 - at least 60 seconds between deviation reroutes;
 - no bulk data download, background crawling, analytics, advertising, or commercial use;
-- User-Agent: `AnitabiNavigator/0.1.0 (https://github.com/realMisakaMikoto)`.
+- User-Agent: `AnitabiNavigator/0.1.1 (https://github.com/realMisakaMikoto)`.
 
 The public transit feature is disabled by default and will remain disabled unless you approve this routing usage. Please let me know whether this usage is acceptable and whether you require additional limits or attribution.
 

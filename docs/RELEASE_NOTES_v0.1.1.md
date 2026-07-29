@@ -23,6 +23,7 @@ Release 同时提供机器可读的 `anitabi-v0.1.1.apk.sha256`。
 
 - 33 个 JVM 单元测试、Android SDK 37 编译、release Lint、R8、APK 内容审计和签名校验由发布工作流执行。
 - 修复后的同版本源码已在 API 26 与 API 37 模拟器完成离线进程恢复和前台导航状态流；系统崩溃缓冲与 DropBox 均未发现应用崩溃。
+- 发布后补充的运行测试在两个版本中均通过系统 test provider 把模拟 GPS 送入前台服务：第一站在息屏状态自动推进，第二站自动完成并持久化，前台通知保持存在。
 - 发布后的实际签名 APK 已由独立兼容性工作流在 API 26 与 API 37 复验下载、安装、版本信息和冷启动；两端崩溃缓冲为空。
 
 ## 仍受外部条件限制
@@ -33,4 +34,4 @@ Release 同时提供机器可读的 `anitabi-v0.1.1.apk.sha256`。
 
 完整逐项证据见仓库中的 `docs/releases/v0.1.1.md`。
 
-验证运行：[同版本源码运行时 CI 30446068593](https://github.com/realMisakaMikoto/anitabi/actions/runs/30446068593)、[签名发布 30446070504](https://github.com/realMisakaMikoto/anitabi/actions/runs/30446070504)、[签名 APK 兼容性复验 30446437144](https://github.com/realMisakaMikoto/anitabi/actions/runs/30446437144)。
+验证运行：[同版本源码运行时 CI 30446068593](https://github.com/realMisakaMikoto/anitabi/actions/runs/30446068593)、[自动 GPS 与息屏 CI 30447328118](https://github.com/realMisakaMikoto/anitabi/actions/runs/30447328118)、[签名发布 30446070504](https://github.com/realMisakaMikoto/anitabi/actions/runs/30446070504)、[签名 APK 兼容性复验 30446437144](https://github.com/realMisakaMikoto/anitabi/actions/runs/30446437144)。

@@ -290,3 +290,37 @@
 - A physical Android phone is still required for real GPS, audible Chinese TTS, lock-screen notification behavior, OEM battery/background restrictions, real weak-network behavior, and full user-driven search/ORS/navigation acceptance. Emulator evidence is not presented as a substitute.
 - Wait for an Anitabi maintainer response to issue `#86` or restoration of documented API access for the affected network.
 - Send the prepared Transitous request from an identifiable Matrix account and obtain explicit maintainer approval before enabling or testing public-transit routing.
+
+## 2026-07-29 - Task 13: automatic GPS arrival and screen-off runtime verification
+
+### Completed
+
+- Re-read this complete log and the original pasted implementation plan before starting the task.
+- Audited the remaining runtime evidence against the plan. Confirmed that the previous service test used the manual-arrival action and therefore did not prove that Android `LocationManager` callbacks automatically advance a route.
+- Added an independent instrumentation test that installs an Android test GPS provider, starts the actual foreground navigation service from a persisted two-stop route, turns the emulator screen off, injects the first destination through `LocationManager`, and verifies automatic arrival/dwell/next-stop progression while the screen remains off and the navigation notification remains active.
+- The same test wakes the emulator, injects the second destination, verifies automatic completion, checks all three expected completed point IDs, and waits for the completed progress to be persisted to Room.
+- Added explicit instrumentation milestones `GPS_FIX_1_ADVANCED_WHILE_SCREEN_OFF` and `GPS_FIX_2_COMPLETED_AND_PERSISTED`; CI requires both milestones and `OK (1 test)` rather than accepting a generic successful process exit.
+- Granted the Android mock-location app op only to the disposable app/test packages inside CI. Production code, production permissions, and the public APK were not given a mock-location capability.
+- Kept the existing manual-arrival fallback test and offline force-stop/recovery test, so the new automatic-location path supplements rather than replaces previous coverage.
+- Updated README and the v0.1.1 evidence records with the automatic GPS and screen-off result. Updated the prepared Transitous request User-Agent from `0.1.0` to `0.1.1`.
+
+### Verification
+
+- Android CI run `30447328118` passed 33 JVM tests, SDK 37 compilation, Lint, debug APK content audit, cold launch, offline process recovery, manual foreground navigation completion, the new automatic GPS/screen-off test, network restoration, and diagnostic upload on both Android 8/API 26 and Android 17/API 37.
+- Downloaded both evidence artifacts. API 26 completed the automatic test in 9.111 seconds and API 37 in 8.284 seconds; both contain the two required GPS milestones and `OK (1 test)`.
+- `automatic-gps-crash.log`, the always-captured crash buffer, and the ordinary crash buffer are empty on both versions. Android DropBox reports no `data_app_crash` entries.
+- Compared `v0.1.1` with the tested commit: there are no changes under production app source or `app/build.gradle.kts`; post-tag changes are limited to CI, androidTest, and documentation. This supports the same-source claim but is not presented as physical-GPS evidence.
+- Rechecked the official Android `LocationManager` documentation: test-provider calls require the mock-location app op and locations must include provider, accuracy, wall-clock time, and elapsed realtime; the test supplies all required fields.
+- Agent Reach's Exa backend could not load tool metadata, so official Android documentation was read through the browsing fallback and Transitous' official policy was read through Agent Reach's documented Jina route. `agent-reach check-update` confirms v1.5.0 is current.
+
+### External-state audit
+
+- `adb` is still unavailable locally, `ANDROID_HOME` and `ANDROID_SDK_ROOT` are unset, and Windows device inventory shows no connected Android/ADB/MTP phone. The Xiaomi entries are Bluetooth earbuds, not a test handset.
+- Anitabi issue `anitabi/anitabi.cn-document#86` remains open with no comments or maintainer update.
+- Transitous' policy page, published/updated on 2026-07-29, still identifies routing as potentially resource-intensive and directs projects to its Matrix channel when load is in doubt. A search of its public GitHub issues found no documented API-usage approval alternative. No GitHub issue was opened as a substitute for the required Matrix contact.
+
+### Remaining external acceptance gates
+
+- A physical Android phone and user-driven session remain necessary for real GNSS behavior, audible Chinese TTS, a secured lock screen, OEM battery restrictions, real mobile-network transitions, ORS-key live routing, and the complete search-to-navigation acceptance flow.
+- Wait for an Anitabi maintainer response to issue `#86` or restoration of documented API access for the affected network.
+- Send the prepared Transitous request from an identifiable Matrix account and obtain explicit maintainer approval before enabling or testing public-transit routing.
