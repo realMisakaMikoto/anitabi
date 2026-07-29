@@ -120,6 +120,15 @@ jobs:
           grep -q "ONBOARDING_EMPTY_KEY_BLOCKED" smoke-output/onboarding-smoke.txt
           grep -q "ONBOARDING_COMPLETED_TO_SEARCH" smoke-output/onboarding-smoke.txt
           grep -q "ONBOARDING_RESTARTED_IN_SEARCH" smoke-output/onboarding-smoke.txt
+      - name: Reset Android 8 after permission-system smoke
+        if: matrix.label == 'android-8-api-26'
+        run: |
+          adb reboot
+          timeout 180 adb wait-for-device
+          timeout 300 bash -c 'until [ "$(adb shell getprop sys.boot_completed | tr -d "\r")" = "1" ]; do sleep 5; done'
+          adb shell settings put global window_animation_scale 0
+          adb shell settings put global transition_animation_scale 0
+          adb shell settings put global animator_duration_scale 0
       - name: Verify offline process recovery
         run: |
           set -o pipefail

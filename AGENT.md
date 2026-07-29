@@ -633,3 +633,8 @@
 
 - Main run `30480445661` proved the Android 8 test now passes dialog detection and executes both `pm grant` commands. Its Google API 26 image then hit an emulator-system bug: SystemUI crashed while the permission activity was open, leaving Package Installer resumed and ignoring repeated Back injections even though the app's location permissions were already granted. The application process did not crash.
 - Added an API 26-only instrumentation cleanup that force-stops the stuck Google Package Installer after recording the dialog evidence and granting the disposable app. The test then accepts either the launcher's normal callback transition to the Key page or the existing `Permissions ready, continue` recovery action. Newer Android versions keep the already-passing normal Back path; production code remains unchanged.
+
+### Fifth end-to-end CI diagnosis
+
+- Main run `30481174385` produced all five Android 8 onboarding milestones and `OK (1 test)`, closing the onboarding flow itself on API 26. Its following offline-recovery step failed because every UI hierarchy was covered by the surviving platform alert `System UI has stopped`; the seeded application state and onboarding test had succeeded underneath it.
+- Isolated that Google API 26 emulator defect from the established navigation matrix by rebooting only the Android 8 emulator after the onboarding evidence is complete, waiting for `sys.boot_completed`, and restoring disabled animation scales before legacy recovery checks. This does not skip, weaken, or alter either test: onboarding finishes before the reset, and offline/navigation fixtures reinstall their APKs and data afterward. Android 17 keeps the continuous no-reset path.
