@@ -1,3 +1,4 @@
+# 注意：本产品为基于https://github.com/anitabi打造的开源产品。如需要访问圣地巡礼网站，请访问anitabi.cn
 # 巡礼手帖（Anitabi Navigator）
 
 一个零预算、无自建后端、全程留在应用内的 Android 动漫圣地巡礼导航器。用户可以搜索 Bangumi 作品、从 Anitabi 选择巡礼点、在手机本地优化访问顺序，再用 MapLibre 连续导航全部地点。
