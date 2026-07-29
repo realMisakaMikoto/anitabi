@@ -2,7 +2,7 @@
 
 一个零预算、无自建后端、全程留在应用内的 Android 动漫圣地巡礼导航器。用户可以搜索 Bangumi 作品、从 Anitabi 选择巡礼点、在手机本地优化访问顺序，再用 MapLibre 连续导航全部地点。
 
-> 当前状态：33 个 JVM 单元测试、Android SDK 37 编译、Lint、R8、APK 内容审计和固定签名发布均已通过；实际签名版已在 Android 8（API 26）和 Android 17（API 37）模拟器冷启动，同版本源码另已通过 Android 16（API 36）debug 冷启动。签名版 [v0.1.0 APK](https://github.com/realMisakaMikoto/anitabi/releases/tag/v0.1.0) 已公开发布。真机定位、锁屏、TTS 与后台行为仍待实体设备验收；公交功能默认关闭，取得 Transitous 维护者明确同意前不得启用。
+> 当前状态：33 个 JVM 单元测试、Android SDK 37 编译、Lint、R8、APK 内容审计和固定签名发布均已通过；当前主分支 debug APK 已在 Android 8（API 26）和 Android 17（API 37）模拟器通过全程断网、两次强制停止/恢复、前台服务通知、两站导航完成和 Room 进度持久化，实际签名版也已在两个版本完成安装与冷启动复验。Android 8 兼容修复版 [v0.1.1 APK](https://github.com/realMisakaMikoto/anitabi/releases/tag/v0.1.1) 已公开发布。真机定位、锁屏、TTS 与 OEM 后台行为仍待实体设备验收；公交功能默认关闭，取得 Transitous 维护者明确同意前不得启用。
 
 ## 功能
 
@@ -86,7 +86,7 @@ GitHub 仓库需配置以下 Actions Secrets：
 
 推送 `v*` tag 后，[发布工作流](.github/workflows/release.yml)会测试、Lint、R8、签名 APK、生成 SHA-256，再创建 GitHub Release。私钥在 runner 的临时目录恢复，不写入工作区或构建产物。
 
-当前签名版与逐项证据见 [v0.1.0 发布验收记录](docs/releases/v0.1.0.md)。
+当前签名版与逐项证据见 [v0.1.1 发布验收记录](docs/releases/v0.1.1.md)。
 
 ## 隐私与安全
 

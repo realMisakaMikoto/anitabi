@@ -249,3 +249,44 @@
 - Validate the released APK on a physical Android phone: real GPS updates, ORS-key live routing, continuous multi-stop navigation, arrival/dwell/next-stop transitions, audible Chinese TTS, notification and lock-screen behavior, OEM background/process-kill recovery, weak-network handling, and upgrade/restore behavior.
 - Wait for the Anitabi maintainers to respond to issue `#86` or otherwise restore documented API access for the affected network.
 - Send the prepared Transitous request from an identifiable Matrix account and obtain explicit maintainer approval before enabling or testing public-transit routing.
+
+## 2026-07-29 - Task 12: offline runtime verification, Android 8 fixes, and v0.1.1 release
+
+### Completed
+
+- Re-read this complete log and the original pasted implementation plan before starting the task.
+- Rechecked current official AndroidX test versions and MapLibre renderer guidance. Added Android instrumentation dependencies and a runtime test fixture without enabling Transitous or adding a backend.
+- Added emulator verification for persisted-route seeding, a foreground location service and navigation notification, full offline operation, force-stop/open recovery twice, two manual-arrival transitions, completed state, and Room progress persistence.
+- Made the runtime APK use the same debug signer as the tested app, matched persisted start-point semantics, supported permission and airplane-mode differences across API 26/API 37, restored networking in an always-run cleanup step, and captured logcat, crash-buffer, DropBox, activity, notification, UI hierarchy, and screenshot diagnostics.
+- Added Android CI concurrency cancellation and canceled obsolete run `30441875569` so superseded commits would not continue consuming runners or generate additional failure mail.
+- Used the diagnostic artifacts instead of weakening the test. Fixed two real Android 8 product crashes: implemented the legacy `LocationListener` callbacks required on API 26 and replaced the automatic MapLibre artifact with the official `android-sdk-opengl:13.4.1` artifact for devices without a Vulkan-compatible GPU.
+- Incremented the application to `versionCode=2` / `versionName=0.1.1`, wrote patch-release notes, and published the fixed, non-draft, non-prerelease `v0.1.1` with the existing fixed signing identity.
+- Used the signed-in GitHub browser session to dispatch the exact-release compatibility workflow because the command-line token was read-only for workflow dispatch. No permissions or validation steps were bypassed.
+- Downloaded and inspected successful API 26/API 37 runtime evidence and exact signed-release evidence. Updated README, release notes, and the v0.1.1 acceptance record with precise evidence boundaries.
+- Rechecked `anitabi/anitabi.cn-document#86`; it remains open with no maintainer comments. Transitous remains compile-time disabled because no explicit maintainer approval exists.
+
+### Failure diagnosis and fixes
+
+- Run `30441290377`: the app and instrumentation APKs had different ephemeral debug signatures; both are now built together with one signing identity.
+- Run `30441981895`: API 26 did not support the modern runtime-permission helper and API 37 rejected an unprivileged protected airplane-mode broadcast; permission grants and network control are now version-aware.
+- Run `30442766632`: API 37 passed but API 26 could not send the protected broadcast; the API 26 emulator now uses a verified root ADB session.
+- Run `30443325979`: the API 26 `svc` process was killed; direct root settings and the protected broadcast replaced it.
+- Run `30443949246`: Android 8 showed a real application crash; always-run crash diagnostics were added.
+- Run `30444598023`: diagnostics identified `AbstractMethodError` from missing old `LocationListener` methods and `No Vulkan compatible GPU found` from the renderer. Both product causes were fixed rather than hidden.
+
+### Verification
+
+- Gradle resolved `org.maplibre.gl:android-sdk-opengl:13.4.1` successfully from Maven Central; `git diff --check` reported no whitespace errors. The local machine still has no configured Android SDK, so official Android compilation remained in GitHub Actions rather than being fabricated locally.
+- Android CI `30445242402` first proved the fixes on API 26 and API 37. Versioned main run `30446068593` then passed 33 JVM tests, SDK 37 compilation, Lint, debug APK audit, cold launch, offline process recovery, foreground navigation completion, networking cleanup, and diagnostic upload on both emulator versions.
+- Both runtime evidence sets report `OK (1 test)` for route seeding and `OK (1 test)` for navigation completion. Recovery UI and notifications remained present after both force-stop/open cycles; crash buffers were empty and DropBox contained no `data_app_crash` entry.
+- Signed release run `30446070504` passed unit tests, release Lint, R8, APK audit, signature verification, checksum generation, and public Release publication.
+- Downloaded `anitabi-v0.1.1.apk` is 43,087,229 bytes. Its computed SHA-256, published checksum, and GitHub asset digest agree: `efd41a3f6186e0da5784cfb93cf6816d1a3720ee332dee243058a8b90e1a5787`. The fixed certificate SHA-256 remains `9679c83769368c7150f629d9cba3c0e5d633fa7f1043ce251fdba6c7c64fb00a`.
+- Exact-release compatibility run `30446437144` downloaded the public signed APK and passed installation, package inspection, cold launch, foreground-process, screenshot, and empty crash-buffer checks on API 26 and API 37. Both report `versionCode=2`, `versionName=0.1.1`, `minSdk=26`, and `targetSdk=37`.
+- Agent Reach update check reported installed version `v1.5.0` is current.
+- Public evidence: `https://github.com/realMisakaMikoto/anitabi/actions/runs/30446068593`, `https://github.com/realMisakaMikoto/anitabi/actions/runs/30446070504`, `https://github.com/realMisakaMikoto/anitabi/actions/runs/30446437144`, and `https://github.com/realMisakaMikoto/anitabi/releases/tag/v0.1.1`.
+
+### Remaining external acceptance gates
+
+- A physical Android phone is still required for real GPS, audible Chinese TTS, lock-screen notification behavior, OEM battery/background restrictions, real weak-network behavior, and full user-driven search/ORS/navigation acceptance. Emulator evidence is not presented as a substitute.
+- Wait for an Anitabi maintainer response to issue `#86` or restoration of documented API access for the affected network.
+- Send the prepared Transitous request from an identifiable Matrix account and obtain explicit maintainer approval before enabling or testing public-transit routing.
