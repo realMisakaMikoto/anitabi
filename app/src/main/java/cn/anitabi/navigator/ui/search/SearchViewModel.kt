@@ -103,7 +103,6 @@ class SearchViewModel(
             val selected = current.selectedPointIds
             when {
                 pointId in selected -> current.copy(selectedPointIds = selected - pointId, errorMessage = null)
-                selected.size >= MAX_ROAD_POINTS -> current.copy(errorMessage = "道路路线最多选择 $MAX_ROAD_POINTS 个巡礼点")
                 else -> current.copy(selectedPointIds = selected + pointId, errorMessage = null)
             }
         }
@@ -118,12 +117,9 @@ class SearchViewModel(
             val visible = current.combinedPilgrimageData?.points.orEmpty()
                 .filter { point -> current.visibleBounds?.contains(point) == true }
                 .map(PilgrimagePoint::id)
-            val available = visible.filterNot(current.selectedPointIds::contains)
-            val room = MAX_ROAD_POINTS - current.selectedPointIds.size
-            val added = available.take(room)
             current.copy(
-                selectedPointIds = current.selectedPointIds + added,
-                errorMessage = if (added.size < available.size) "已选满 $MAX_ROAD_POINTS 个点，其余未加入" else null,
+                selectedPointIds = current.selectedPointIds + visible,
+                errorMessage = null,
             )
         }
     }
@@ -191,10 +187,6 @@ class SearchViewModel(
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             return SearchViewModel(bangumiApi, pilgrimageRepository) as T
         }
-    }
-
-    companion object {
-        const val MAX_ROAD_POINTS = 12
     }
 }
 

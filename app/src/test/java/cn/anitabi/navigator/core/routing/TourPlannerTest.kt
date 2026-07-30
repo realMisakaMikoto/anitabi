@@ -67,24 +67,45 @@ class TourPlannerTest {
     }
 
     @Test
-    fun `transit planner rejects more than eight points before requesting journeys`() = runBlocking {
+    fun `transit planner accepts more than eight points and requests adjacent pairs`() = runBlocking {
         val transit = FakeTransitProvider()
         val planner = TourPlanner(FakeRoadProvider(), transit)
 
-        val result = runCatching {
-            planner.planTransit(
-                TransitPlanRequest(
-                    anime = anime,
-                    selectedPoints = (1..9).map { point("point-$it", it.toDouble()) },
-                    start = GeoPoint(0.0, 0.0),
-                    endPolicy = EndPolicy.OPEN,
-                    departureTime = "2026-07-29T09:00:00+09:00",
-                ),
-            )
-        }
+        val plan = planner.planTransit(
+            TransitPlanRequest(
+                anime = anime,
+                selectedPoints = (1..14).map { point("point-$it", it.toDouble()) },
+                start = GeoPoint(0.0, 0.0),
+                endPolicy = EndPolicy.OPEN,
+                departureTime = "2026-07-29T09:00:00+09:00",
+            ),
+        )
 
-        assertTrue(result.exceptionOrNull() is IllegalArgumentException)
-        assertTrue(transit.departures.isEmpty())
+        assertEquals(14, plan.orderedPoints.size)
+        assertEquals(14, transit.departures.size)
+    }
+
+    @Test
+    fun `road planner splits unlimited trip into bounded matrix and route requests`() = runBlocking {
+        val road = FakeRoadProvider()
+        val planner = TourPlanner(road, FakeTransitProvider())
+
+        val plan = planner.planRoad(
+            RoadPlanRequest(
+                anime = anime,
+                selectedPoints = (1..35).map { point("point-$it", it / 100.0) },
+                start = GeoPoint(0.0, 0.0),
+                mode = TravelMode.WALK,
+                objective = RouteObjective.FASTEST,
+                endPolicy = EndPolicy.OPEN,
+            ),
+        )
+
+        assertEquals(35, plan.orderedPoints.size)
+        assertEquals(listOf(10, 10, 10, 9), road.matrixRequestSizes)
+        assertEquals(listOf(12, 12, 12, 3), road.directionRequestSizes)
+        assertTrue(road.matrixRequestSizes.all { it * it <= 100 })
+        assertEquals(35, plan.legs.size)
     }
 
     @Test
@@ -145,7 +166,11 @@ class TourPlannerTest {
 }
 
 private class FakeRoadProvider : RoadRoutingProvider {
+    val matrixRequestSizes = mutableListOf<Int>()
+    val directionRequestSizes = mutableListOf<Int>()
+
     override suspend fun matrix(mode: TravelMode, points: List<GeoPoint>): TravelMatrix {
+        matrixRequestSizes += points.size
         val matrix = List(points.size) { from ->
             List<Double?>(points.size) { to -> kotlin.math.abs(from - to).toDouble() }
         }
@@ -153,7 +178,7 @@ private class FakeRoadProvider : RoadRoutingProvider {
     }
 
     override suspend fun directions(mode: TravelMode, points: List<GeoPoint>): RoadRoute = RoadRoute(
-        points.zipWithNext().map { (from, to) ->
+        points.also { directionRequestSizes += it.size }.zipWithNext().map { (from, to) ->
             RoadRouteSegment(
                 geometry = listOf(from, to),
                 steps = emptyList(),

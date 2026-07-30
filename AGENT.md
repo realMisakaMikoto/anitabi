@@ -751,3 +751,57 @@
 - The first slim-image build correctly exposed missing native build tools. A stalled Debian package download and an Alpine experiment were stopped; the final reproducible Dockerfile uses the full Node Bookworm image only as a build stage and the 92 MB Bookworm-slim runtime. Node's built-in SQLite was evaluated but rejected because Node 24 still emits an experimental API warning.
 - No Google/Firebase project, billing resource, Cloudflare DNS record, VPS service, credential, or billable Google request was created. Local DNS is transparently mapped to reserved `198.18.0.0/15` addresses and cannot prove public DNS state. No usable VPS SSH target or Cloudflare/Google credential is present in the local environment, so deployment remains an external next phase rather than a claimed result.
 - No secret value was written to the workspace, command output, Docker layer, documentation, or this log. Only generated in-memory test keys and fake tokens were used.
+
+## 2026-07-30 - Task 28: Google control-plane migration and VPS access discovery
+
+### Preparation and read-only discovery
+
+- Re-read the complete current 753-line `AGENT.md` and the complete original pasted implementation plan before starting this task.
+- Confirmed the implementation branch remained clean and synchronized with its remote at Task 27's backend commit. The branch has no GitHub Actions run because the existing Android workflow path filters do not include the backend/documentation-only change set.
+- Found the already authenticated Google Cloud project through the user's existing Chrome state and verified the project identity before making any change. No browser cookies, stored passwords, tokens, local storage, or secret values were inspected.
+- A single focused, read-only browser-history lookup identified the active VPS provider as V.PS and the service as a Tokyo Cloud KVM instance. The provider console session has expired and is currently at its normal login page; no provider credential was guessed, read, or transmitted.
+
+### Google API migration performed
+
+- Verified the pre-change state: Routes API was enabled, Navigation SDK was disabled, and Maps SDK for Android was enabled.
+- Enabled Navigation SDK in the identified project and waited for the console to report the stable enabled state.
+- Disabled Maps SDK for Android and waited for the console to report the stable disabled state, avoiding simultaneous Maps SDK and Navigation SDK map stacks. Routes API remained enabled throughout.
+- Restored the user's original Google Maps Platform API-list page after the checks. No API key, service account, OAuth credential, billable Routes request, budget, or quota was created in this task.
+
+### Honest external boundaries
+
+- Opening the same project in Firebase reached its first-use `Accept Firebase terms of service` screen. Accepting legal terms requires the owner's explicit confirmation, so the checkbox and Continue action were left untouched and the live page was preserved for handoff.
+- Opening the exact V.PS service page reached `Registered Clients Only` because the login session had expired. The live login page was preserved for the owner; no email address, account password, root password, or console credential was entered.
+- With the provider session unavailable, the mandatory console recovery of `sshd`, host fingerprint verification, and read-only VPS inventory could not honestly start. Cloudflare DNS/HTTPS configuration also remains untouched because no authenticated Cloudflare control surface or credential was available.
+- No secret was written to source, shell commands, browser output, Git, Docker, or this log. The Android phone and its installed v0.2.0 application were not accessed or changed.
+
+## 2026-07-30 - Task 29: v0.2.1 unlimited-tour, data-migration, Firebase, and Google map foundation
+
+### Preparation and external configuration
+
+- Re-read the complete current 776-line `AGENT.md` and the complete original pasted implementation plan before starting this task. The user then explicitly authorized acceptance of all service terms needed by the implementation; this did not broaden the work to purchases, CAPTCHA handling, guessed credentials, or unrelated services.
+- Added Firebase to the same existing Google Cloud project and accepted the Firebase and Google Analytics terms. The project retained its already-enabled Blaze billing relationship; no new billing account or purchase was created. Google Analytics account location was set to China and all optional Analytics data-sharing switches were turned off.
+- Enabled Firebase Anonymous Authentication without 30-day auto-cleanup, registered `cn.anitabi.navigator` as `Anitabi Android`, downloaded the matching `google-services.json`, and registered both SHA-1 and SHA-256 fingerprints for the fixed production certificate and the local debug certificate.
+- Created a dedicated `Anitabi Navigation SDK Android` API key. It is restricted to Navigation SDK only and to the application package plus the production and debug SHA-1 certificates. The key is stored only in ignored `local.properties`; it was not added to source, Git, command output, or this log, and the system clipboard was cleared after transfer. The pre-existing Maps key was not modified.
+- Used read-only ADB pull and `apksigner` inspection of the already-installed public v0.2.0 APK to derive its SHA-1 certificate fingerprint. No APK was installed, replaced, uninstalled, launched, or modified on the phone.
+
+### Unlimited planning and versioned persistence
+
+- Set `versionCode=7` and `versionName=0.2.1`.
+- Removed the fixed road/transit total-point caps. Large road tours now use deterministic nearest-neighbor plus bounded 2-opt globally, exact Held-Karp only inside at-most-10-location windows, at-most-100-element matrix requests, overlapping at-most-12-location route batches, and at-most-25-destination navigation batches. Transit remains adjacent-pair planning. Added helpers for identifying only the matrix windows affected by a dragged stop.
+- Added tests for a 200-point optimizer run, 10/12/25 batching boundaries, 35-point road planning, 14-point pairwise transit planning, fixed endpoints, and affected-window calculation.
+- Added `StoredTourV2`, which persists only user-owned points, order, start/end policy, mode, dwell/departure settings, completed points, active point, and navigation state. Resolved matrices, geometry, steps, transit details, estimates, and provider responses are process-memory only.
+- Upgraded Room from schema 1 to schema 2 with exported schemas and an explicit migration that preserves the public v0.2.0 JSON in legacy columns until a successful lazy conversion. Successful conversion clears old route content and marks the route for network refresh; parse failure retains the original record and exposes a recovery error instead of clearing the database. Repeated conversion is idempotent.
+- Added an Android migration test that creates the exact v0.2.0 schema and encoded records, migrates them, verifies route stripping and preserved selection/progress, repeats recovery, and separately proves malformed legacy JSON remains recoverable. The instrumentation test source and schema assets compile successfully; execution still requires the later API 26/API 37 emulator phase.
+
+### Google Android SDK foundation
+
+- Added Navigation SDK 7.8.0, Firebase BoM 34.16.0, Firebase Auth, Analytics, Crashlytics, Google Services 4.5.0, Crashlytics Gradle plugin 3.0.7, and the required NIO desugaring library. Analytics and Crashlytics collection are disabled by manifest default.
+- Replaced both production MapLibre map implementations with `NavigationView`-backed Google maps for pilgrimage-point selection and route preview, including lifecycle handling, marker selection, route polylines, current-location display, camera bounds, and visible-bounds callbacks. Removed the MapLibre dependency and application initializer.
+- Navigation SDK's transitive Cronet 119 AARs share one namespace under AGP 9.3. The build otherwise fails manifest validation, so `android.uniquePackageNames=false` is temporarily set; AGP reports the duplicate namespace as a warning instead of an error. This compatibility switch must be retested when Navigation SDK or AGP is upgraded.
+
+### Verification and remaining migration work
+
+- `:app:compileDebugKotlin` and `:app:compileDebugAndroidTestKotlin` pass with the Firebase and Navigation SDK stack. `:app:testDebugUnitTest` passes 57 tests with zero failures, errors, or skips. The debug runtime dependency tree contains Navigation SDK/Firebase and no MapLibre artifact. `git diff --check` reports only the repository's existing Windows line-ending notices.
+- No billable Navigation or Routes request was made. No service-account key, VPS credential, root password, ORS key, Transitous URL, or server credential was added to the new Android configuration.
+- This task deliberately stops at a verified foundation: the Android route provider still uses the old ORS/Transitous implementation, onboarding/settings/about copy still exposes the old provider choices, native road guidance is not yet wired to `Navigator`, telemetry runtime consent is not implemented, drag reordering does not yet execute the affected-window-only refresh, and process-death route-refresh handling still needs completion. These are explicit next tasks, not claimed results.

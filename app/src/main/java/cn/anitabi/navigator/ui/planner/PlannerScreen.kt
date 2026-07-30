@@ -68,7 +68,6 @@ import cn.anitabi.navigator.core.model.RouteObjective
 import cn.anitabi.navigator.core.model.TourPlan
 import cn.anitabi.navigator.core.model.TourLeg
 import cn.anitabi.navigator.core.model.TravelMode
-import cn.anitabi.navigator.core.routing.TourPlanner
 import cn.anitabi.navigator.ui.theme.Ink
 import cn.anitabi.navigator.ui.theme.Moss
 import cn.anitabi.navigator.ui.theme.MutedInk
@@ -205,7 +204,7 @@ private fun PlannerSettingsScreen(
                 verticalArrangement = Arrangement.spacedBy(18.dp),
             ) {
                 item {
-                    SectionTitle("出行方式", "道路最多 12 点，公交最多 8 点")
+                    SectionTitle("出行方式", "总行程点数不限，单次请求会自动安全分批")
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -220,7 +219,7 @@ private fun PlannerSettingsScreen(
                             state.mode,
                             "公交",
                             onModeChange,
-                            enabled = state.selectedPoints.size <= TourPlanner.MAX_TRANSIT_POINTS,
+                            enabled = true,
                         )
                     }
                 }

@@ -1,0 +1,108 @@
+package cn.anitabi.navigator.core.model
+
+import kotlinx.serialization.Serializable
+
+@Serializable
+data class StoredTourV2(
+    val schemaVersion: Int = SCHEMA_VERSION,
+    val id: String,
+    val displayAnime: Anime,
+    val selectedAnimes: List<Anime>,
+    val selectedPoints: List<PilgrimagePoint>,
+    val manualOrderPointIds: List<String>,
+    val start: GeoPoint,
+    val startPointId: String? = null,
+    val mode: TravelMode,
+    val objective: RouteObjective,
+    val endPolicy: EndPolicy,
+    val fixedEndPointId: String? = null,
+    val departureTime: String? = null,
+    val dwellMinutes: Int = 15,
+    val completedPointIds: Set<String> = emptySet(),
+    val activePointId: String? = null,
+    val navigationState: NavigationState = NavigationState.PLANNED,
+    val dwellingUntilEpochMillis: Long? = null,
+    val offRouteSinceEpochMillis: Long? = null,
+    val lastRerouteEpochMillis: Long? = null,
+) {
+    init {
+        require(schemaVersion == SCHEMA_VERSION) { "Unsupported stored tour schema" }
+    }
+
+    fun toUnresolvedPlan(): TourPlan {
+        val pointsById = selectedPoints.associateBy(PilgrimagePoint::id)
+        val ordered = manualOrderPointIds.mapNotNull(pointsById::get) +
+            selectedPoints.filterNot { it.id in manualOrderPointIds.toSet() }
+        return TourPlan(
+            id = id,
+            anime = displayAnime,
+            selectedPoints = selectedPoints,
+            orderedPoints = ordered,
+            legs = emptyList(),
+            mode = mode,
+            objective = objective,
+            endPolicy = endPolicy,
+            estimatedDurationSeconds = 0.0,
+            attribution = emptyList(),
+            departureTime = departureTime,
+            dwellMinutes = dwellMinutes,
+            initialStart = start,
+            state = navigationState,
+        )
+    }
+
+    fun toNavigationProgress(): NavigationProgress = NavigationProgress(
+        tourId = id,
+        completedPointIds = completedPointIds,
+        state = navigationState,
+        dwellingUntilEpochMillis = dwellingUntilEpochMillis,
+        offRouteSinceEpochMillis = offRouteSinceEpochMillis,
+        lastRerouteEpochMillis = lastRerouteEpochMillis,
+    )
+
+    companion object {
+        const val SCHEMA_VERSION = 2
+
+        fun from(plan: TourPlan, progress: NavigationProgress?): StoredTourV2 = StoredTourV2(
+            id = plan.id,
+            displayAnime = plan.anime,
+            selectedAnimes = inferSelectedAnimes(plan),
+            selectedPoints = plan.selectedPoints,
+            manualOrderPointIds = plan.orderedPoints.map(PilgrimagePoint::id),
+            start = plan.initialStart ?: plan.orderedPoints.firstOrNull()?.coordinate
+                ?: plan.selectedPoints.first().coordinate,
+            startPointId = plan.orderedPoints.firstOrNull()
+                ?.takeIf { it.coordinate == plan.initialStart }
+                ?.id,
+            mode = plan.mode,
+            objective = plan.objective,
+            endPolicy = plan.endPolicy,
+            fixedEndPointId = plan.orderedPoints.lastOrNull()?.id
+                ?.takeIf { plan.endPolicy == EndPolicy.FIXED },
+            departureTime = plan.departureTime,
+            dwellMinutes = plan.dwellMinutes,
+            completedPointIds = progress?.completedPointIds.orEmpty(),
+            activePointId = progress?.let { current ->
+                plan.legs.getOrNull(current.legIndex)?.destinationPointId
+                    ?: plan.orderedPoints.firstOrNull { it.id !in current.completedPointIds }?.id
+            },
+            navigationState = progress?.state ?: plan.state,
+            dwellingUntilEpochMillis = progress?.dwellingUntilEpochMillis,
+            offRouteSinceEpochMillis = progress?.offRouteSinceEpochMillis,
+            lastRerouteEpochMillis = progress?.lastRerouteEpochMillis,
+        )
+
+        private fun inferSelectedAnimes(plan: TourPlan): List<Anime> {
+            if (plan.anime.subjectId != 0L) return listOf(plan.anime)
+            return plan.selectedPoints.mapNotNull { point ->
+                val subjectId = point.id.substringBefore("::", missingDelimiterValue = "").toLongOrNull()
+                    ?: return@mapNotNull null
+                val title = point.name.substringAfter('《', missingDelimiterValue = "")
+                    .substringBefore("》·", missingDelimiterValue = "")
+                    .takeIf(String::isNotBlank)
+                    ?: "Bangumi #$subjectId"
+                Anime(subjectId = subjectId, name = title)
+            }.distinctBy(Anime::subjectId)
+        }
+    }
+}

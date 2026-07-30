@@ -14,7 +14,9 @@ class TourOptimizer {
         endPolicy: EndPolicy,
         fixedEndStopIndex: Int? = null,
     ): List<Int> {
-        require(matrix.size in 2..13) { "Matrix must contain a start and 1 to 12 stops" }
+        require(matrix.size in 2..TourRequestBatcher.MAX_MATRIX_LOCATIONS) {
+            "Matrix must contain 2 to ${TourRequestBatcher.MAX_MATRIX_LOCATIONS} locations"
+        }
         require(matrix.all { it.size == matrix.size }) { "Matrix must be square" }
         val stopCount = matrix.size - 1
         if (endPolicy == EndPolicy.FIXED) {
@@ -78,16 +80,54 @@ class TourOptimizer {
     fun recommendTransitOrder(
         start: GeoPoint,
         points: List<PilgrimagePoint>,
+    ): List<PilgrimagePoint> = approximateGlobalOrder(
+        start = start,
+        points = points,
+        endPolicy = EndPolicy.OPEN,
+    )
+
+    fun approximateGlobalOrder(
+        start: GeoPoint,
+        points: List<PilgrimagePoint>,
+        endPolicy: EndPolicy,
+        fixedEndPointId: String? = null,
+        twoOptPasses: Int = DEFAULT_TWO_OPT_PASSES,
     ): List<PilgrimagePoint> {
-        require(points.size <= 8) { "Transit supports at most 8 pilgrimage points" }
-        val remaining = points.toMutableList()
+        require(twoOptPasses >= 0) { "2-opt passes cannot be negative" }
+        if (points.isEmpty()) return emptyList()
+        val fixedEnd = if (endPolicy == EndPolicy.FIXED) {
+            requireNotNull(fixedEndPointId) { "A fixed end point is required" }
+            points.singleOrNull { it.id == fixedEndPointId }
+                ?: throw IllegalArgumentException("Fixed end must be one of the selected points")
+        } else {
+            null
+        }
+        val remaining = points.filterNot { it.id == fixedEnd?.id }.toMutableList()
         val ordered = ArrayList<PilgrimagePoint>(points.size)
         var current = start
         while (remaining.isNotEmpty()) {
-            val next = remaining.minBy { haversineMeters(current, it.coordinate) }
+            val next = remaining.minWith(
+                compareBy<PilgrimagePoint> { haversineMeters(current, it.coordinate) }
+                    .thenBy(PilgrimagePoint::id),
+            )
             ordered += next
             remaining.remove(next)
             current = next.coordinate
+        }
+        fixedEnd?.let(ordered::add)
+
+        val lastMovableIndex = if (fixedEnd == null) ordered.lastIndex else ordered.lastIndex - 1
+        repeat(twoOptPasses) {
+            var improved = false
+            for (fromIndex in 0 until lastMovableIndex) {
+                for (toIndex in (fromIndex + 1)..lastMovableIndex) {
+                    if (twoOptGain(start, ordered, fromIndex, toIndex, endPolicy) > IMPROVEMENT_EPSILON) {
+                        ordered.subList(fromIndex, toIndex + 1).reverse()
+                        improved = true
+                    }
+                }
+            }
+            if (!improved) return ordered
         }
         return ordered
     }
@@ -95,6 +135,8 @@ class TourOptimizer {
     companion object {
         private const val START_INDEX = 0
         private const val NO_PARENT = -1
+        private const val DEFAULT_TWO_OPT_PASSES = 4
+        private const val IMPROVEMENT_EPSILON = 0.001
 
         fun haversineMeters(from: GeoPoint, to: GeoPoint): Double {
             val earthRadius = 6_371_000.0
@@ -106,6 +148,25 @@ class TourOptimizer {
                 cos(fromLatitude) * cos(toLatitude) *
                 sin(longitudeDelta / 2) * sin(longitudeDelta / 2)
             return earthRadius * 2 * atan2(sqrt(a), sqrt(1 - a))
+        }
+
+        private fun twoOptGain(
+            start: GeoPoint,
+            points: List<PilgrimagePoint>,
+            fromIndex: Int,
+            toIndex: Int,
+            endPolicy: EndPolicy,
+        ): Double {
+            val previous = points.getOrNull(fromIndex - 1)?.coordinate ?: start
+            val first = points[fromIndex].coordinate
+            val last = points[toIndex].coordinate
+            val next = points.getOrNull(toIndex + 1)?.coordinate
+                ?: start.takeIf { endPolicy == EndPolicy.RETURN_TO_START }
+            val before = haversineMeters(previous, first) +
+                (next?.let { haversineMeters(last, it) } ?: 0.0)
+            val after = haversineMeters(previous, last) +
+                (next?.let { haversineMeters(first, it) } ?: 0.0)
+            return before - after
         }
     }
 }

@@ -630,7 +630,7 @@ private fun SelectionFooter(
                 },
             )
             Column(modifier = Modifier.weight(1f)) {
-                Text("已选 $selectedCount / ${SearchViewModel.MAX_ROAD_POINTS}", fontWeight = FontWeight.Bold)
+                Text("已选 $selectedCount", fontWeight = FontWeight.Bold)
                 Text("可单点或按当前地图范围批选", color = MutedInk, style = MaterialTheme.typography.bodyMedium)
             }
             AnimatedVisibility(visible = selectedCount > 0) {

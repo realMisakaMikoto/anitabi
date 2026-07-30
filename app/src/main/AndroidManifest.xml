@@ -19,6 +19,15 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.AnitabiNavigator"
         android:usesCleartextTraffic="false">
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="${NAVIGATION_API_KEY}" />
+        <meta-data
+            android:name="firebase_analytics_collection_enabled"
+            android:value="false" />
+        <meta-data
+            android:name="firebase_crashlytics_collection_enabled"
+            android:value="false" />
         <activity
             android:name=".MainActivity"
             android:exported="true">

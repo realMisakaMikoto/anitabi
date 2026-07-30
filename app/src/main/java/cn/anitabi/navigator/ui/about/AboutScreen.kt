@@ -92,7 +92,7 @@ fun AboutScreen(onBack: () -> Unit) {
                             uriHandler.openUri("https://transitous.org/sources/")
                         }
                         Text(
-                            "仅在用户生成或重算公交路线时逐段请求，最多 8 个巡礼点；服务为 best-effort，覆盖范围不保证完整。",
+                            "仅在用户生成或重算公交路线时按相邻点逐段请求；服务为 best-effort，覆盖范围不保证完整。",
                             color = MutedInk,
                             modifier = Modifier.padding(top = 6.dp),
                         )

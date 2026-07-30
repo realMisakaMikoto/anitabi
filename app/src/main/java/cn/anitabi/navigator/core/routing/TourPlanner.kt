@@ -19,32 +19,31 @@ class TourPlanner(
 ) {
     suspend fun planRoad(request: RoadPlanRequest): TourPlan {
         require(request.mode != TravelMode.TRANSIT) { "Road planner requires drive, bike or walk mode" }
-        require(request.selectedPoints.size in 2..12) { "Select 2 to 12 pilgrimage points" }
+        require(request.selectedPoints.size >= 2) { "Select at least 2 pilgrimage points" }
         val startPoint = request.startPointId?.let { id ->
             request.selectedPoints.singleOrNull { it.id == id }
                 ?: throw IllegalArgumentException("Start point must be selected")
         }
         val stops = request.selectedPoints.filterNot { it.id == request.startPointId }
         require(stops.isNotEmpty()) { "At least one stop must remain after the start" }
-        val fixedEndIndex = if (request.endPolicy == EndPolicy.FIXED) {
+        val fixedEndPointId = if (request.endPolicy == EndPolicy.FIXED) {
             val fixedId = requireNotNull(request.fixedEndPointId) { "A fixed end point is required" }
-            stops.indexOfFirst { it.id == fixedId }.takeIf { it >= 0 }
+            stops.singleOrNull { it.id == fixedId }?.id
                 ?: throw IllegalArgumentException("Fixed end must be a selected point other than the start")
         } else {
             null
         }
-
-        val matrixCoordinates = listOf(request.start) + stops.map { it.coordinate }
-        val matrix = roadProvider.matrix(request.mode, matrixCoordinates)
-        val costs = when (request.objective) {
-            RouteObjective.FASTEST -> matrix.durations
-            RouteObjective.SHORTEST -> matrix.distances
-        }
-        val order = optimizer.optimizeRoad(costs, request.endPolicy, fixedEndIndex)
-        val orderedStops = order.map(stops::get)
+        val orderedStops = orderRoadStops(
+            start = request.start,
+            stops = stops,
+            mode = request.mode,
+            objective = request.objective,
+            endPolicy = request.endPolicy,
+            fixedEndPointId = fixedEndPointId,
+        )
         val orderedPoints = listOfNotNull(startPoint) + orderedStops
         val routeCoordinates = buildRouteCoordinates(request.start, orderedStops, request.endPolicy)
-        val route = roadProvider.directions(request.mode, routeCoordinates)
+        val route = roadDirections(request.mode, routeCoordinates)
         return TourPlan(
             id = UUID.randomUUID().toString(),
             anime = request.anime,
@@ -67,24 +66,19 @@ class TourPlanner(
     }
 
     suspend fun planTransit(request: TransitPlanRequest): TourPlan {
-        require(request.selectedPoints.size in 2..MAX_TRANSIT_POINTS) {
-            "Transit supports 2 to $MAX_TRANSIT_POINTS pilgrimage points"
-        }
+        require(request.selectedPoints.size >= 2) { "Select at least 2 pilgrimage points" }
         require(request.dwellMinutes >= 0) { "Dwell time cannot be negative" }
         val startPoint = request.startPointId?.let { id ->
             request.selectedPoints.singleOrNull { it.id == id }
                 ?: throw IllegalArgumentException("Start point must be selected")
         }
         val stops = request.selectedPoints.filterNot { it.id == request.startPointId }
-        val orderedStops = when (request.endPolicy) {
-            EndPolicy.FIXED -> {
-                val fixedId = requireNotNull(request.fixedEndPointId) { "A fixed end point is required" }
-                val fixed = stops.singleOrNull { it.id == fixedId }
-                    ?: throw IllegalArgumentException("Fixed end must be a selected point other than the start")
-                optimizer.recommendTransitOrder(request.start, stops - fixed) + fixed
-            }
-            else -> optimizer.recommendTransitOrder(request.start, stops)
-        }
+        val orderedStops = optimizer.approximateGlobalOrder(
+            start = request.start,
+            points = stops,
+            endPolicy = request.endPolicy,
+            fixedEndPointId = request.fixedEndPointId,
+        )
         val legs = buildTransitLegs(
             start = request.start,
             orderedStops = orderedStops,
@@ -137,7 +131,7 @@ class TourPlanner(
                 )
             } else {
                 val coordinates = listOf(currentLocation, originalStart)
-                roadProvider.directions(plan.mode, coordinates).toTourLegs(
+                roadDirections(plan.mode, coordinates).toTourLegs(
                     points = coordinates,
                     mode = plan.mode,
                     destinationPointIds = listOf(null),
@@ -172,17 +166,17 @@ class TourPlanner(
                 returnDestination = originalStart,
             )
         } else {
-            val matrixCoordinates = listOf(currentLocation) + remaining.map { it.coordinate }
-            val matrix = roadProvider.matrix(plan.mode, matrixCoordinates)
-            val costs = when (plan.objective) {
-                RouteObjective.FASTEST -> matrix.durations
-                RouteObjective.SHORTEST -> matrix.distances
-            }
-            val fixedEndIndex = if (plan.endPolicy == EndPolicy.FIXED) remaining.lastIndex else null
-            orderedRemaining = optimizer.optimizeRoad(costs, plan.endPolicy, fixedEndIndex).map(remaining::get)
+            orderedRemaining = orderRoadStops(
+                start = currentLocation,
+                stops = remaining,
+                mode = plan.mode,
+                objective = plan.objective,
+                endPolicy = plan.endPolicy,
+                fixedEndPointId = if (plan.endPolicy == EndPolicy.FIXED) remaining.last().id else null,
+            )
             val coordinates = listOf(currentLocation) + orderedRemaining.map { it.coordinate } +
                 if (plan.endPolicy == EndPolicy.RETURN_TO_START) listOf(originalStart) else emptyList()
-            legs = roadProvider.directions(plan.mode, coordinates).toTourLegs(
+            legs = roadDirections(plan.mode, coordinates).toTourLegs(
                 points = coordinates,
                 mode = plan.mode,
                 destinationPointIds = orderedRemaining.map { it.id } +
@@ -222,7 +216,7 @@ class TourPlanner(
             )
         } else {
             val coordinates = buildRouteCoordinates(start, visits, plan.endPolicy)
-            roadProvider.directions(plan.mode, coordinates).toTourLegs(
+            roadDirections(plan.mode, coordinates).toTourLegs(
                 points = coordinates,
                 mode = plan.mode,
                 destinationPointIds = visits.map { it.id } +
@@ -274,6 +268,49 @@ class TourPlanner(
     ): List<GeoPoint> = listOf(start) + orderedStops.map { it.coordinate } +
         if (endPolicy == EndPolicy.RETURN_TO_START) listOf(start) else emptyList()
 
+    private suspend fun orderRoadStops(
+        start: GeoPoint,
+        stops: List<PilgrimagePoint>,
+        mode: TravelMode,
+        objective: RouteObjective,
+        endPolicy: EndPolicy,
+        fixedEndPointId: String?,
+    ): List<PilgrimagePoint> {
+        val approximate = optimizer.approximateGlobalOrder(
+            start = start,
+            points = stops,
+            endPolicy = endPolicy,
+            fixedEndPointId = fixedEndPointId,
+        )
+        val refined = ArrayList<PilgrimagePoint>(approximate.size)
+        var anchor = start
+        approximate.chunked(TourRequestBatcher.MAX_MATRIX_LOCATIONS - 1).forEachIndexed { index, window ->
+            val matrix = roadProvider.matrix(mode, listOf(anchor) + window.map(PilgrimagePoint::coordinate))
+            val costs = when (objective) {
+                RouteObjective.FASTEST -> matrix.durations
+                RouteObjective.SHORTEST -> matrix.distances
+            }
+            val isLastWindow = index == (approximate.size - 1) / (TourRequestBatcher.MAX_MATRIX_LOCATIONS - 1)
+            val localEndPolicy = if (isLastWindow && endPolicy == EndPolicy.FIXED) {
+                EndPolicy.FIXED
+            } else {
+                EndPolicy.OPEN
+            }
+            val localFixedEndIndex = if (localEndPolicy == EndPolicy.FIXED) window.lastIndex else null
+            val localOrder = optimizer.optimizeRoad(costs, localEndPolicy, localFixedEndIndex)
+            val orderedWindow = localOrder.map(window::get)
+            refined += orderedWindow
+            anchor = orderedWindow.last().coordinate
+        }
+        return refined
+    }
+
+    private suspend fun roadDirections(mode: TravelMode, locations: List<GeoPoint>): RoadRoute = RoadRoute(
+        segments = TourRequestBatcher.routeBatches(locations).flatMap { batch ->
+            roadProvider.directions(mode, batch).segments
+        },
+    )
+
     private fun RoadRoute.toTourLegs(
         points: List<GeoPoint>,
         mode: TravelMode,
@@ -293,9 +330,6 @@ class TourPlanner(
             )
         }
 
-    companion object {
-        const val MAX_TRANSIT_POINTS = 8
-    }
 }
 
 data class RoadPlanRequest(

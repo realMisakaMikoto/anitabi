@@ -55,14 +55,7 @@ class PlannerViewModel(
     }
 
     fun setMode(mode: TravelMode) {
-        mutableState.update { current ->
-            when {
-                mode == TravelMode.TRANSIT && current.selectedPoints.size > TourPlanner.MAX_TRANSIT_POINTS -> current.copy(
-                    errorMessage = "公交最多选择 ${TourPlanner.MAX_TRANSIT_POINTS} 个巡礼点",
-                )
-                else -> current.copy(mode = mode, errorMessage = null, plan = null)
-            }
-        }
+        mutableState.update { current -> current.copy(mode = mode, errorMessage = null, plan = null) }
     }
 
     fun setObjective(objective: RouteObjective) {
