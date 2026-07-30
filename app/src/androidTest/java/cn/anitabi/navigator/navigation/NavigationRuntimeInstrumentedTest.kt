@@ -181,9 +181,8 @@ class NavigationRuntimeInstrumentedTest {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             shell("pm grant $packageName ${Manifest.permission.POST_NOTIFICATIONS}")
         }
-        application.container.orsKeyStore.save("instrumentation-only-invalid-ors-key")
-        application.container.orsKeyStore.markOnboardingComplete()
-        check(application.container.orsKeyStore.hasCompletedOnboarding())
+        application.container.appSettingsStore.markOnboardingComplete()
+        check(application.container.appSettingsStore.hasCompletedOnboarding())
     }
 
     private fun sendServiceAction(action: String) {
@@ -285,7 +284,7 @@ class NavigationRuntimeInstrumentedTest {
             TourLeg(
                 from = from.coordinate,
                 to = to.coordinate,
-                mode = TravelMode.WALK,
+                mode = TravelMode.TRANSIT,
                 geometry = listOf(from.coordinate, to.coordinate),
                 steps = listOf(
                     RouteStep(
@@ -307,7 +306,7 @@ class NavigationRuntimeInstrumentedTest {
             selectedPoints = points,
             orderedPoints = points,
             legs = legs,
-            mode = TravelMode.WALK,
+            mode = TravelMode.TRANSIT,
             objective = RouteObjective.FASTEST,
             endPolicy = EndPolicy.OPEN,
             estimatedDurationSeconds = 180.0,

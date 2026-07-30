@@ -29,6 +29,7 @@ import cn.anitabi.navigator.core.model.TravelMode
 import cn.anitabi.navigator.core.navigation.NavigationEngine
 import cn.anitabi.navigator.core.navigation.NavigationUpdate
 import cn.anitabi.navigator.core.navigation.TransitRefreshPolicy
+import cn.anitabi.navigator.core.navigation.afterRouteRefresh
 import java.time.OffsetDateTime
 import java.util.Locale
 import kotlinx.coroutines.CancellationException
@@ -50,6 +51,11 @@ class NavigationService : Service(), LocationListener, TextToSpeech.OnInitListen
     private var ticker: Job? = null
     private var loadJob: Job? = null
     private var reroute: Job? = null
+    private var roadSyncJob: Job? = null
+    private var roadNavigationSession: GoogleRoadNavigationSession? = null
+    private var lastRoadSyncLegIndex: Int? = null
+    private var nativeRemainingDistanceMeters: Double? = null
+    private var nativeRerouting = false
     private var lastSavedProgress: NavigationProgress? = null
     private var lastSpokenKey: String? = null
     private var lastTransitRefreshKey: String? = null
@@ -86,6 +92,10 @@ class NavigationService : Service(), LocationListener, TextToSpeech.OnInitListen
 
     override fun onLocationChanged(location: Location) {
         val current = GeoPoint(location.latitude, location.longitude)
+        if (plan?.mode != TravelMode.TRANSIT) {
+            NavigationRuntime.update { it.copy(currentLocation = current) }
+            return
+        }
         val update = engine?.onLocation(current, System.currentTimeMillis()) ?: return
         processUpdate(update)
         if (update.requestReroute && reroute?.isActive != true) {
@@ -112,6 +122,8 @@ class NavigationService : Service(), LocationListener, TextToSpeech.OnInitListen
         ticker?.cancel()
         loadJob?.cancel()
         reroute?.cancel()
+        roadSyncJob?.cancel()
+        roadNavigationSession?.close()
         tts?.stop()
         tts?.shutdown()
         NavigationRuntime.update { it.copy(isRunning = false, isRerouting = false) }
@@ -120,6 +132,7 @@ class NavigationService : Service(), LocationListener, TextToSpeech.OnInitListen
     }
 
     private suspend fun loadAndStart(tourId: String?) {
+        var routeRefreshRequired = false
         try {
             NavigationRuntime.update { it.copy(errorMessage = null) }
             runCatching { locationManager.removeUpdates(this) }
@@ -127,18 +140,69 @@ class NavigationService : Service(), LocationListener, TextToSpeech.OnInitListen
                 ?: container.tourRepository.getMostRecent()
                 ?: error("没有可恢复的巡礼路线")
             if (saved.progress?.state == NavigationState.COMPLETED) error("这条巡礼路线已经完成")
-            val loadedPlan = saved.plan
+            var loadedPlan = saved.plan
             val destinations = loadedPlan.legs.mapNotNull { it.destinationPointId }.toSet()
             val startPointIds = loadedPlan.orderedPoints
                 .filter { it.id !in destinations && it.coordinate == loadedPlan.initialStart }
                 .map { it.id }
-                .toSet()
-            val initialProgress = (saved.progress ?: NavigationProgress(tourId = loadedPlan.id)).let {
+                .toSet() + listOfNotNull(saved.storedTour.startPointId)
+            var initialProgress = (saved.progress ?: NavigationProgress(tourId = loadedPlan.id)).let {
                 it.copy(completedPointIds = it.completedPointIds + startPointIds)
+            }
+            if (saved.routeNeedsRefresh) {
+                routeRefreshRequired = true
+                NavigationRuntime.set(
+                    NavigationRuntimeState(
+                        plan = loadedPlan,
+                        progress = initialProgress,
+                        instruction = ROUTE_REFRESH_REQUIRED_MESSAGE,
+                        errorMessage = ROUTE_REFRESH_REQUIRED_MESSAGE,
+                    ),
+                )
+                val currentLocation = container.locationProvider.currentLocation()
+                loadedPlan = container.tourPlanner.replanRemaining(
+                    plan = loadedPlan,
+                    currentLocation = currentLocation,
+                    completedPointIds = initialProgress.completedPointIds,
+                    currentTime = OffsetDateTime.now().toString(),
+                )
+                initialProgress = initialProgress.afterRouteRefresh(loadedPlan.legs.isNotEmpty())
+                container.tourRepository.save(loadedPlan, initialProgress)
+                routeRefreshRequired = false
+                NavigationRuntime.update { it.copy(errorMessage = null) }
+            }
+            if (initialProgress.state == NavigationState.COMPLETED) {
+                error("这条巡礼路线已经完成")
             }
             val loadedEngine = NavigationEngine(loadedPlan, initialProgress)
             plan = loadedPlan
             engine = loadedEngine
+            roadNavigationSession?.close()
+            roadNavigationSession = if (loadedPlan.mode == TravelMode.TRANSIT) {
+                null
+            } else {
+                GoogleRoadNavigationSession(
+                    application = application,
+                    backendApi = container.backendApi,
+                    plan = loadedPlan,
+                    initialLegIndex = initialProgress.legIndex.coerceAtLeast(0),
+                    onArrival = { legIndex ->
+                        serviceScope.launch { onNativeArrival(legIndex) }
+                    },
+                    onRemainingDistanceChanged = { meters ->
+                        serviceScope.launch {
+                            nativeRemainingDistanceMeters = meters
+                            NavigationRuntime.update { it.copy(remainingDistanceMeters = meters) }
+                        }
+                    },
+                    onReroutingChanged = { rerouting ->
+                        serviceScope.launch {
+                            nativeRerouting = rerouting
+                            NavigationRuntime.update { it.copy(isRerouting = rerouting) }
+                        }
+                    },
+                )
+            }
             val firstUpdate = if (initialProgress.state == NavigationState.PLANNED) {
                 loadedEngine.start()
             } else {
@@ -150,7 +214,13 @@ class NavigationService : Service(), LocationListener, TextToSpeech.OnInitListen
         } catch (exception: CancellationException) {
             throw exception
         } catch (exception: Exception) {
-            failAndStop(exception.message ?: "无法开始连续导航")
+            failAndStop(
+                if (routeRefreshRequired) {
+                    ROUTE_REFRESH_REQUIRED_MESSAGE
+                } else {
+                    exception.message ?: "无法开始连续导航"
+                },
+            )
         }
     }
 
@@ -182,16 +252,31 @@ class NavigationService : Service(), LocationListener, TextToSpeech.OnInitListen
     private fun processUpdate(update: NavigationUpdate?) {
         if (update == null) return
         val currentPlan = plan ?: return
-        val spokenText = update.spokenText()
+        val stateText = update.spokenText()
+        val displayedText = if (
+            currentPlan.mode != TravelMode.TRANSIT && update.progress.state == NavigationState.NAVIGATING
+        ) {
+            "Google 导航正在引导前往下一巡礼点"
+        } else {
+            stateText
+        }
         NavigationRuntime.set(
             NavigationRuntimeState(
                 plan = currentPlan,
                 progress = update.progress,
                 currentLocation = update.currentLocation ?: NavigationRuntime.state.value.currentLocation,
-                instruction = spokenText,
-                remainingDistanceMeters = update.remainingDistanceMeters,
+                instruction = displayedText,
+                remainingDistanceMeters = if (currentPlan.mode == TravelMode.TRANSIT) {
+                    update.remainingDistanceMeters
+                } else {
+                    nativeRemainingDistanceMeters ?: update.remainingDistanceMeters
+                },
                 isRunning = update.progress.state != NavigationState.COMPLETED,
-                isRerouting = reroute?.isActive == true,
+                isRerouting = if (currentPlan.mode == TravelMode.TRANSIT) {
+                    reroute?.isActive == true
+                } else {
+                    nativeRerouting
+                },
                 errorMessage = NavigationRuntime.state.value.errorMessage,
             ),
         )
@@ -199,10 +284,50 @@ class NavigationService : Service(), LocationListener, TextToSpeech.OnInitListen
             lastSavedProgress = update.progress
             serviceScope.launch { container.tourRepository.save(currentPlan, update.progress) }
         }
-        updateNotification(spokenText)
-        speak(spokenText, "${update.progress.state}:${update.progress.legIndex}:${update.progress.stepIndex}")
+        updateNotification(displayedText)
+        if (currentPlan.mode == TravelMode.TRANSIT) {
+            speak(stateText, "${update.progress.state}:${update.progress.legIndex}:${update.progress.stepIndex}")
+        }
+        synchronizeRoadNavigation(update.progress)
         refreshTransitWhenNeeded(update)
         if (update.progress.state == NavigationState.COMPLETED) finishCompletedNavigation()
+    }
+
+    private fun synchronizeRoadNavigation(progress: NavigationProgress) {
+        val session = roadNavigationSession ?: return
+        when (progress.state) {
+            NavigationState.NAVIGATING -> {
+                if (lastRoadSyncLegIndex == progress.legIndex) return
+                lastRoadSyncLegIndex = progress.legIndex
+                roadSyncJob?.cancel()
+                roadSyncJob = serviceScope.launch {
+                    try {
+                        session.synchronize(progress.legIndex)
+                    } catch (exception: CancellationException) {
+                        throw exception
+                    } catch (exception: Exception) {
+                        lastRoadSyncLegIndex = null
+                        failAndStop(exception.message ?: "Google 导航暂时无法开始")
+                    }
+                }
+            }
+            NavigationState.ARRIVING,
+            NavigationState.DWELLING,
+            NavigationState.NEXT_STOP,
+            -> session.pauseGuidance()
+            NavigationState.COMPLETED -> session.close()
+            NavigationState.PLANNED -> Unit
+        }
+    }
+
+    private fun onNativeArrival(legIndex: Int) {
+        val activeEngine = engine ?: return
+        if (
+            activeEngine.progress.state == NavigationState.NAVIGATING &&
+            activeEngine.progress.legIndex == legIndex
+        ) {
+            processUpdate(activeEngine.manualArrival())
+        }
     }
 
     private suspend fun rerouteFrom(location: GeoPoint, progress: NavigationProgress) {
@@ -279,6 +404,8 @@ class NavigationService : Service(), LocationListener, TextToSpeech.OnInitListen
         ticker?.cancel()
         loadJob?.cancel()
         reroute?.cancel()
+        roadSyncJob?.cancel()
+        roadNavigationSession?.close()
         NavigationRuntime.update {
             it.copy(
                 progress = progress ?: it.progress,
@@ -302,6 +429,8 @@ class NavigationService : Service(), LocationListener, TextToSpeech.OnInitListen
     private fun finishCompletedNavigation() {
         runCatching { locationManager.removeUpdates(this) }
         ticker?.cancel()
+        roadSyncJob?.cancel()
+        roadNavigationSession?.close()
         serviceScope.launch {
             delay(2_000L)
             stopForeground(STOP_FOREGROUND_REMOVE)
@@ -310,6 +439,8 @@ class NavigationService : Service(), LocationListener, TextToSpeech.OnInitListen
     }
 
     private fun failAndStop(message: String) {
+        roadSyncJob?.cancel()
+        roadNavigationSession?.close()
         NavigationRuntime.update { it.copy(isRunning = false, isRerouting = false, errorMessage = message) }
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
@@ -389,6 +520,8 @@ class NavigationService : Service(), LocationListener, TextToSpeech.OnInitListen
         const val ACTION_MANUAL_ARRIVAL = "cn.anitabi.navigator.navigation.MANUAL_ARRIVAL"
         const val ACTION_REFRESH_TRANSIT = "cn.anitabi.navigator.navigation.REFRESH_TRANSIT"
         const val EXTRA_TOUR_ID = "tour_id"
+        private const val ROUTE_REFRESH_REQUIRED_MESSAGE =
+            "路线暂时无法刷新，请联网后重试；行程顺序和导航进度已保留"
         private const val CHANNEL_ID = "continuous_navigation"
         private const val NOTIFICATION_ID = 1001
     }

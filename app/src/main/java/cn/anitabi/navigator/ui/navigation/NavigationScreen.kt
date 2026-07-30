@@ -4,12 +4,15 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
@@ -32,8 +35,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cn.anitabi.navigator.core.model.NavigationState
+import cn.anitabi.navigator.core.model.TourPlan
 import cn.anitabi.navigator.core.model.TravelMode
 import cn.anitabi.navigator.navigation.NavigationViewModel
+import cn.anitabi.navigator.ui.map.NavigationMapView
 import cn.anitabi.navigator.ui.planner.RoutePreviewMap
 import cn.anitabi.navigator.ui.theme.Ink
 import cn.anitabi.navigator.ui.theme.MutedInk
@@ -87,14 +92,30 @@ fun NavigationRoute(viewModel: NavigationViewModel, onBack: (String?) -> Unit) {
                 )
             }
 
-            RoutePreviewMap(
-                plan = plan,
-                currentLocation = state.currentLocation,
-                followCurrentLocation = state.isRunning,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-            )
+            if (plan.legs.isEmpty() && !state.isRunning) {
+                SavedTourRecoveryPanel(
+                    plan = plan,
+                    completedPointIds = state.progress?.completedPointIds.orEmpty(),
+                    modifier = Modifier.fillMaxWidth().weight(1f),
+                )
+            } else if (plan.mode == TravelMode.TRANSIT) {
+                RoutePreviewMap(
+                    plan = plan,
+                    currentLocation = state.currentLocation,
+                    followCurrentLocation = state.isRunning,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                )
+            } else {
+                NavigationMapView(
+                    onMapReady = { map -> map.uiSettings.isMapToolbarEnabled = false },
+                    navigationUiEnabled = true,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                )
+            }
 
             Column(
                 modifier = Modifier
@@ -137,8 +158,8 @@ fun NavigationRoute(viewModel: NavigationViewModel, onBack: (String?) -> Unit) {
                     Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 8.dp))
                 }
                 Text(
-                    "OpenFreeMap · OpenMapTiles · © OpenStreetMap contributors · " +
-                        plan.legs.firstOrNull()?.source.orEmpty(),
+                    (if (plan.mode == TravelMode.TRANSIT) "Google Routes" else "Google Navigation") +
+                        plan.legs.firstOrNull()?.source?.let { " · $it" }.orEmpty(),
                     color = MutedInk,
                     style = MaterialTheme.typography.labelSmall,
                     modifier = Modifier.padding(top = 8.dp),
@@ -198,7 +219,7 @@ fun NavigationRoute(viewModel: NavigationViewModel, onBack: (String?) -> Unit) {
                     }
                     Button(
                         onClick = viewModel::markArrived,
-                        enabled = state.progress?.state == NavigationState.NAVIGATING,
+                        enabled = state.isRunning && state.progress?.state == NavigationState.NAVIGATING,
                         modifier = Modifier
                             .weight(1f)
                             .height(50.dp),
@@ -208,6 +229,38 @@ fun NavigationRoute(viewModel: NavigationViewModel, onBack: (String?) -> Unit) {
                         Icon(Icons.Rounded.Flag, contentDescription = null)
                         Text("确认到达", modifier = Modifier.padding(start = 6.dp))
                     }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SavedTourRecoveryPanel(
+    plan: TourPlan,
+    completedPointIds: Set<String>,
+    modifier: Modifier = Modifier,
+) {
+    LazyColumn(
+        modifier = modifier.background(Paper),
+        contentPadding = PaddingValues(18.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        item {
+            Text("已保存的巡礼顺序", style = MaterialTheme.typography.titleLarge, color = Ink)
+        }
+        itemsIndexed(plan.orderedPoints, key = { _, point -> point.id }) { index, point ->
+            Surface(color = Color.White, shape = RoundedCornerShape(10.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("${index + 1}", color = Vermilion, fontWeight = FontWeight.Bold)
+                    Text(point.name, modifier = Modifier.weight(1f).padding(horizontal = 12.dp), color = Ink)
+                    Text(
+                        if (point.id in completedPointIds) "已完成" else "待前往",
+                        color = MutedInk,
+                    )
                 }
             }
         }

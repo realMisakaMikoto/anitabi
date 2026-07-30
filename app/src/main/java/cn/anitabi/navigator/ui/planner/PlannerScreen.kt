@@ -1,6 +1,9 @@
 package cn.anitabi.navigator.ui.planner
 
 import android.Manifest
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -26,7 +29,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.DirectionsBike
 import androidx.compose.material.icons.automirrored.rounded.DirectionsWalk
-import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material.icons.rounded.DirectionsBus
 import androidx.compose.material.icons.rounded.DirectionsCar
 import androidx.compose.material.icons.rounded.DragHandle
@@ -56,19 +58,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cn.anitabi.navigator.navigation.AndroidLocationProvider
+import cn.anitabi.navigator.navigation.requestGoogleNavigationTerms
 import cn.anitabi.navigator.core.model.EndPolicy
 import cn.anitabi.navigator.core.model.PilgrimagePoint
 import cn.anitabi.navigator.core.model.RouteObjective
 import cn.anitabi.navigator.core.model.TourPlan
 import cn.anitabi.navigator.core.model.TourLeg
 import cn.anitabi.navigator.core.model.TravelMode
-import cn.anitabi.navigator.core.routing.TourPlanner
 import cn.anitabi.navigator.ui.theme.Ink
 import cn.anitabi.navigator.ui.theme.Moss
 import cn.anitabi.navigator.ui.theme.MutedInk
@@ -91,6 +91,30 @@ fun PlannerRoute(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     var pendingNavigationPlan by remember { mutableStateOf<TourPlan?>(null) }
+    var navigationTermsRequestInFlight by remember { mutableStateOf(false) }
+    val startAfterPermissions: (TourPlan) -> Unit = { pending ->
+        if (pending.mode == TravelMode.TRANSIT) {
+            onStartNavigation(pending)
+        } else {
+            val activity = context.findActivity()
+            if (activity == null) {
+                viewModel.navigationPermissionDenied("无法打开 Google 导航条款，请重新打开应用后再试")
+            } else if (!navigationTermsRequestInFlight) {
+                navigationTermsRequestInFlight = true
+                requestGoogleNavigationTerms(
+                    activity = activity,
+                    onReady = {
+                        navigationTermsRequestInFlight = false
+                        onStartNavigation(pending)
+                    },
+                    onError = { message ->
+                        navigationTermsRequestInFlight = false
+                        viewModel.navigationPermissionDenied(message)
+                    },
+                )
+            }
+        }
+    }
     val locationPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
     ) { result ->
@@ -107,7 +131,7 @@ fun PlannerRoute(
             PackageManager.PERMISSION_GRANTED
         val permissionError = navigationPermissionError(hasLocation, hasNotifications)
         if (pending != null && permissionError == null) {
-            onStartNavigation(pending)
+            startAfterPermissions(pending)
         } else if (permissionError != null) {
             viewModel.navigationPermissionDenied(permissionError)
         }
@@ -134,7 +158,6 @@ fun PlannerRoute(
             onDepartureDateChange = viewModel::setDepartureDate,
             onDepartureTimeChange = viewModel::setDepartureTime,
             onDwellChange = viewModel::setDwellMinutes,
-            onOrsKeyChange = viewModel::setOrsKey,
             onGenerate = viewModel::generate,
         )
     } else {
@@ -150,7 +173,7 @@ fun PlannerRoute(
                     ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) ==
                     PackageManager.PERMISSION_GRANTED
                 if (hasLocation && hasNotifications) {
-                    onStartNavigation(plan)
+                    startAfterPermissions(plan)
                 } else {
                     pendingNavigationPlan = plan
                     val permissions = buildList {
@@ -167,6 +190,12 @@ fun PlannerRoute(
             },
         )
     }
+}
+
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
 }
 
 internal fun navigationPermissionError(
@@ -192,10 +221,8 @@ private fun PlannerSettingsScreen(
     onDepartureDateChange: (String) -> Unit,
     onDepartureTimeChange: (String) -> Unit,
     onDwellChange: (String) -> Unit,
-    onOrsKeyChange: (String) -> Unit,
     onGenerate: () -> Unit,
 ) {
-    val uriHandler = LocalUriHandler.current
     Surface(color = Paper, modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
             PlannerTopBar(title = "编排一日路线", onBack = onBack)
@@ -205,7 +232,7 @@ private fun PlannerSettingsScreen(
                 verticalArrangement = Arrangement.spacedBy(18.dp),
             ) {
                 item {
-                    SectionTitle("出行方式", "道路最多 12 点，公交最多 8 点")
+                    SectionTitle("出行方式", "总行程点数不限，单次请求会自动安全分批")
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -220,7 +247,7 @@ private fun PlannerSettingsScreen(
                             state.mode,
                             "公交",
                             onModeChange,
-                            enabled = state.selectedPoints.size <= TourPlanner.MAX_TRANSIT_POINTS,
+                            enabled = true,
                         )
                     }
                 }
@@ -262,7 +289,7 @@ private fun PlannerSettingsScreen(
 
                 if (state.mode != TravelMode.TRANSIT) {
                     item {
-                        SectionTitle("优化目标", "Matrix 计算后由手机本地精确排序")
+                        SectionTitle("优化目标", "路线矩阵分批计算后由手机本地排序")
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             ChoiceChip("预计最快", state.objective == RouteObjective.FASTEST) {
                                 onObjectiveChange(RouteObjective.FASTEST)
@@ -270,28 +297,6 @@ private fun PlannerSettingsScreen(
                             ChoiceChip("距离最短", state.objective == RouteObjective.SHORTEST) {
                                 onObjectiveChange(RouteObjective.SHORTEST)
                             }
-                        }
-                    }
-                    item {
-                        SectionTitle("你的 ORS Key", "每位用户使用自己的免费 HeiGIT Key；只加密保存在本机")
-                        OutlinedTextField(
-                            value = state.orsKeyInput,
-                            onValueChange = onOrsKeyChange,
-                            modifier = Modifier.fillMaxWidth(),
-                            placeholder = {
-                                Text(if (state.hasStoredOrsKey) "已安全保存；留空继续使用" else "粘贴 ORS Key")
-                            },
-                            visualTransformation = PasswordVisualTransformation(),
-                            singleLine = true,
-                            shape = RoundedCornerShape(10.dp),
-                        )
-                        TextButton(onClick = { uriHandler.openUri("https://account.heigit.org/") }) {
-                            Icon(
-                                Icons.AutoMirrored.Rounded.OpenInNew,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp),
-                            )
-                            Text("如何获取 ORS Key", modifier = Modifier.padding(start = 6.dp))
                         }
                     }
                 } else {
@@ -415,7 +420,7 @@ private fun RoutePreviewScreen(
                 item {
                     Column(modifier = Modifier.padding(vertical = 8.dp)) {
                         Text(
-                            "OpenFreeMap · OpenMapTiles · © OpenStreetMap contributors",
+                            "Google Maps",
                             color = MutedInk,
                             style = MaterialTheme.typography.bodyMedium,
                         )

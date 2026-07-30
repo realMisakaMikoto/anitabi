@@ -1,0 +1,32 @@
+services:
+  api:
+    build:
+      context: .
+    image: anitabi-api:0.2.1
+    init: true
+    restart: unless-stopped
+    user: node
+    read_only: true
+    ports:
+      - "127.0.0.1:${ANITABI_HOST_PORT:-8787}:8787"
+    environment:
+      ANITABI_FIREBASE_PROJECT_ID: "${ANITABI_GOOGLE_PROJECT_ID:?Set ANITABI_GOOGLE_PROJECT_ID}"
+      ANITABI_GOOGLE_PROJECT_ID: "${ANITABI_GOOGLE_PROJECT_ID:?Set ANITABI_GOOGLE_PROJECT_ID}"
+      ANITABI_DATABASE_PATH: /data/anitabi.sqlite
+      ANITABI_SERVICE_ACCOUNT_FILE: /run/secrets/google_service_account.json
+      ANITABI_IP_HMAC_KEY_FILE: /run/secrets/ip_hmac_key
+      ANITABI_HOST: 0.0.0.0
+      ANITABI_PORT: "8787"
+    volumes:
+      - /var/lib/anitabi-api:/data
+      - /etc/anitabi-api/secrets/google-service-account.json:/run/secrets/google_service_account.json:ro
+      - /etc/anitabi-api/secrets/ip-hmac-key:/run/secrets/ip_hmac_key:ro
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=16m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 128
+    mem_limit: 512m
+    cpus: 0.75

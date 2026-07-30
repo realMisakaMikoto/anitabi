@@ -1,12 +1,14 @@
-# 第三方服务、数据与署名
+# 第三方服务、SDK、数据与署名
 
-本项目代码采用 GPL-3.0-or-later；以下服务、数据和依赖保留其各自权利与许可。
+本项目自有代码采用 GPL-3.0-or-later，并附 `LICENSE` 末尾所载、仅用于 Google Navigation SDK for Android 与 Firebase Android SDK 链接和分发的窄范围例外。该例外不改变任何第三方组件、服务或数据的许可与条款。
 
-- 地图渲染：MapLibre Native。
-- 地图服务：OpenFreeMap；地图样式包含 OpenMapTiles 数据，底层地图数据为 © OpenStreetMap contributors。应用地图界面固定显示署名。
-- 道路路线：openrouteservice / HeiGIT，路线基于 © OpenStreetMap contributors。路线预览和导航界面显示来源。
-- 公共交通：Transitous / MOTIS。具体 GTFS、NeTEx、实时数据和运营方许可依地区不同，完整来源以 <https://transitous.org/sources/> 为准。
-- 动漫元数据：Bangumi API。
-- 巡礼点与截图：Anitabi API，仅用于非商业用途；数据采用 CC BY-NC-SA 4.0。应用保留每张截图的 `origin` 和 `originURL`，且只缓存用户访问的数据。
+- 地图与道路导航：[Google Navigation SDK for Android](https://developers.google.com/maps/documentation/navigation/android-sdk)。地图与导航内容遵循 Google Maps Platform 的适用条款和署名要求。
+- 路线矩阵、道路预览与公共交通：[Google Routes API](https://developers.google.com/maps/documentation/routes)。应用只显示规范化后的会话数据，并保留 Google Routes 署名。
+- 匿名鉴权与可选遥测：[Firebase Authentication、Analytics 与 Crashlytics](https://firebase.google.com/)。Analytics 和 Crashlytics 在本应用中默认关闭，分别取得用户同意后启用。
+- 动漫元数据：[Bangumi API](https://bangumi.github.io/api/)。
+- 巡礼点与截图：[Anitabi API](https://github.com/anitabi/anitabi.cn-document/blob/main/api.md)，仅用于非商业用途；数据采用 CC BY-NC-SA 4.0。应用保留截图的 `origin` 与 `originURL`，只缓存用户实际访问的数据。
+- 服务端运行时与依赖：Node.js、Fastify、SQLite 及其依赖分别遵守各自开源许可证。
 
-运行应用会直接访问这些公共服务。它们是独立服务，不由本项目运营，也不提供可用性保证。
+v0.2.1 不再使用 MapLibre、OpenFreeMap、OpenMapTiles、openrouteservice 或 Transitous。相关 v0.2.0 文档与发布记录仅作为历史证据保留，不代表当前版本仍加载或请求这些服务。
+
+Google、Firebase、Bangumi、Anitabi 及其他第三方服务均为独立服务，不由本项目运营，也不由本项目保证可用性。详见 [隐私说明](PRIVACY.md)。

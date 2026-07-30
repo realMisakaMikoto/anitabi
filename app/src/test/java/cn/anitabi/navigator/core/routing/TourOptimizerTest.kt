@@ -11,8 +11,8 @@ class TourOptimizerTest {
     private val optimizer = TourOptimizer()
 
     @Test
-    fun `open fixed and return policies work for 2 8 and 12 stops`() {
-        listOf(2, 8, 12).forEach { stopCount ->
+    fun `window exact optimizer handles open fixed and return policies`() {
+        listOf(2, 8).forEach { stopCount ->
             val matrix = lineMatrix(stopCount + 1)
 
             assertEquals(
@@ -65,6 +65,22 @@ class TourOptimizerTest {
         val ordered = optimizer.recommendTransitOrder(GeoPoint(35.0, 139.0), points)
 
         assertEquals(listOf("near", "middle", "far"), ordered.map(PilgrimagePoint::id))
+    }
+
+    @Test
+    fun `global approximation handles hundreds of points and keeps fixed end last`() {
+        val points = (1..200).map { index -> point("point-$index", 35.0 + index / 10_000.0) }
+
+        val ordered = optimizer.approximateGlobalOrder(
+            start = GeoPoint(35.0, 139.0),
+            points = points,
+            endPolicy = EndPolicy.FIXED,
+            fixedEndPointId = "point-137",
+        )
+
+        assertEquals(200, ordered.size)
+        assertEquals(points.map(PilgrimagePoint::id).toSet(), ordered.map(PilgrimagePoint::id).toSet())
+        assertEquals("point-137", ordered.last().id)
     }
 
     private fun lineMatrix(size: Int): List<List<Double?>> = List(size) { from ->

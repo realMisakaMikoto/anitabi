@@ -4,6 +4,7 @@ import cn.anitabi.navigator.core.model.Anime
 import cn.anitabi.navigator.core.model.EndPolicy
 import cn.anitabi.navigator.core.model.GeoPoint
 import cn.anitabi.navigator.core.model.NavigationState
+import cn.anitabi.navigator.core.model.NavigationProgress
 import cn.anitabi.navigator.core.model.PilgrimagePoint
 import cn.anitabi.navigator.core.model.RouteObjective
 import cn.anitabi.navigator.core.model.RouteStep
@@ -18,6 +19,34 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class NavigationEngineTest {
+    @Test
+    fun `route refresh resumes the first remaining leg after next-stop state`() {
+        val plan = planWithTwoStops(dwellMinutes = 0)
+        val recovered = NavigationProgress(
+            tourId = plan.id,
+            legIndex = 8,
+            stepIndex = 3,
+            state = NavigationState.NEXT_STOP,
+            offRouteSinceEpochMillis = 1L,
+        ).afterRouteRefresh(hasRemainingLegs = true)
+        val engine = NavigationEngine(plan, recovered)
+
+        assertEquals(-1, recovered.legIndex)
+        assertEquals(NavigationState.NAVIGATING, engine.onTick(2L).progress.state)
+        assertEquals(0, engine.progress.legIndex)
+    }
+
+    @Test
+    fun `route refresh completes when no remaining leg exists`() {
+        val recovered = NavigationProgress(
+            tourId = "tour",
+            state = NavigationState.NAVIGATING,
+        ).afterRouteRefresh(hasRemainingLegs = false)
+
+        assertEquals(NavigationState.COMPLETED, recovered.state)
+        assertEquals(0, recovered.legIndex)
+    }
+
     @Test
     fun `arrival dwell next stop and completion follow the documented state sequence`() {
         val plan = planWithTwoStops(dwellMinutes = 1)

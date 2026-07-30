@@ -10,6 +10,8 @@ import androidx.room.PrimaryKey
 import androidx.room.Query
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Entity(tableName = "pilgrimage_cache")
 data class PilgrimageCacheEntity(
@@ -21,8 +23,11 @@ data class PilgrimageCacheEntity(
 @Entity(tableName = "tour_plans")
 data class TourPlanEntity(
     @PrimaryKey val id: String,
-    val planJson: String,
-    val progressJson: String?,
+    val storedTourJson: String?,
+    val legacyPlanJson: String?,
+    val legacyProgressJson: String?,
+    val migrationError: String?,
+    val routeNeedsRefresh: Boolean,
     val updatedAtEpochMillis: Long,
 )
 
@@ -45,11 +50,32 @@ interface TourPlanDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(entity: TourPlanEntity)
+
+    @Query(
+        """UPDATE tour_plans
+        SET storedTourJson = :storedTourJson,
+            legacyPlanJson = NULL,
+            legacyProgressJson = NULL,
+            migrationError = NULL,
+            routeNeedsRefresh = 1,
+            updatedAtEpochMillis = :updatedAtEpochMillis
+        WHERE id = :id""",
+    )
+    suspend fun finishLegacyMigration(id: String, storedTourJson: String, updatedAtEpochMillis: Long)
+
+    @Query("UPDATE tour_plans SET migrationError = :message WHERE id = :id")
+    suspend fun recordMigrationError(id: String, message: String)
+
+    @Query(
+        "SELECT migrationError FROM tour_plans " +
+            "WHERE migrationError IS NOT NULL ORDER BY updatedAtEpochMillis DESC LIMIT 1",
+    )
+    suspend fun getMostRecentMigrationError(): String?
 }
 
 @Database(
     entities = [PilgrimageCacheEntity::class, TourPlanEntity::class],
-    version = 1,
+    version = 2,
     exportSchema = true,
 )
 abstract class AnitabiDatabase : RoomDatabase() {
@@ -61,6 +87,33 @@ abstract class AnitabiDatabase : RoomDatabase() {
             context.applicationContext,
             AnitabiDatabase::class.java,
             "anitabi.db",
-        ).build()
+        ).addMigrations(MIGRATION_1_2).build()
+
+        val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """CREATE TABLE IF NOT EXISTS `tour_plans_v2` (
+                        `id` TEXT NOT NULL,
+                        `storedTourJson` TEXT,
+                        `legacyPlanJson` TEXT,
+                        `legacyProgressJson` TEXT,
+                        `migrationError` TEXT,
+                        `routeNeedsRefresh` INTEGER NOT NULL,
+                        `updatedAtEpochMillis` INTEGER NOT NULL,
+                        PRIMARY KEY(`id`)
+                    )""".trimIndent(),
+                )
+                db.execSQL(
+                    """INSERT INTO `tour_plans_v2` (
+                        `id`, `storedTourJson`, `legacyPlanJson`, `legacyProgressJson`,
+                        `migrationError`, `routeNeedsRefresh`, `updatedAtEpochMillis`
+                    )
+                    SELECT `id`, NULL, `planJson`, `progressJson`, NULL, 1, `updatedAtEpochMillis`
+                    FROM `tour_plans`""".trimIndent(),
+                )
+                db.execSQL("DROP TABLE `tour_plans`")
+                db.execSQL("ALTER TABLE `tour_plans_v2` RENAME TO `tour_plans`")
+            }
+        }
     }
 }

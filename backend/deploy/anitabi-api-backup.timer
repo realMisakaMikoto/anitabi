@@ -1,0 +1,11 @@
+[Unit]
+Description=Run the Anitabi API SQLite backup daily
+
+[Timer]
+OnCalendar=daily
+Persistent=true
+RandomizedDelaySec=30m
+Unit=anitabi-api-backup.service
+
+[Install]
+WantedBy=timers.target

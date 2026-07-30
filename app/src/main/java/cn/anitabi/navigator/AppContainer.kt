@@ -2,24 +2,30 @@ package cn.anitabi.navigator
 
 import android.content.Context
 import cn.anitabi.navigator.data.local.AnitabiDatabase
+import cn.anitabi.navigator.data.auth.FirebaseAnonymousTokenProvider
 import cn.anitabi.navigator.data.network.ApiHttpClient
 import cn.anitabi.navigator.data.network.UserAgentInterceptor
 import cn.anitabi.navigator.data.network.anitabi.AnitabiApi
+import cn.anitabi.navigator.data.network.backend.BackendApi
 import cn.anitabi.navigator.data.network.bangumi.BangumiApi
-import cn.anitabi.navigator.data.network.ors.OrsApi
-import cn.anitabi.navigator.data.network.transit.TransitousApi
 import cn.anitabi.navigator.data.repository.PilgrimageRepository
 import cn.anitabi.navigator.data.repository.TourRepository
-import cn.anitabi.navigator.core.routing.OrsRoadRoutingProvider
+import cn.anitabi.navigator.core.routing.BackendRoadRoutingProvider
+import cn.anitabi.navigator.core.routing.BackendTransitJourneyProvider
 import cn.anitabi.navigator.core.routing.TourPlanner
-import cn.anitabi.navigator.core.routing.TransitousJourneyProvider
-import cn.anitabi.navigator.security.OrsKeyStore
+import cn.anitabi.navigator.security.AppSettingsStore
+import cn.anitabi.navigator.telemetry.FirebaseTelemetryRuntime
+import cn.anitabi.navigator.telemetry.TelemetryConsentController
 import cn.anitabi.navigator.navigation.AndroidLocationProvider
 
 class AppContainer(context: Context) {
     private val json = ApiHttpClient.defaultJson
     private val database = AnitabiDatabase.create(context)
-    val orsKeyStore = OrsKeyStore(context)
+    val appSettingsStore = AppSettingsStore(context)
+    val telemetryConsentController = TelemetryConsentController(
+        store = appSettingsStore,
+        runtime = FirebaseTelemetryRuntime(context),
+    )
     val locationProvider = AndroidLocationProvider(context)
     private val httpClient = ApiHttpClient(
         userAgentInterceptor = createAppUserAgentInterceptor(),
@@ -33,11 +39,14 @@ class AppContainer(context: Context) {
         json = json,
     )
     val tourRepository = TourRepository(database.tourPlanDao(), json)
+    val backendApi = BackendApi(
+        httpClient = httpClient,
+        tokenProvider = FirebaseAnonymousTokenProvider(),
+        json = json,
+    )
     val tourPlanner = TourPlanner(
-        roadProvider = OrsRoadRoutingProvider(OrsApi(httpClient, orsKeyStore::get, json)),
-        transitProvider = TransitousJourneyProvider(
-            TransitousApi(httpClient),
-        ),
+        roadProvider = BackendRoadRoutingProvider(backendApi),
+        transitProvider = BackendTransitJourneyProvider(backendApi),
     )
 
     companion object {

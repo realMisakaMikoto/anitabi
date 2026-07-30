@@ -716,3 +716,296 @@
 - The user explicitly confirmed that real positioning works even though the phone remains configured with a mock-location application and requested this item be checked. Recorded `真实定位功能可用` as passed in the v0.2.0 plan and physical-device acceptance records.
 - Kept the evidence scope precise: the user's field observation proves the real-location function works, while ADB independently proves permissions and providers are enabled but cannot attribute every fix to GNSS while mock authorization remains. The separate 8-12 point real route, multi-hour Xiaomi/OEM run, and actual missed-service event remain unchecked.
 - Updated README status and the v0.2.0 physical acceptance record with the exact-release retest. No production application source, APK, ORS Key, release artifact, or device configuration changed.
+
+## 2026-07-30 - Task 27: v0.2.1 feasibility freeze and VPS backend implementation
+
+### Preparation and verified baseline
+
+- Re-read the complete current 718-line `AGENT.md` and the complete original pasted implementation plan before starting the new v0.2.1 goal.
+- Confirmed the worktree was clean and local `main`/`origin/main` both resolved to `cf0a49a8cd7790ce3789069cc1067e3ad2d82732`. Created the dedicated implementation branch `codex/v0.2.1-google-vps-migration`; no v0.1.2 planning worktree was used.
+- Reconfirmed the Android baseline is `versionName=0.2.0` / `versionCode=6`, with MapLibre, ORS, Transitous, Room version 1, the onboarding Key store, and the existing 49-test structure still intact. No Android production source, installed phone application, Release asset, tag, or v0.2.0 historical record changed in this task.
+
+### Current official Google/Firebase findings
+
+- Used Agent Reach's Exa backend first, then current official Google/Firebase documentation after Exa's free MCP limit was reached. Recorded the frozen constraints and direct official links in `docs/GOOGLE_MIGRATION_FEASIBILITY_v0.2.1.md`.
+- Confirmed Navigation SDK 7.x supports driving, walking, and cycling, replaces the Maps SDK map layer, accepts at most 25 destinations, and remains compatible with the project's API 26 minimum/API 37 target. Its current free cap is 1,000 billed destinations, so the requested 900 local ceiling is the correct 90% value.
+- Confirmed Routes Essentials has a 10,000-event free cap per Compute Routes/Matrix SKU, so 9,000 is the correct 90% local ceiling. Ten-coordinate square matrices reserve 100 elements; 12-location road previews use the Essentials maximum of ten intermediate waypoints; transit routes accept no intermediate waypoints and must remain pairwise.
+- Identified one real product limitation instead of fabricating it: Routes transit responses expose stop names, times, line, vehicle, headsign, and stop count, but no independent platform-number field. v0.2.1 can display only platform information actually present in upstream stop text.
+- Confirmed WALK/BICYCLE Routes results require Google's beta warning, Firebase Analytics can be disabled until runtime opt-in, and Crashlytics disabled collection can retain reports locally. The Android implementation must delete unsent reports while consent is absent or withdrawn.
+
+### Backend implementation
+
+- Added the `backend` Node.js 24 LTS / TypeScript / Fastify service with only the four planned endpoints, a 16 KiB body limit, JSON/HTTPS enforcement, fixed Google OAuth and Routes upstreams, fixed field masks/timeouts, and normalized responses/errors. Full Google response bodies are never forwarded or logged.
+- Implemented Firebase anonymous ID-token verification with cached Google signing keys and explicit RS256, project audience, issuer, expiration, UID, and anonymous-provider checks.
+- Implemented Web Crypto RS256 service-account JWT signing and short-lived OAuth exchange with a single-flight refresh promise. The token endpoint, scope, Routes endpoint, and quota project are fixed; service-account contents never enter Android or logs.
+- Implemented SQLite WAL quota accounting with `BEGIN IMMEDIATE` transactions and UTC period boundaries. Limits are Matrix 9,000/month and 2,000/UID/day, Compute Routes 9,000/month and 200/UID/day, and Navigation 900/month and 20 destinations/UID/day. Reservations are not refunded after an upstream failure. Integrity, write, disk, or billing-state uncertainty fails closed.
+- Added a primary UID token bucket and wider HMAC-IP auxiliary bucket. Structured logs contain only endpoint template, status, latency bucket, and error code; they cannot accept token, raw IP, coordinates, anime/search text, or request body fields.
+- Added consistent SQLite backups with a seven-day retention window, integrity checking, recoverable restore copies, and mandatory post-restore billing disablement until an explicit audited-enable command.
+- Added a multi-stage Docker image, loopback-only Compose port, non-root user, read-only root filesystem, dropped capabilities, no-new-privileges, memory/CPU/PID limits, read-only secret mounts, health check, automatic restart, and an additive Caddy virtual host for `api.anitabi.afunnypersonlol0.site`.
+
+### Verification and remaining external boundaries
+
+- `npm test` passes 17 backend tests covering JWT acceptance/rejection, fixed OAuth JWT/scope/endpoint and 30-way single-flight refresh, request boundaries, unified errors, fixed Google upstreams/field masks, normalized transit output, no upstream-body pass-through, token buckets, logging redaction, day/month changes, fail-closed billing state, and quota limits.
+- The concurrency test used 12 independent SQLite connections competing for a 9,000-element month. Exactly 90 reservations of 100 elements succeeded, the persisted global row ended at exactly 9,000, and every excess reservation was rejected.
+- Production dependency audit reports zero vulnerabilities. Compose configuration parses successfully. The final `anitabi-api:0.2.1` image built successfully, is 92,417,897 bytes, declares user `node`, and includes the health check. A read-only, capability-free container smoke test ran as UID 1000 and returned `200 {"service":"ok","database":"ok"}` from the real compiled Fastify/SQLite code.
+- The first slim-image build correctly exposed missing native build tools. A stalled Debian package download and an Alpine experiment were stopped; the final reproducible Dockerfile uses the full Node Bookworm image only as a build stage and the 92 MB Bookworm-slim runtime. Node's built-in SQLite was evaluated but rejected because Node 24 still emits an experimental API warning.
+- No Google/Firebase project, billing resource, Cloudflare DNS record, VPS service, credential, or billable Google request was created. Local DNS is transparently mapped to reserved `198.18.0.0/15` addresses and cannot prove public DNS state. No usable VPS SSH target or Cloudflare/Google credential is present in the local environment, so deployment remains an external next phase rather than a claimed result.
+- No secret value was written to the workspace, command output, Docker layer, documentation, or this log. Only generated in-memory test keys and fake tokens were used.
+
+## 2026-07-30 - Task 28: Google control-plane migration and VPS access discovery
+
+### Preparation and read-only discovery
+
+- Re-read the complete current 753-line `AGENT.md` and the complete original pasted implementation plan before starting this task.
+- Confirmed the implementation branch remained clean and synchronized with its remote at Task 27's backend commit. The branch has no GitHub Actions run because the existing Android workflow path filters do not include the backend/documentation-only change set.
+- Found the already authenticated Google Cloud project through the user's existing Chrome state and verified the project identity before making any change. No browser cookies, stored passwords, tokens, local storage, or secret values were inspected.
+- A single focused, read-only browser-history lookup identified the active VPS provider as V.PS and the service as a Tokyo Cloud KVM instance. The provider console session has expired and is currently at its normal login page; no provider credential was guessed, read, or transmitted.
+
+### Google API migration performed
+
+- Verified the pre-change state: Routes API was enabled, Navigation SDK was disabled, and Maps SDK for Android was enabled.
+- Enabled Navigation SDK in the identified project and waited for the console to report the stable enabled state.
+- Disabled Maps SDK for Android and waited for the console to report the stable disabled state, avoiding simultaneous Maps SDK and Navigation SDK map stacks. Routes API remained enabled throughout.
+- Restored the user's original Google Maps Platform API-list page after the checks. No API key, service account, OAuth credential, billable Routes request, budget, or quota was created in this task.
+
+### Honest external boundaries
+
+- Opening the same project in Firebase reached its first-use `Accept Firebase terms of service` screen. Accepting legal terms requires the owner's explicit confirmation, so the checkbox and Continue action were left untouched and the live page was preserved for handoff.
+- Opening the exact V.PS service page reached `Registered Clients Only` because the login session had expired. The live login page was preserved for the owner; no email address, account password, root password, or console credential was entered.
+- With the provider session unavailable, the mandatory console recovery of `sshd`, host fingerprint verification, and read-only VPS inventory could not honestly start. Cloudflare DNS/HTTPS configuration also remains untouched because no authenticated Cloudflare control surface or credential was available.
+- No secret was written to source, shell commands, browser output, Git, Docker, or this log. The Android phone and its installed v0.2.0 application were not accessed or changed.
+
+## 2026-07-30 - Task 29: v0.2.1 unlimited-tour, data-migration, Firebase, and Google map foundation
+
+### Preparation and external configuration
+
+- Re-read the complete current 776-line `AGENT.md` and the complete original pasted implementation plan before starting this task. The user then explicitly authorized acceptance of all service terms needed by the implementation; this did not broaden the work to purchases, CAPTCHA handling, guessed credentials, or unrelated services.
+- Added Firebase to the same existing Google Cloud project and accepted the Firebase and Google Analytics terms. The project retained its already-enabled Blaze billing relationship; no new billing account or purchase was created. Google Analytics account location was set to China and all optional Analytics data-sharing switches were turned off.
+- Enabled Firebase Anonymous Authentication without 30-day auto-cleanup, registered `cn.anitabi.navigator` as `Anitabi Android`, downloaded the matching `google-services.json`, and registered both SHA-1 and SHA-256 fingerprints for the fixed production certificate and the local debug certificate.
+- Created a dedicated `Anitabi Navigation SDK Android` API key. It is restricted to Navigation SDK only and to the application package plus the production and debug SHA-1 certificates. The key is stored only in ignored `local.properties`; it was not added to source, Git, command output, or this log, and the system clipboard was cleared after transfer. The pre-existing Maps key was not modified.
+- Used read-only ADB pull and `apksigner` inspection of the already-installed public v0.2.0 APK to derive its SHA-1 certificate fingerprint. No APK was installed, replaced, uninstalled, launched, or modified on the phone.
+
+### Unlimited planning and versioned persistence
+
+- Set `versionCode=7` and `versionName=0.2.1`.
+- Removed the fixed road/transit total-point caps. Large road tours now use deterministic nearest-neighbor plus bounded 2-opt globally, exact Held-Karp only inside at-most-10-location windows, at-most-100-element matrix requests, overlapping at-most-12-location route batches, and at-most-25-destination navigation batches. Transit remains adjacent-pair planning. Added helpers for identifying only the matrix windows affected by a dragged stop.
+- Added tests for a 200-point optimizer run, 10/12/25 batching boundaries, 35-point road planning, 14-point pairwise transit planning, fixed endpoints, and affected-window calculation.
+- Added `StoredTourV2`, which persists only user-owned points, order, start/end policy, mode, dwell/departure settings, completed points, active point, and navigation state. Resolved matrices, geometry, steps, transit details, estimates, and provider responses are process-memory only.
+- Upgraded Room from schema 1 to schema 2 with exported schemas and an explicit migration that preserves the public v0.2.0 JSON in legacy columns until a successful lazy conversion. Successful conversion clears old route content and marks the route for network refresh; parse failure retains the original record and exposes a recovery error instead of clearing the database. Repeated conversion is idempotent.
+- Added an Android migration test that creates the exact v0.2.0 schema and encoded records, migrates them, verifies route stripping and preserved selection/progress, repeats recovery, and separately proves malformed legacy JSON remains recoverable. The instrumentation test source and schema assets compile successfully; execution still requires the later API 26/API 37 emulator phase.
+
+### Google Android SDK foundation
+
+- Added Navigation SDK 7.8.0, Firebase BoM 34.16.0, Firebase Auth, Analytics, Crashlytics, Google Services 4.5.0, Crashlytics Gradle plugin 3.0.7, and the required NIO desugaring library. Analytics and Crashlytics collection are disabled by manifest default.
+- Replaced both production MapLibre map implementations with `NavigationView`-backed Google maps for pilgrimage-point selection and route preview, including lifecycle handling, marker selection, route polylines, current-location display, camera bounds, and visible-bounds callbacks. Removed the MapLibre dependency and application initializer.
+- Navigation SDK's transitive Cronet 119 AARs share one namespace under AGP 9.3. The build otherwise fails manifest validation, so `android.uniquePackageNames=false` is temporarily set; AGP reports the duplicate namespace as a warning instead of an error. This compatibility switch must be retested when Navigation SDK or AGP is upgraded.
+
+### Verification and remaining migration work
+
+- `:app:compileDebugKotlin` and `:app:compileDebugAndroidTestKotlin` pass with the Firebase and Navigation SDK stack. `:app:testDebugUnitTest` passes 57 tests with zero failures, errors, or skips. The debug runtime dependency tree contains Navigation SDK/Firebase and no MapLibre artifact. `git diff --check` reports only the repository's existing Windows line-ending notices.
+- No billable Navigation or Routes request was made. No service-account key, VPS credential, root password, ORS key, Transitous URL, or server credential was added to the new Android configuration.
+- This task deliberately stops at a verified foundation: the Android route provider still uses the old ORS/Transitous implementation, onboarding/settings/about copy still exposes the old provider choices, native road guidance is not yet wired to `Navigator`, telemetry runtime consent is not implemented, drag reordering does not yet execute the affected-window-only refresh, and process-death route-refresh handling still needs completion. These are explicit next tasks, not claimed results.
+
+## 2026-07-30 - Task 30: backend routing migration and Firebase-config incident containment
+
+### Preparation and Android migration
+
+- Re-read the complete current `AGENT.md` and the complete original pasted implementation plan before starting the Android routing continuation. When the GitHub alert made credential containment an independent urgent concern, re-read both files in full again before touching history or external state.
+- Added a fixed-origin Android VPS client for `/v1/matrix`, `/v1/route`, and `/v1/navigation/reserve`. Requests obtain a Firebase anonymous ID token lazily, send it only as a Bearer credential to the fixed HTTPS backend, and map only the backend's normalized responses and unified error codes.
+- Replaced the ORS and Transitous providers with backend road and pairwise-transit providers, including matrix objective propagation, Google precision-5 polyline decoding, normalized transit details, and Google Routes attribution. Deleted the direct ORS and Transitous network clients and their provider contract tests.
+- Replaced the ORS Key store with a versioned application-settings store. It preserves the completed-onboarding marker, removes legacy ORS ciphertext and IV values, and deletes the legacy Android Keystore alias on a best-effort basis. The onboarding, planner, settings, about page, fixtures, and UI tests no longer ask users to obtain or enter an ORS Key; Firebase anonymous sign-in remains lazy so onboarding can complete offline after permissions and service/privacy disclosure.
+- Added backend MockWebServer tests, settings-migration instrumentation coverage, safe API error types, and updated planner/provider/onboarding tests and workflow milestones. The application no longer contains direct ORS, Transitous, OpenFreeMap, or MapLibre request paths.
+
+### GitHub secret alert containment
+
+- A GitHub secret-scanning email correctly reported that `app/google-services.json` had been tracked in the then-tip commit. Treated the incident as an error rather than dismissing it as a harmless client key.
+- Temporarily stashed all in-progress Android work, added `app/google-services.json` to `.gitignore`, removed it from the Git index while retaining the local ignored copy, amended the branch-tip commit, and force-pushed only `codex/v0.2.1-google-vps-migration` with `--force-with-lease`. The rewritten tip is `3178ab7`; no remote branch contains the exposed commit, the current remote tree does not contain the file, and current reachable Git history has no `app/google-services.json` object. `main`, tags, and v0.2.0 history were not rewritten.
+- Added a tracked-source credential audit that fails if the Firebase JSON becomes tracked again or common Google API key/service-account/private-key material appears in tracked source. It reports only that a pattern was found and never prints a matching credential.
+- Added an ignored-config restore script and CI wiring. Debug CI uses the encrypted `ANITABI_GOOGLE_SERVICES_JSON_BASE64` repository secret when available and an explicitly invalid compile-only placeholder for untrusted PRs; signed release builds fail closed unless the encrypted real configuration exists. Local execution refuses to replace a developer's Firebase file with the placeholder.
+- Fixed the APK audit's pipeline race and updated it to reject legacy provider endpoints/SDKs and server private-key material while permitting only the legacy ORS preference names required to erase v0.2.0 data during migration. No key value was printed, written to this log, or placed in a shell command.
+
+### Verification and unresolved external action
+
+- Full local verification passes 56 JVM tests with zero failures/errors/skips, Android-test Kotlin compilation, Debug Lint with zero findings, Debug APK assembly, tracked-source credential audit, APK content audit, shell syntax checks, CI-placeholder generation in an isolated temporary directory, `git diff --check`, and remote-ref/tree/history checks.
+- No APK was installed on the Xiaomi, and the existing v0.2.0 installation and phone data were not accessed or changed.
+- The exposed Google client key still requires cloud-side rotation/revocation, the new ignored JSON must then be stored as the GitHub Actions encrypted secret, and the GitHub alert must be resolved as revoked. The authenticated Chrome tabs are present, but the ChatGPT Chrome extension times out on every Google Console read or interaction even after the documented new-window recovery retry. Browser safety rules prohibit extracting the user's session through another script; the user has been asked to reinstall/re-enable the Chrome plugin. This task does not falsely claim that the old key is revoked or the alert closed.
+
+## 2026-07-30 - Task 31: separate Analytics and Crashlytics opt-in controls
+
+### Preparation and implementation
+
+- Re-read the complete updated `AGENT.md` and the complete original pasted implementation plan before starting this new task. Used Agent Reach's prescribed Exa route first; when its MCP metadata remained unavailable, used the browser fallback restricted to current official Firebase Android documentation.
+- Confirmed from Firebase's official Analytics guide and Android reference that manifest-default collection can remain off, runtime `setAnalyticsCollectionEnabled` persists the user's override, and `resetAnalyticsData` clears device analytics data and resets the app instance ID. Confirmed from the official Crashlytics guide/reference that runtime collection overrides persist, disabling takes full effect on the next process launch, and `deleteUnsentReports` removes locally queued reports without sending them.
+- Added independently persisted Analytics and Crashlytics consent values, both defaulting to false. Added a runtime controller with injectable interfaces so consent ordering and cleanup behavior can be tested without invoking Firebase.
+- Application startup now reapplies the stored choices before normal UI use and deletes unsent Crashlytics reports whenever Crashlytics consent is absent. Enabling Analytics first resets any pre-consent local analytics state; withdrawing disables collection and resets local analytics data. Enabling Crashlytics first deletes reports created before consent; withdrawing persists the disable override and deletes queued reports immediately.
+- Added separate accessible switches to the About/privacy page. The copy states that both choices are optional and independently withdrawable, excludes coordinates, anime names, search terms, and route bodies, and accurately notes that Crashlytics disablement is fully effective on the next launch.
+- Kept both Firebase manifest defaults disabled and additionally disabled Advertising ID collection and default ad-personalization signals. No custom telemetry event, user ID, coordinate, route body, anime title, or search term is recorded by this task.
+
+### Verification
+
+- The test was added first and initially failed compilation on the absent consent controller/runtime/store types. After implementation, the targeted controller tests and Android-test Kotlin compilation passed.
+- Full local verification passes 59 JVM tests with zero failures/errors/skips, Android-test Kotlin compilation, Debug Lint with zero findings, Debug APK assembly, tracked-source credential audit, APK content audit, and `git diff --check` apart from existing Windows line-ending notices.
+- Added instrumentation coverage proving both consent values default off and persist independently across settings-store instances. It compiles locally; execution remains part of the later API 26/API 37 emulator matrix.
+- No physical phone or installed v0.2.0 application was accessed or changed. The separate exposed-key cloud revocation remains exactly as recorded in Task 30 and is not falsely closed by this telemetry work.
+
+## 2026-07-30 - Task 32: Google API key rotation attempt and expanded containment
+
+### Preparation and verified scope
+
+- Re-read the complete updated `AGENT.md` and the complete original pasted implementation plan before starting the user's explicit key-rotation request.
+- Identified the GitHub alert's credential as the Firebase-created Android API key in the correct Google Cloud project. Confirmed separately that the dedicated Navigation SDK Android key is a different credential and did not delete or overwrite it by mistake.
+- Confirmed the Firebase key retained Firebase's 25-API allowlist but had no application restriction. Prepared the replacement to add Android application restrictions for `cn.anitabi.navigator` with both the fixed release and local debug SHA-1 certificates.
+- Recomputed the two public signing-certificate fingerprints from the exact public v0.2.0 Release APK and the current debug APK. No signing private key, password, Firebase key value, or certificate secret was read or recorded.
+
+### Containment status and browser blocker
+
+- While locating the local signing configuration, one diagnostic command accidentally printed the existing Navigation SDK API key from ignored `local.properties` to the private task output. This was an assistant error. The value was not committed, pushed, copied into documentation, or written to this log, but it is now treated as exposed and must be rotated together with the Firebase key.
+- Opened Google Cloud's native Firebase-key rotation flow and reached the replacement restriction form. No replacement key was created, no old key was revoked, and no cloud credential state changed before browser control stopped responding.
+- The authenticated browser extension can still enumerate the correct signed-in Google Cloud and GitHub tabs, but all subsequent page reads and actions time out. The documented clean-window recovery cannot launch the selected profile because this host has no Google Chrome profile at the expected location. Browser safety rules prohibit bypassing the extension by extracting browser sessions or scripting authenticated requests.
+- The local ignored `google-services.json`, ignored Navigation property, GitHub Actions secrets, and GitHub secret-scanning alert are unchanged. The application and Xiaomi phone were not accessed or modified. Rotation must resume only after the ChatGPT Chrome plugin is reinstalled or otherwise restored; completion requires both replacement keys to be installed and verified before both old values are revoked, followed by GitHub secret update and alert resolution.
+
+## 2026-07-30 - Task 33: Chrome control restoration and release-secret wiring
+
+### Preparation and recovery
+
+- Re-read the complete updated `AGENT.md` and the complete original pasted implementation plan before continuing the explicit key-rotation task.
+- Diagnosed the browser-control failure through the official Chrome plugin recovery checks. The native host manifest was valid, but Google Chrome and the ChatGPT Chrome Extension were initially absent from the selected profile.
+- Downloaded the official 64-bit Chrome installer directly from Google's HTTPS distribution endpoint with resumable transfer. Verified the exact advertised byte length and a valid Google LLC Authenticode signature before running it. Chrome was installed per-user; Edge remained the default browser and no browser data was imported by this task.
+- Opened the official extension store page after the user's permission. The user installed the ChatGPT Chrome Extension, and the official check now reports it installed and enabled in Chrome's selected profile. No extension was side-loaded and no native-host registry entry was manually created or repaired.
+
+### CI correction and verification
+
+- Fixed the signed-release workflow so the encrypted `ANITABI_NAVIGATION_API_KEY` repository secret is actually exposed to the Gradle release build. Previously the build script failed closed when that value was absent, but the workflow did not pass it, so a future v0.2.1 tag would have failed even after key rotation.
+- The tracked-source credential audit passes. `testDebugUnitTest`, `lintDebug`, and `assembleDebug` all pass, and `git diff --check` reports no whitespace error.
+- Recent GitHub Actions history shows the newest two Android CI runs on `main` succeeded; the cluster of failure emails came from older onboarding-emulator iterations that were followed by successful runs.
+
+### Key rotation completion and verification
+
+- After the user completed the supported Google and GitHub sign-in flow, created separate replacement keys named `Anitabi Firebase Android v0.2.1` and `Anitabi Navigation SDK Android v0.2.1`. The Firebase key retains Firebase's 25-API allowlist; the navigation key is restricted only to Navigation SDK. Both keys are restricted to `cn.anitabi.navigator` with the fixed release and current debug SHA-1 certificates.
+- Installed the replacement Firebase configuration in the ignored local `app/google-services.json` and the replacement Navigation key in ignored `local.properties`. Added the corresponding encrypted GitHub Actions secrets `ANITABI_GOOGLE_SERVICES_JSON_BASE64` and `ANITABI_NAVIGATION_API_KEY`. No key value was printed, committed, added to this log, or placed in a shell command.
+- Verified the replacement configurations with 59 JVM tests, Debug and Release Lint, Debug APK assembly, tracked-source credential audit, APK content audit, and `git diff --check`. A combined signed Release APK build was also attempted and failed closed before compilation because this machine does not have the external release-signing values; the encrypted signing secrets remain available only to GitHub Actions. This is a signing-environment boundary, not a replacement-key failure.
+- Deleted both superseded keys after the replacement configuration and CI secrets were in place. Google Cloud's deleted-credentials page shows both old credentials with restore actions, proving they can no longer serve API requests. Closed GitHub secret-scanning alert #1 as `Revoked` with a non-secret remediation note.
+- No password, one-time code, account cookie, browser storage, key value, signing private key, or signing password was read or recorded. No Google billable route request was made, no phone was accessed, and the installed v0.2.0 application was not changed.
+
+## 2026-07-30 - Task 34: native Google road guidance, quota-aware batching, and route recovery
+
+### Preparation and implementation
+
+- Re-read the complete updated `AGENT.md` and the complete original pasted implementation plan before starting this task. Used Agent Reach's required Exa route first; after its MCP metadata call failed, used the documented browser fallback and restricted research to Google's official Navigation SDK route, multi-destination, `NavigationApi`, and `Navigator` documentation. Cross-checked the downloaded Navigation SDK 7.8.0 API JAR before coding.
+- Added the official one-time Google Navigation terms flow through the Activity `NavigationApi.getNavigator` entry point. Road navigation starts only after the SDK reports the Navigator ready; initialization failures are mapped to concise user-visible messages. The terms-bypass API is not used. Transit remains outside the native road-guidance flow.
+- Added a native road-navigation session for driving, cycling, and walking. It maps the selected travel mode and fastest/shortest objective, builds stopover waypoints, enables Google voice alerts and guidance, observes native arrival, remaining-distance, rerouting, and route-change events, and releases all listeners and Navigator resources on pause, failure, completion, or service shutdown.
+- Reworked the foreground service so Google is the sole road-mode authority for spoken instructions, off-route handling, and automatic arrival. The application's TTS and state-text announcements remain only for transit. Native arrival feeds the existing arrival/dwell/next-stop state machine, so completed points and navigation progress continue to be stored in Room; manual arrival remains available.
+- Added deterministic batch coordination and `/v1/navigation/reserve` calls before every native destination load. The SDK ceiling remains 25 destinations, while production batches use 20 because the specified backend hard limit is 20 navigation units per UID per day. This is intentionally fail-closed: a later batch is attempted only after another atomic reservation, and quota exhaustion is surfaced instead of bypassed. The existing SDK-boundary batching test still proves 61 destinations split as 25/25/11; the native production coordinator tests 20-point loads, middle-leg resume, batch transitions, final return completion, and rejection above 25.
+- Road navigation now renders the Navigation SDK's native guidance UI, header, ETA card, and trip progress bar rather than clearing and redrawing the preview route. Transit retains the normalized Google Routes preview. Removed the obsolete OpenFreeMap/OpenMapTiles/OSM attribution from all active map and navigation screens and replaced it with Google Maps, Google Navigation, or Google Routes attribution.
+- Closed the process-death route-content gap: when only `StoredTourV2` remains, the service obtains the current location, replans only unfinished points, preserves completed point IDs and dwell/next-stop semantics, resets route-relative indexes safely, stores the refreshed user-owned state, and then resumes. No Google matrix, route geometry, steps, or ETA is persisted.
+
+### Verification and remaining acceptance
+
+- Added six JVM regression tests in this task; the full suite now passes 65 tests with zero failures or errors. `compileDebugAndroidTestKotlin`, Debug and Release Lint, Debug APK assembly, tracked-source credential audit, APK content audit, and `git diff --check` all pass. The only compiler notices are deprecations exposed by Navigation SDK 7.8.0's own result-future and initialization-error API.
+- No billable Google route/navigation request was made. No API key value, service-account material, VPS credential, password, token, coordinate, anime name, route body, or search term was written to tracked source, logs, this file, or Git. The physical phone and its installed v0.2.0 application were not accessed or changed.
+- Native behavior still requires later acceptance on API 26/API 37 GMS emulators and the Xiaomi signed v0.2.0-to-v0.2.1 overlay install: terms presentation, voice, real location, lock screen, off-route rerouting, arrival/dwell continuation, and quota-backed batch loading must not be claimed until those runs occur. The VPS deployment and real `/v1/navigation/reserve` ledger are also separate remaining goal tasks.
+
+## 2026-07-30 - Task 35: production VPS deployment, Google controls, and real backend verification
+
+### Preparation, server inventory, and explicit safety boundary
+
+- Re-read the complete updated `AGENT.md` and the complete original pasted implementation plan before starting this deployment task. Used the Chrome/browser, Computer Use, Cloudflare, and Agent Reach skill instructions where their scope applied, and consulted current official Cloudflare DNS and Google Routes documentation.
+- Verified the restored VPS SSH host key against the existing local known-host record before authentication. The server is Ubuntu 24.04.4 LTS with 2 vCPUs, 961 MiB visible RAM, 256 MiB swap, and a 20 GB root disk. Existing Nginx, six application/data containers, existing virtual hosts, and their listening ports were inventoried before any deployment change.
+- The user explicitly prohibited changing the password or SSH. No root/deploy password, SSH port, `sshd` option, root-login policy, authorized key, firewall rule, or fail2ban SSH jail was changed. An unused local deployment key pair created before that override was never uploaded and was permanently deleted at task end. The user's existing root-password authentication remains in its prior state.
+- Host port 8787 was already owned by an unrelated existing service. The Compose deployment therefore gained a non-secret configurable loopback host port and uses `127.0.0.1:8788 -> container:8787`; the unrelated listener was not stopped or reconfigured. Existing Nginx already owned ports 80/443, so an additive Nginx virtual host was used instead of installing Caddy.
+- The initial root disk had less than the plan's 10 GiB free-space threshold. Two passes of `docker builder prune --all --force` removed only unreferenced build cache, never images, containers, volumes, logs, or user data. The final filesystem state is 8.1 GB used and 11 GB available; all seven containers remained running afterward.
+
+### Google, Firebase, DNS, and cost controls
+
+- Created a dedicated Routes backend service account with only the project-level Service Usage Consumer role. Its JSON credential is stored outside the repository locally with restricted ACLs and on the VPS as a read-only owner-only secret mount. OAuth token issuance and a direct minimal WALK route succeeded without printing a token or credential.
+- Added a DNS-only Cloudflare A record for `api.anitabi.afunnypersonlol0.site` and verified the Cloudflare authoritative nameserver returns the VPS address. A shorter `api.afunnypersonlol0.site` name was created accidentally during the UI operation, detected immediately, and edited in place to the required hostname before certificate issuance or client use. The other eight DNS records and the existing personal-site proxy settings were not changed.
+- Created the project-scoped monthly Google Cloud budget `Anitabi v0.2.1 cost guard` for CNY 1, with actual-spend alerts at 50%, 90%, and 100% to billing administrators/users and project owners. This is an alert, not an automatic spend cap; the VPS SQLite ledger remains the authoritative monthly fail-closed control.
+- Reduced the adjustable Google quotas used by the product: Compute Route Matrix is 1,000 elements/minute and 9,000 elements/day; Compute Routes is 120 requests/minute and 9,000 requests/day; Navigation SDK `Set Destination` is 100/minute and 900/day. The unused Route Token quotas were left unchanged. Monthly global limits remain atomically enforced by the VPS at 9,000 matrix elements, 9,000 route calls, and 900 navigation destinations.
+
+### Production backend, HTTPS, backups, and host hygiene
+
+- Deployed the Node.js/TypeScript/Fastify backend to `/opt/anitabi-api`, quota data to `/var/lib/anitabi-api`, and read-only secrets to `/etc/anitabi-api/secrets`. The running `anitabi-api:0.2.1` container uses UID 1000, a read-only root filesystem, all capabilities dropped, no-new-privileges, an isolated data volume, read-only secret mounts, health checks, automatic restart, and loopback-only publication.
+- Added the independent Nginx API virtual host with a 16 KiB body limit, disabled access logging, discarded error output that could contain request metadata, overwritten forwarded headers, HSTS, and `nosniff`. Certbot issued a Let's Encrypt certificate for the API hostname, HTTPS health returns only `{"service":"ok","database":"ok"}`, HTTP redirects to HTTPS, renewal is enabled, and the certificate currently expires on 2026-10-28.
+- Added and installed systemd service/timer units for the existing integrity-checked SQLite backup script. The timer is enabled, persistent, runs daily with a randomized delay, and retains seven days. Multiple real backups completed with status 0; the final verified backup was created after the real-request ledger reconciliation.
+- Found that `unattended-upgrades` was genuinely absent even though the normal APT timers were active. Installed only that package and its small dependency without upgrading or autoremoving any existing package. Automatic package-list refresh and unattended security upgrades are now enabled and active. Fail2ban's existing `sshd` jail and Certbot timer remain active.
+- Added only the API virtual host to the existing Nginx configuration. `nginx -t` passes apart from pre-existing Vaultwarden protocol-option warnings. The existing `misaka`, `risk`, and `laddar` HTTPS sites each still return 200, and all pre-existing containers remained up and healthy where they expose health checks.
+
+### Real Google-path defects found and fixed
+
+- The first real matrix request exposed that Compute Route Matrix does not accept route-feature modifiers on origins. Removed `routeModifiers` from matrix origins while retaining the intended road-mode handling elsewhere, and added a regression assertion that the matrix body never contains them.
+- A subsequent successful Google matrix response exposed protobuf JSON default omission: diagonal elements can omit `distanceMeters` when the value is zero. The normalizer now maps only that omitted matrix field to zero and still rejects invalid route/leg distances. Added a regression case for an omitted diagonal distance with `0s` duration.
+- The remote source and image were rebuilt after both fixes. An intermediate overly broad remote text replacement was detected during inspection and corrected before the image was built; the final deployed route, leg, step, and matrix normalization functions match the tested local source.
+
+### Verification, quota reconciliation, and cleanup
+
+- The full real chain succeeded through Firebase anonymous authentication, public HTTPS, VPS Firebase JWT verification, SQLite quota reservation, service-account OAuth, Google Routes, response normalization, and Android-shaped output: a WALK route returned 200, navigation reservation returned 200 for one destination, and a 2x2 WALK matrix returned 200 with four normalized elements.
+- Desktop Firebase anonymous authentication initially returned 403 because the Firebase key is correctly Android-app restricted. Repeated the test with the public package name and release-certificate header derived from the signed public APK; the key restriction was not weakened.
+- Conservatively accounted for every successful or potentially billable diagnostic. The final July 2026 global ledger is Matrix 20 elements, Navigation 1 destination, and Route 2 calls. Failed normalization attempts were not refunded; successful direct diagnostics were reconciled under a non-personal operator UID before the final backup.
+- Backend `npm test` passes all 17 tests, including the two new real-response regressions. Compose configuration parses with the production project ID and loopback port, `git diff --check` has no whitespace error, and the tracked-source credential audit passes. The public container health, Nginx syntax, timers, final backup, disk threshold, existing sites, and all existing containers were rechecked after cleanup.
+- Permanently deleted the unused local deployment private/public key pair and obsolete deployment archive after validating their exact paths were inside the dedicated outside-repository secret directory. The restricted local Google service-account JSON was intentionally retained for the deployed backend; no credential value, password, token, API key, billing-account identifier, coordinate, request body, anime name, or search term was written to Git, command history, logs, or this record.
+
+### Remaining acceptance boundary
+
+- VPS deployment, DNS, HTTPS, cost controls, real route/matrix/reservation calls, and ledger accounting are now evidenced. API 26/API 37 GMS emulator runs, on-device Navigation terms/voice/reroute/lock-screen behavior, the signed v0.2.0-to-v0.2.1 overlay installation, long-tour batch transitions, final release documentation, release candidate, and stable v0.2.1 publication remain separate tasks and are not claimed here.
+
+## 2026-07-30 - Task 36: API 26/API 37 GMS emulator, migration, and offline-runtime acceptance
+
+### Preparation and isolated emulator setup
+
+- Re-read the complete updated `AGENT.md` before starting this task. Installed the official desktop Android Emulator 36.6.11, Android command-line tools 22.0, and Google APIs x86_64 images for API 26 and API 37.0 into the existing local Android SDK. Created dedicated `anitabi-api26` and `anitabi-api37` AVDs and verified Windows Hypervisor Platform acceleration.
+- `adb devices` was empty before the runs. Every install, permission, app-op, launch, instrumentation, airplane-mode, screenshot, and shutdown command explicitly targeted `emulator-5556` or `emulator-5558`; no generic device command was used. The Xiaomi phone and its installed v0.2.0 application were not connected, installed to, cleared, uninstalled, or changed.
+- API 26 and API 37 both cold-launched the current debug build successfully into the one-time onboarding. Original-resolution screenshots and UI bounds were inspected on both versions: application content starts below the system status bar, and neither onboarding nor the recovered-navigation header is obscured by system bars.
+
+### Defects found and corrected
+
+- The Android 8 onboarding smoke test still waited for the deleted ORS-key input and tried to dismiss the Google-package permission activity through shell grants. Replaced that obsolete path with a real accessibility click on Android 8's system `ALLOW` button, supporting both actual resource namespaces and English/Chinese labels. The test now accepts the current service step directly after a successful permission callback. API 26 and API 37 both complete permission dialogs, service disclosure, entry into search, and restart directly into search.
+- Process-death recovery exposed a v0.2.1 policy mismatch: Google route content is intentionally memory-only, but the service attempted a network replan before publishing the saved trip, leaving the user on search with only a foreground notification. The service now publishes the unresolved saved plan and progress immediately, preserves a stable Chinese refresh-unavailable message across backend/authentication failure, and automatically replaces it with live navigation only after a successful refresh.
+- Added a local recovery panel that renders the complete saved point order and each point's completed/pending state without creating the Google navigation map. This keeps user-owned trip data visible while offline or without GMS and avoids a blank map or raw SDK/authentication message. Manual arrival is disabled unless navigation is actually running; ending or hiding the saved recovery remains available.
+- Updated the emulator workflow to require the saved tour name, the explicit route-refresh notice, and a saved point after both first process recovery and a second force-stop/restart. Foreground-service lock-screen tests now use a transit fixture, which exercises the application's permitted transit status/TTS path without pretending the application owns Google road instructions or making a live navigation request.
+- Enabled the expensive emulator matrix for same-repository pull requests as well as `main` pushes, while still excluding fork pull requests that cannot receive repository secrets. This moves API 26/API 37 failures in front of the merge boundary instead of discovering them only after a `main` push.
+
+### Local acceptance evidence
+
+- `testDebugUnitTest`, `assembleDebug`, and `assembleDebugAndroidTest` pass after the final changes. The JVM report contains 65 tests across 18 suites with zero failures, errors, or skips. The tracked-source credential audit, Debug APK content audit, and `git diff --check` also pass. This includes stable `QUOTA_EXHAUSTED` mapping without response-body exposure and the existing unlimited-point/window/batch/navigation coordinator coverage.
+- On each of API 26 and API 37, eight targeted instrumentation tests/checks pass: two real Room 1-to-2 migrations, two settings/telemetry migrations, complete onboarding and restart, process-recovery fixture seeding, offline foreground completion with persisted progress, and automatic mock-GPS arrival while the screen is off. Room retains the v0.2.0 guide, selected trip and progress, drops route geometry/steps, removes the old ORS payload, preserves invalid legacy records with a recovery message, and remains idempotent. Analytics and Crashlytics default off and persist independently when enabled or withdrawn.
+- Both versions preserve the active tour across process death in airplane mode, immediately show `Runtime Smoke Tour`, all three ordered points and completed/pending state, and the explicit route-refresh-unavailable notice. Both foreground runtime tests retain an ongoing notification, advance and complete the saved progress, and emit the expected two screen-off GPS evidence markers.
+- API 37's crash buffer contains no application crash. API 26's crash buffer contained one Android emulator `SystemServer` boot-time `NetworkPolicyManagerService` null-pointer entry, but no `cn.anitabi.navigator` crash; the AVD subsequently booted normally and completed every application test.
+- No real Google route, matrix, navigation reservation, or other billable request was made in this task. No API key, Firebase token, service-account material, VPS credential, password, coordinate payload, route body, anime search term, or signing secret was printed or written to tracked source, Git, or this record. The VPS password, SSH configuration, SSH port, login policy, authorized keys, firewall, and server deployment were not changed.
+
+### Pull-request gate correction
+
+- Opened pull request 1 from the implementation branch to `main` and triggered Android CI run `30524115073`. The verify job passed in 6 minutes 12 seconds, including tests, lint, Debug APK build, tracked-source credential audit, APK audit, and artifact upload. The initial clean-runner emulator matrix then exposed two test-harness defects rather than product crashes.
+- API 26 displayed the real Google package-installer permission activity, but the initial helper allowed only four seconds for the dialog to leave focus. Extending that wait passed a fresh wiped local AVD in 10.389 seconds but still failed on synchronize run `30525602607`: the uploaded screenshot had returned to the application while the Android 8 cloud image's `dumpsys` still reported the removed permission activity as resumed. The helper now treats actual coarse/fine permission grants as authoritative, retains the accessibility action on the real system Allow button, adds a coordinate tap on the same discovered button as a fallback, and emits non-secret evidence for which click path ran. A local API 26 rerun passed the entire flow in 8.871 seconds with the real allow node and accessibility-action evidence.
+- API 37 restored the saved tour, stable offline notice, first completed point, and progress in its uploaded 320-by-640 UI hierarchy. The workflow had incorrectly required the second point name even though that row was below the small runner viewport. Recovery assertions now require the visible saved first point and its completed state, alongside the existing tour and offline-message checks, on both launches. All four revised markers were verified against the first failing run's UTF-8 evidence artifact, and the complete API 37 cloud job subsequently passed in 8 minutes 18 seconds on run `30525602607`.
+- Run `30526951807` confirmed the remaining API 26 failure was an Android emulator defect: its crash buffer records `com.android.systemui` failing as the runtime permission activity opened, and ActivityManager reports the System UI crash dialog over the still-resumed Google package installer. API 37 again passed its complete cloud job, this time in 8 minutes 47 seconds. The Android 8 helper now detects and dismisses that system crash dialog through its real accessibility button, with a display-relative fallback only when the crash window is visible, then continues to the real permission Allow control. It does not use `pm grant` for the Android 8 onboarding flow.
+- Recompiled the affected AndroidTest APK successfully after the final test-only change. Reproduced the runner's exact Google APIs API 26 display at 320 by 640 and density 160, then passed the complete wiped onboarding/restart test in 9.149 seconds. Evidence showed the permission dialog, display fallback, discovery of the real Allow node, a successful accessibility click, service disclosure, completed search entry, and restart into search; the test finished `OK (1 test)`. No production application behavior, secret, VPS state, SSH setting, phone data, or release artifact changed during this correction.
+- Follow-up run `30529352872` proved the Android 8 correction in the clean cloud image: the verify job and the complete API 26 job passed, including first-run permission onboarding, emulator reset, two-launch offline process recovery, foreground completion, screen-off mock-location arrival, migration/telemetry tests, crash checks, and evidence upload. API 37 failed before instrumentation because `am start -W` returned its fixed timeout after 10.706 seconds; the artifact shows the application actually displayed at 10.960 seconds, remained the resumed activity, and had no crash. Replaced that brittle status-string gate with bounded 30-second polling for the real process and resumed activity, and similarly retries the onboarding UI hierarchy until Compose has rendered. This changes only clean-runner synchronization, not application behavior.
+- Final clean-runner run `30530550542` completed successfully at head `1d99062`: verify passed in 5 minutes 46 seconds, the full Google APIs API 26 job passed in 7 minutes 41 seconds, and the full Google APIs API 37 job passed in 7 minutes 18 seconds. Both emulator jobs passed cold launch, real first-run onboarding, migrations, telemetry settings, offline process recovery, foreground completion, screen-off mock-location arrival, crash checks, and evidence upload. Task 36's local and pull-request emulator acceptance is therefore complete; phone-only Google Navigation acceptance remains outside this task.
+
+### Remaining acceptance boundary
+
+- Local API 26/API 37 migration, onboarding, process recovery, offline handling, foreground service, screen-off location, telemetry, and quota-error acceptance are now evidenced. Google Navigation terms, native road voice, real-location road guidance, off-route rerouting, and destination-batch transitions still require the later signed Xiaomi v0.2.0-to-v0.2.1 overlay acceptance; none of those phone-only results are claimed here.
+
+## 2026-07-30 - Task 37: v0.2.1 release-candidate documentation and prerelease gate
+
+### Preparation and scope
+
+- Re-read the complete 987-line `AGENT.md` before starting this new task. Confirmed PR 1 was mergeable and its final run `30530550542` had successful verify, API 26, and API 37 jobs at head `1d99062`.
+- Followed the user's standing prohibition on phone installation: no Xiaomi connection, APK installation, overwrite, uninstall, data clear, permission change, input injection, or device configuration occurred. This task prepares and publishes only a signed GitHub prerelease candidate; stable v0.2.1 remains gated on a later explicitly permitted overlay test.
+- Used the GitHub publish workflow instructions for scoped status/diff/authentication checks. The only pre-existing worktree change was Task 36's final truthful CI-evidence line in this file; it is included deliberately rather than discarded.
+
+### Documentation, license, and release implementation
+
+- Replaced the stale v0.2.0 MapLibre/ORS/Transitous README with the current Google Navigation, Google Routes through VPS, Firebase, unlimited-tour batching, migration, GMS, quota, privacy, build, and fixed-signing model. Preserved the public v0.2.0 link and clearly separated RC from stable acceptance.
+- Replaced active NOTICE attribution with Google Navigation SDK, Routes API, Firebase, Bangumi, and Anitabi; removed old providers from the current attribution and retained them only as explicitly historical v0.2.0 references.
+- Added a standalone v0.2.1 privacy statement covering user-owned local state, memory-only Google route content, Firebase anonymous authentication, VPS quota/log/IP handling, independent Analytics/Crashlytics opt-in and withdrawal, Anitabi direct access, backups, outages, deletion, and contact.
+- Appended the sole author's narrow Google SDK linking exception to `LICENSE`. It permits linking/distribution only with unmodified Google Navigation SDK for Android and Firebase Android SDKs, grants no SDK rights, covers no other proprietary library or service, and keeps all project code under GPL-3.0-or-later. The About page now states and links the same boundary.
+- Rebuilt the release checklist for v0.2.1 and added release notes plus an RC acceptance record with every phone-only item visibly unchecked. Historical v0.2.0 records were not rewritten.
+- Extended the signed-release workflow to accept `vX.Y.Z-rc.N`, compare the base version to `versionName`, use the base-version notes, and mark RCs as GitHub Prereleases while retaining stable `vX.Y.Z` behavior. Updated exact-release compatibility to strip the RC suffix for package inspection and use bounded process/activity/UI polling instead of the flaky fixed `am start -W` status timeout.
+
+### Local verification and remaining publication steps
+
+- Local Android verification passes 65 JVM tests with zero failures/errors, Debug and Release Lint, Debug APK assembly, androidTest APK assembly, tracked-source credential audit, APK content audit, and `git diff --check`. Both lint tasks completed successfully after the About-page license change.
+- Backend verification still passes all 17 tests, including the concurrent hard-cap test, and production dependency audit reports zero vulnerabilities. No Google API, Firebase sign-in, billable route, VPS mutation, password use, or SSH action occurred.
+- PyYAML parsed Android CI, signed release, and release-smoke workflows successfully. Tag/base-version and prerelease behavior is encoded in the release workflow; final authoritative validation remains the protected GitHub Actions run with encrypted Firebase, Navigation, and signing secrets.
+- Remaining steps in this same task are to push the scoped changes, obtain a green PR run, merge PR 1, verify main, tag `v0.2.1-rc.1`, inspect the signed prerelease APK/signature/checksum, and complete API 26/API 37 exact-release compatibility. Stable v0.2.1 and every phone-only result remain unclaimed.

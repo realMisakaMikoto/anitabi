@@ -30,7 +30,6 @@ class MainActivity : ComponentActivity() {
         PlannerViewModel.Factory(
             planner = container.tourPlanner,
             repository = container.tourRepository,
-            keyStore = container.orsKeyStore,
             locationProvider = container.locationProvider,
         )
     }
@@ -43,7 +42,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             AnitabiTheme {
                 var onboardingComplete by remember {
-                    mutableStateOf(container.orsKeyStore.hasCompletedOnboarding())
+                    mutableStateOf(container.appSettingsStore.hasCompletedOnboarding())
                 }
                 Box(
                     modifier = Modifier
@@ -56,10 +55,11 @@ class MainActivity : ComponentActivity() {
                             viewModel = searchViewModel,
                             plannerViewModel = plannerViewModel,
                             navigationViewModel = navigationViewModel,
+                            telemetryConsentController = container.telemetryConsentController,
                         )
                     } else {
                         OnboardingRoute(
-                            keyStore = container.orsKeyStore,
+                            settingsStore = container.appSettingsStore,
                             onComplete = { onboardingComplete = true },
                         )
                     }

@@ -1,0 +1,17 @@
+api.anitabi.afunnypersonlol0.site {
+    encode zstd gzip
+
+    request_body {
+        max_size 16KB
+    }
+
+    header {
+        Strict-Transport-Security "max-age=31536000"
+        X-Content-Type-Options "nosniff"
+    }
+
+    reverse_proxy 127.0.0.1:8787 {
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto https
+    }
+}

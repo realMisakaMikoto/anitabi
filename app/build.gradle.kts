@@ -1,5 +1,7 @@
 plugins {
     id("com.android.application")
+    id("com.google.firebase.crashlytics")
+    id("com.google.gms.google-services")
     id("com.google.devtools.ksp")
     id("org.jetbrains.kotlin.plugin.compose")
     id("org.jetbrains.kotlin.plugin.serialization")
@@ -15,6 +17,7 @@ val releaseStorePath = signingValue("ANITABI_STORE_FILE")
 val releaseStorePassword = signingValue("ANITABI_STORE_PASSWORD")
 val releaseKeyAlias = signingValue("ANITABI_KEY_ALIAS")
 val releaseKeyPassword = signingValue("ANITABI_KEY_PASSWORD")
+val navigationApiKey = signingValue("ANITABI_NAVIGATION_API_KEY").orEmpty()
 val releaseSigningValues = listOf(
     releaseStorePath,
     releaseStorePassword,
@@ -40,10 +43,11 @@ android {
         applicationId = "cn.anitabi.navigator"
         minSdk = 26
         targetSdk = 37
-        versionCode = 6
-        versionName = "0.2.0"
+        versionCode = 7
+        versionName = "0.2.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        manifestPlaceholders["NAVIGATION_API_KEY"] = navigationApiKey
     }
 
     signingConfigs {
@@ -70,6 +74,7 @@ android {
     }
 
     compileOptions {
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
@@ -82,6 +87,8 @@ android {
     packaging {
         resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
     }
+
+    sourceSets.getByName("androidTest").assets.directories.add("$projectDir/schemas")
 }
 
 gradle.taskGraph.whenReady {
@@ -93,12 +100,20 @@ gradle.taskGraph.whenReady {
             "Release signing is not configured. Keep the keystore outside the workspace and set ANITABI_* values.",
         )
     }
+    if (requestsReleaseArtifact && navigationApiKey.isBlank()) {
+        throw GradleException(
+            "Release builds require ANITABI_NAVIGATION_API_KEY from an ignored local property or environment variable.",
+        )
+    }
 }
 
 dependencies {
     val composeBom = platform("androidx.compose:compose-bom:2026.06.01")
+    val firebaseBom = platform("com.google.firebase:firebase-bom:34.16.0")
 
     implementation(composeBom)
+    implementation(firebaseBom)
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs_nio:2.1.5")
     implementation("androidx.core:core-ktx:1.19.0")
     implementation("androidx.activity:activity-compose:1.13.0")
     implementation("androidx.compose.material3:material3")
@@ -112,7 +127,10 @@ dependencies {
     implementation("io.coil-kt.coil3:coil-compose:3.5.0")
     implementation("io.coil-kt.coil3:coil-network-okhttp:3.5.0")
     implementation("com.squareup.okhttp3:okhttp:5.4.0")
-    implementation("org.maplibre.gl:android-sdk-opengl:13.4.1")
+    implementation("com.google.android.libraries.navigation:navigation:7.8.0")
+    implementation("com.google.firebase:firebase-analytics")
+    implementation("com.google.firebase:firebase-auth")
+    implementation("com.google.firebase:firebase-crashlytics")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0")
 
@@ -125,6 +143,7 @@ dependencies {
     androidTestImplementation("androidx.test:core-ktx:1.7.0")
     androidTestImplementation("androidx.test.ext:junit:1.3.0")
     androidTestImplementation("androidx.test:runner:1.7.0")
+    androidTestImplementation("androidx.room:room-testing:2.8.4")
     androidTestImplementation(composeBom)
     androidTestImplementation("androidx.compose.ui:ui-test-junit4")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.7.0")

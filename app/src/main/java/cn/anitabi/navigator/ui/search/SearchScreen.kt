@@ -58,6 +58,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cn.anitabi.navigator.core.model.Anime
+import cn.anitabi.navigator.core.model.NavigationState
 import cn.anitabi.navigator.core.model.PilgrimagePoint
 import cn.anitabi.navigator.data.repository.PilgrimageWarning
 import cn.anitabi.navigator.ui.theme.Ink
@@ -71,6 +72,7 @@ import cn.anitabi.navigator.ui.planner.PlannerViewModel
 import cn.anitabi.navigator.navigation.NavigationViewModel
 import cn.anitabi.navigator.ui.navigation.NavigationRoute
 import cn.anitabi.navigator.ui.about.AboutScreen
+import cn.anitabi.navigator.telemetry.TelemetryConsentController
 import coil3.compose.AsyncImage
 
 @Composable
@@ -78,12 +80,19 @@ fun SearchRoute(
     viewModel: SearchViewModel,
     plannerViewModel: PlannerViewModel,
     navigationViewModel: NavigationViewModel,
+    telemetryConsentController: TelemetryConsentController,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val navigationState by navigationViewModel.state.collectAsStateWithLifecycle()
     val navigationPlanId = navigationState.plan?.id
+    val hasRecoverableNavigation = navigationPlanId != null &&
+        navigationState.errorMessage != null &&
+        navigationState.progress?.state?.let { state ->
+            state != NavigationState.PLANNED && state != NavigationState.COMPLETED
+        } == true
     val showNavigation = state.navigationOpen ||
-        (navigationState.isRunning && navigationPlanId != state.hiddenNavigationTourId)
+        ((navigationState.isRunning || hasRecoverableNavigation) &&
+            navigationPlanId != state.hiddenNavigationTourId)
     BackHandler(
         enabled = !showNavigation && (state.aboutOpen || state.selectionOpen),
         onBack = when {
@@ -96,7 +105,10 @@ fun SearchRoute(
     if (showNavigation) {
         NavigationRoute(viewModel = navigationViewModel, onBack = viewModel::closeNavigation)
     } else if (state.aboutOpen) {
-        AboutScreen(onBack = viewModel::closeAbout)
+        AboutScreen(
+            onBack = viewModel::closeAbout,
+            telemetryConsentController = telemetryConsentController,
+        )
     } else if (state.plannerOpen) {
         PlannerRoute(
             viewModel = plannerViewModel,
@@ -630,7 +642,7 @@ private fun SelectionFooter(
                 },
             )
             Column(modifier = Modifier.weight(1f)) {
-                Text("已选 $selectedCount / ${SearchViewModel.MAX_ROAD_POINTS}", fontWeight = FontWeight.Bold)
+                Text("已选 $selectedCount", fontWeight = FontWeight.Bold)
                 Text("可单点或按当前地图范围批选", color = MutedInk, style = MaterialTheme.typography.bodyMedium)
             }
             AnimatedVisibility(visible = selectedCount > 0) {
@@ -653,7 +665,7 @@ private fun SelectionFooter(
 @Composable
 private fun Attribution(modifier: Modifier = Modifier) {
     Text(
-        text = "OpenFreeMap · OpenMapTiles · © OpenStreetMap contributors",
+        text = "Google Maps",
         color = Ink,
         style = MaterialTheme.typography.labelSmall,
         modifier = modifier
