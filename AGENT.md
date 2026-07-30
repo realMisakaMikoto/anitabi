@@ -716,3 +716,38 @@
 - The user explicitly confirmed that real positioning works even though the phone remains configured with a mock-location application and requested this item be checked. Recorded `真实定位功能可用` as passed in the v0.2.0 plan and physical-device acceptance records.
 - Kept the evidence scope precise: the user's field observation proves the real-location function works, while ADB independently proves permissions and providers are enabled but cannot attribute every fix to GNSS while mock authorization remains. The separate 8-12 point real route, multi-hour Xiaomi/OEM run, and actual missed-service event remain unchecked.
 - Updated README status and the v0.2.0 physical acceptance record with the exact-release retest. No production application source, APK, ORS Key, release artifact, or device configuration changed.
+
+## 2026-07-30 - Task 27: v0.2.1 feasibility freeze and VPS backend implementation
+
+### Preparation and verified baseline
+
+- Re-read the complete current 718-line `AGENT.md` and the complete original pasted implementation plan before starting the new v0.2.1 goal.
+- Confirmed the worktree was clean and local `main`/`origin/main` both resolved to `cf0a49a8cd7790ce3789069cc1067e3ad2d82732`. Created the dedicated implementation branch `codex/v0.2.1-google-vps-migration`; no v0.1.2 planning worktree was used.
+- Reconfirmed the Android baseline is `versionName=0.2.0` / `versionCode=6`, with MapLibre, ORS, Transitous, Room version 1, the onboarding Key store, and the existing 49-test structure still intact. No Android production source, installed phone application, Release asset, tag, or v0.2.0 historical record changed in this task.
+
+### Current official Google/Firebase findings
+
+- Used Agent Reach's Exa backend first, then current official Google/Firebase documentation after Exa's free MCP limit was reached. Recorded the frozen constraints and direct official links in `docs/GOOGLE_MIGRATION_FEASIBILITY_v0.2.1.md`.
+- Confirmed Navigation SDK 7.x supports driving, walking, and cycling, replaces the Maps SDK map layer, accepts at most 25 destinations, and remains compatible with the project's API 26 minimum/API 37 target. Its current free cap is 1,000 billed destinations, so the requested 900 local ceiling is the correct 90% value.
+- Confirmed Routes Essentials has a 10,000-event free cap per Compute Routes/Matrix SKU, so 9,000 is the correct 90% local ceiling. Ten-coordinate square matrices reserve 100 elements; 12-location road previews use the Essentials maximum of ten intermediate waypoints; transit routes accept no intermediate waypoints and must remain pairwise.
+- Identified one real product limitation instead of fabricating it: Routes transit responses expose stop names, times, line, vehicle, headsign, and stop count, but no independent platform-number field. v0.2.1 can display only platform information actually present in upstream stop text.
+- Confirmed WALK/BICYCLE Routes results require Google's beta warning, Firebase Analytics can be disabled until runtime opt-in, and Crashlytics disabled collection can retain reports locally. The Android implementation must delete unsent reports while consent is absent or withdrawn.
+
+### Backend implementation
+
+- Added the `backend` Node.js 24 LTS / TypeScript / Fastify service with only the four planned endpoints, a 16 KiB body limit, JSON/HTTPS enforcement, fixed Google OAuth and Routes upstreams, fixed field masks/timeouts, and normalized responses/errors. Full Google response bodies are never forwarded or logged.
+- Implemented Firebase anonymous ID-token verification with cached Google signing keys and explicit RS256, project audience, issuer, expiration, UID, and anonymous-provider checks.
+- Implemented Web Crypto RS256 service-account JWT signing and short-lived OAuth exchange with a single-flight refresh promise. The token endpoint, scope, Routes endpoint, and quota project are fixed; service-account contents never enter Android or logs.
+- Implemented SQLite WAL quota accounting with `BEGIN IMMEDIATE` transactions and UTC period boundaries. Limits are Matrix 9,000/month and 2,000/UID/day, Compute Routes 9,000/month and 200/UID/day, and Navigation 900/month and 20 destinations/UID/day. Reservations are not refunded after an upstream failure. Integrity, write, disk, or billing-state uncertainty fails closed.
+- Added a primary UID token bucket and wider HMAC-IP auxiliary bucket. Structured logs contain only endpoint template, status, latency bucket, and error code; they cannot accept token, raw IP, coordinates, anime/search text, or request body fields.
+- Added consistent SQLite backups with a seven-day retention window, integrity checking, recoverable restore copies, and mandatory post-restore billing disablement until an explicit audited-enable command.
+- Added a multi-stage Docker image, loopback-only Compose port, non-root user, read-only root filesystem, dropped capabilities, no-new-privileges, memory/CPU/PID limits, read-only secret mounts, health check, automatic restart, and an additive Caddy virtual host for `api.anitabi.afunnypersonlol0.site`.
+
+### Verification and remaining external boundaries
+
+- `npm test` passes 17 backend tests covering JWT acceptance/rejection, fixed OAuth JWT/scope/endpoint and 30-way single-flight refresh, request boundaries, unified errors, fixed Google upstreams/field masks, normalized transit output, no upstream-body pass-through, token buckets, logging redaction, day/month changes, fail-closed billing state, and quota limits.
+- The concurrency test used 12 independent SQLite connections competing for a 9,000-element month. Exactly 90 reservations of 100 elements succeeded, the persisted global row ended at exactly 9,000, and every excess reservation was rejected.
+- Production dependency audit reports zero vulnerabilities. Compose configuration parses successfully. The final `anitabi-api:0.2.1` image built successfully, is 92,417,897 bytes, declares user `node`, and includes the health check. A read-only, capability-free container smoke test ran as UID 1000 and returned `200 {"service":"ok","database":"ok"}` from the real compiled Fastify/SQLite code.
+- The first slim-image build correctly exposed missing native build tools. A stalled Debian package download and an Alpine experiment were stopped; the final reproducible Dockerfile uses the full Node Bookworm image only as a build stage and the 92 MB Bookworm-slim runtime. Node's built-in SQLite was evaluated but rejected because Node 24 still emits an experimental API warning.
+- No Google/Firebase project, billing resource, Cloudflare DNS record, VPS service, credential, or billable Google request was created. Local DNS is transparently mapped to reserved `198.18.0.0/15` addresses and cannot prove public DNS state. No usable VPS SSH target or Cloudflare/Google credential is present in the local environment, so deployment remains an external next phase rather than a claimed result.
+- No secret value was written to the workspace, command output, Docker layer, documentation, or this log. Only generated in-memory test keys and fake tokens were used.

@@ -13,3 +13,7 @@ captures/
 *.jks
 *.keystore
 signing.properties
+backend/node_modules/
+backend/dist/
+backend/*.sqlite*
+backend/.env
