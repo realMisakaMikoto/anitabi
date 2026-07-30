@@ -2,6 +2,8 @@ package cn.anitabi.navigator.ui.onboarding
 
 import android.Manifest
 import android.app.Instrumentation
+import android.content.pm.PackageManager
+import android.graphics.Rect
 import android.os.Build
 import android.os.Bundle
 import android.view.accessibility.AccessibilityNodeInfo
@@ -102,20 +104,36 @@ class OnboardingInstrumentedTest {
 
     private fun grantAndroid8PermissionDialog() {
         repeat(30) {
+            if (hasRequiredLocationPermissions()) return
             val focus = focusedWindow().lowercase()
             if ("permissioncontroller" !in focus && "packageinstaller" !in focus) return
             val root = instrumentation.uiAutomation.rootInActiveWindow
             val allowButton = listOf(
                 "com.android.packageinstaller:id/permission_allow_button",
                 "com.google.android.packageinstaller:id/permission_allow_button",
+                "android:id/button1",
             ).firstNotNullOfOrNull { viewId ->
                 root?.findAccessibilityNodeInfosByViewId(viewId)?.firstOrNull()
             } ?: listOf("ALLOW", "Allow", "允许").firstNotNullOfOrNull { label ->
                 root?.findAccessibilityNodeInfosByText(label)?.firstOrNull { node -> node.isClickable }
             }
             if (allowButton != null) {
-                check(allowButton.performAction(AccessibilityNodeInfo.ACTION_CLICK))
+                val bounds = Rect().also(allowButton::getBoundsInScreen)
+                reportEvidence("ONBOARDING_PERMISSION_ALLOW_NODE_FOUND")
+                val actionClicked = allowButton.performAction(AccessibilityNodeInfo.ACTION_CLICK)
                 instrumentation.waitForIdleSync()
+                Thread.sleep(500L)
+                if (
+                    !hasRequiredLocationPermissions() &&
+                    !bounds.isEmpty &&
+                    ("permissioncontroller" in focusedWindow().lowercase() ||
+                        "packageinstaller" in focusedWindow().lowercase())
+                ) {
+                    shell("input tap ${bounds.centerX()} ${bounds.centerY()}")
+                    reportEvidence("ONBOARDING_PERMISSION_ALLOW_INPUT_TAP")
+                } else if (actionClicked) {
+                    reportEvidence("ONBOARDING_PERMISSION_ALLOW_ACTION_CLICK")
+                }
             }
             Thread.sleep(500L)
         }
@@ -127,6 +145,10 @@ class OnboardingInstrumentedTest {
     }
 
     private fun returnFromPermissionDialog() {
+        if (Build.VERSION.SDK_INT == Build.VERSION_CODES.O && hasRequiredLocationPermissions()) {
+            instrumentation.waitForIdleSync()
+            return
+        }
         repeat(30) {
             if (application.packageName in focusedWindow().lowercase()) return
             Thread.sleep(500L)
@@ -138,6 +160,12 @@ class OnboardingInstrumentedTest {
         }
         throw AssertionError("The app did not regain focus after permissions were granted")
     }
+
+    private fun hasRequiredLocationPermissions(): Boolean =
+        application.checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) ==
+            PackageManager.PERMISSION_GRANTED &&
+            application.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) ==
+            PackageManager.PERMISSION_GRANTED
 
     private fun continueAfterPermissionGrantIfNeeded() {
         composeRule.waitUntil(timeoutMillis = 15_000L) {
