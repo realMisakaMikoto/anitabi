@@ -1,5 +1,7 @@
 package cn.anitabi.navigator.ui.map
 
+import android.util.Log
+import android.view.View
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -19,6 +21,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -26,8 +29,13 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.google.android.gms.maps.GoogleMap
-import com.google.android.gms.maps.MapsInitializer
 import com.google.android.libraries.navigation.NavigationView
+
+private const val MAP_LOG_TAG = "NavigationMapView"
+
+private fun logMapFailure(stage: String, error: Throwable) {
+    Log.w(MAP_LOG_TAG, "$stage failed (${error.javaClass.name})")
+}
 
 @Composable
 fun NavigationMapView(
@@ -35,28 +43,18 @@ fun NavigationMapView(
     modifier: Modifier = Modifier,
     navigationUiEnabled: Boolean = false,
     onUnavailable: () -> Unit = {},
+    onViewportSizeChanged: (width: Int, height: Int) -> Unit = { _, _ -> },
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val currentOnMapReady = rememberUpdatedState(onMapReady)
     val currentOnUnavailable = rememberUpdatedState(onUnavailable)
+    val currentOnViewportSizeChanged = rememberUpdatedState(onViewportSizeChanged)
     var attempt by remember(navigationUiEnabled) { mutableIntStateOf(0) }
     var runtimeFailure by remember(navigationUiEnabled, attempt) { mutableStateOf(false) }
     val creation = remember(navigationUiEnabled, attempt) {
-        runCatching {
-            initializeGoogleMapRuntime(
-                initialize = { MapsInitializer.initialize(context) },
-                create = {
-                    NavigationView(context).apply {
-                        onCreate(null)
-                        setNavigationUiEnabled(navigationUiEnabled)
-                        setHeaderEnabled(navigationUiEnabled)
-                        setEtaCardEnabled(navigationUiEnabled)
-                        setTripProgressBarEnabled(navigationUiEnabled)
-                    }
-                },
-            )
-        }
+        runCatching { NavigationView(context) }
+            .onFailure { error -> logMapFailure("CONSTRUCTOR", error) }
     }
     val navigationView = creation.getOrNull()
     val unavailable = navigationView == null || runtimeFailure
@@ -76,34 +74,47 @@ fun NavigationMapView(
         return
     }
 
+    AndroidView(
+        factory = { navigationView },
+        modifier = modifier.onSizeChanged { size ->
+            currentOnViewportSizeChanged.value(size.width, size.height)
+        },
+    )
+
     DisposableEffect(lifecycleOwner, navigationView) {
+        var created = false
+        var configured = false
         var started = false
         var resumed = false
+        var mapRequested = false
+        var disposed = false
 
-        fun failSafely(block: () -> Unit): Boolean = try {
+        fun failSafely(stage: String, block: () -> Unit): Boolean = try {
             block()
             true
-        } catch (_: RuntimeException) {
+        } catch (error: RuntimeException) {
+            logMapFailure(stage, error)
             runtimeFailure = true
             false
         }
 
         fun start() {
-            if (!started) {
-                started = failSafely(navigationView::onStart)
+            if (navigationView.isAttachedToWindow && created && configured && !started) {
+                started = failSafely("ON_START", navigationView::onStart)
             }
         }
 
         fun resume() {
             start()
             if (started && !resumed) {
-                resumed = failSafely(navigationView::onResume)
+                resumed = failSafely("ON_RESUME", navigationView::onResume)
             }
         }
 
         fun pause() {
             if (resumed) {
-                failSafely(navigationView::onPause)
+                runCatching(navigationView::onPause)
+                    .onFailure { error -> logMapFailure("ON_PAUSE", error) }
                 resumed = false
             }
         }
@@ -111,38 +122,88 @@ fun NavigationMapView(
         fun stop() {
             pause()
             if (started) {
-                failSafely(navigationView::onStop)
+                runCatching(navigationView::onStop)
+                    .onFailure { error -> logMapFailure("ON_STOP", error) }
                 started = false
+            }
+        }
+
+        fun requestMap() {
+            if (!navigationView.isAttachedToWindow || !created || !configured || mapRequested) return
+            mapRequested = failSafely("GET_MAP") {
+                navigationView.getMapAsync { map ->
+                    if (disposed) return@getMapAsync
+                    try {
+                        currentOnMapReady.value(map)
+                    } catch (error: RuntimeException) {
+                        logMapFailure("MAP_READY_CALLBACK", error)
+                        runtimeFailure = true
+                    }
+                }
+            }
+        }
+
+        fun activateAttachedView() {
+            if (!navigationView.isAttachedToWindow) return
+            if (!created) {
+                created = failSafely("ON_CREATE") { navigationView.onCreate(null) }
+            }
+            if (!created) return
+            if (!configured) {
+                configured = failSafely("UI_CONFIGURATION") {
+                    navigationView.setNavigationUiEnabled(navigationUiEnabled)
+                    navigationView.setHeaderEnabled(navigationUiEnabled)
+                    navigationView.setEtaCardEnabled(navigationUiEnabled)
+                    navigationView.setTripProgressBarEnabled(navigationUiEnabled)
+                }
+            }
+            if (!configured) return
+            if (lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
+                resume()
+                if (!resumed) return
+            } else if (lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
+                start()
+                if (!started) return
+            } else {
+                return
+            }
+            requestMap()
+        }
+
+        val attachListener = object : View.OnAttachStateChangeListener {
+            override fun onViewAttachedToWindow(view: View) {
+                activateAttachedView()
+            }
+
+            override fun onViewDetachedFromWindow(view: View) {
+                stop()
             }
         }
 
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
-                Lifecycle.Event.ON_START -> start()
-                Lifecycle.Event.ON_RESUME -> resume()
+                Lifecycle.Event.ON_START,
+                Lifecycle.Event.ON_RESUME -> activateAttachedView()
                 Lifecycle.Event.ON_PAUSE -> pause()
                 Lifecycle.Event.ON_STOP -> stop()
                 else -> Unit
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
-        if (lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
-            resume()
-        } else if (lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
-            start()
-        }
-        failSafely {
-            navigationView.getMapAsync { map -> currentOnMapReady.value(map) }
-        }
+        navigationView.addOnAttachStateChangeListener(attachListener)
+        activateAttachedView()
 
         onDispose {
+            disposed = true
             lifecycleOwner.lifecycle.removeObserver(observer)
+            navigationView.removeOnAttachStateChangeListener(attachListener)
             stop()
-            runCatching(navigationView::onDestroy)
+            if (created) {
+                runCatching(navigationView::onDestroy)
+                    .onFailure { error -> logMapFailure("ON_DESTROY", error) }
+            }
         }
     }
-
-    AndroidView(factory = { navigationView }, modifier = modifier)
 }
 
 @Composable

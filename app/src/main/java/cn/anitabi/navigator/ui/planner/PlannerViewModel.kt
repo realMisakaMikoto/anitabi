@@ -14,6 +14,7 @@ import cn.anitabi.navigator.core.routing.NoTransitDataException
 import cn.anitabi.navigator.core.routing.RoadPlanRequest
 import cn.anitabi.navigator.core.routing.TourPlanner
 import cn.anitabi.navigator.core.routing.TransitPlanRequest
+import cn.anitabi.navigator.core.routing.formatTransitDepartureTime
 import cn.anitabi.navigator.data.network.ApiException
 import cn.anitabi.navigator.data.repository.TourRepository
 import cn.anitabi.navigator.navigation.CurrentLocationProvider
@@ -120,10 +121,12 @@ class PlannerViewModel(
                     requireNotNull(startPoint).coordinate
                 }
                 val plan = if (current.mode == TravelMode.TRANSIT) {
-                    val departure = LocalDateTime.of(
-                        LocalDate.parse(current.departureDate),
-                        LocalTime.parse(current.departureTime),
-                    ).atZone(ZoneId.systemDefault()).toOffsetDateTime().toString()
+                    val departure = formatTransitDepartureTime(
+                        LocalDateTime.of(
+                            LocalDate.parse(current.departureDate),
+                            LocalTime.parse(current.departureTime),
+                        ).atZone(ZoneId.systemDefault()).toOffsetDateTime(),
+                    )
                     planner.planTransit(
                         TransitPlanRequest(
                             anime = anime,
@@ -205,27 +208,9 @@ class PlannerViewModel(
 
     private fun handleFailure(throwable: Throwable) {
         if (throwable is CancellationException) throw throwable
-        val message = when (throwable) {
-            is ApiException.Unauthenticated -> "匿名连接失败，请检查网络后重试"
-            is ApiException.InvalidArgument -> "路线请求参数无效，请重新选择地点"
-            is ApiException.NoRoute, is ApiException.NotFound -> "所选地点之间暂无可用路线"
-            is ApiException.QuotaExhausted -> "本月免费路线额度已用尽，达到上限后不会继续计费"
-            is ApiException.RateLimited -> "请求过于频繁，请稍后再试"
-            is ApiException.UpstreamUnavailable -> "Google 路线服务暂时不可用，请稍后再试"
-            is ApiException.BackendUnavailable, is ApiException.Server ->
-                "路线服务暂时不可用；行程和导航进度仍保留在本机"
-            is ApiException.InvalidResponse -> "路线服务返回了无法识别的数据"
-            is ApiException.InvalidCredentials, is ApiException.Forbidden, is ApiException.Http ->
-                "路线请求失败，请稍后再试"
-            is ApiException.Network -> "网络连接失败，请检查网络后重试"
-            is NoTransitDataException -> "本区域暂无开放公交数据"
-            is NoRouteException -> "所选地点之间存在不可达路段"
-            is MissingLocationPermissionException -> "需要定位权限才能从当前位置出发"
-            is LocationUnavailableException -> "暂时无法取得当前位置，请检查系统定位开关"
-            is java.time.format.DateTimeParseException -> "日期或时间格式不正确"
-            else -> throwable.message ?: "路线生成失败"
+        mutableState.update {
+            it.copy(isLoading = false, errorMessage = plannerFailureMessage(throwable))
         }
-        mutableState.update { it.copy(isLoading = false, errorMessage = message) }
     }
 
     class Factory(
@@ -237,6 +222,27 @@ class PlannerViewModel(
         override fun <T : ViewModel> create(modelClass: Class<T>): T =
             PlannerViewModel(planner, repository, locationProvider) as T
     }
+}
+
+internal fun plannerFailureMessage(throwable: Throwable): String = when (throwable) {
+    is ApiException.Unauthenticated -> "匿名连接失败，请检查网络后重试"
+    is ApiException.InvalidArgument -> "路线请求参数无效，请重新选择地点"
+    is ApiException.NoRoute, is ApiException.NotFound -> "所选地点之间暂无可用路线"
+    is ApiException.QuotaExhausted -> "本月免费路线额度已用尽，达到上限后不会继续计费"
+    is ApiException.RateLimited -> "请求过于频繁，请稍后再试"
+    is ApiException.UpstreamUnavailable -> "Google 路线服务暂时不可用，请稍后再试"
+    is ApiException.BackendUnavailable, is ApiException.Server ->
+        "路线服务暂时不可用；行程和导航进度仍保留在本机"
+    is ApiException.InvalidResponse -> "路线服务返回了无法识别的数据"
+    is ApiException.InvalidCredentials, is ApiException.Forbidden, is ApiException.Http ->
+        "路线请求失败，请稍后再试"
+    is ApiException.Network -> "无法连接路线服务；当前网络出口可能被拦截，请切换网络后重试"
+    is NoTransitDataException -> "本区域暂无开放公交数据"
+    is NoRouteException -> "所选地点之间存在不可达路段"
+    is MissingLocationPermissionException -> "需要定位权限才能从当前位置出发"
+    is LocationUnavailableException -> "暂时无法取得当前位置，请检查系统定位开关"
+    is java.time.format.DateTimeParseException -> "日期或时间格式不正确"
+    else -> throwable.message ?: "路线生成失败"
 }
 
 data class PlannerUiState(

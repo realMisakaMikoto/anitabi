@@ -1,5 +1,6 @@
 package cn.anitabi.navigator.ui.search
 
+import android.util.Log
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -11,6 +12,7 @@ import androidx.compose.ui.Modifier
 import cn.anitabi.navigator.core.model.PilgrimagePoint
 import cn.anitabi.navigator.ui.map.NavigationMapView
 import cn.anitabi.navigator.ui.map.pilgrimageMarkerOptions
+import cn.anitabi.navigator.ui.map.withPositiveMapViewport
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.model.LatLng
@@ -31,10 +33,16 @@ fun PilgrimageMap(
     val currentOnMapUnavailable by rememberUpdatedState(onMapUnavailable)
     var map by remember { mutableStateOf<GoogleMap?>(null) }
     var centeredContentKey by remember { mutableStateOf<String?>(null) }
+    var viewportWidth by remember { mutableStateOf(0) }
+    var viewportHeight by remember { mutableStateOf(0) }
 
     NavigationMapView(
         modifier = modifier,
         onUnavailable = onMapUnavailable,
+        onViewportSizeChanged = { width, height ->
+            viewportWidth = width
+            viewportHeight = height
+        },
         onMapReady = { readyMap ->
             try {
                 readyMap.uiSettings.isMapToolbarEnabled = false
@@ -43,18 +51,23 @@ fun PilgrimageMap(
                     true
                 }
                 readyMap.setOnCameraIdleListener {
-                    val bounds = readyMap.projection.visibleRegion.latLngBounds
-                    currentOnBoundsChanged(
-                        GeoBounds(
-                            north = bounds.northeast.latitude,
-                            east = bounds.northeast.longitude,
-                            south = bounds.southwest.latitude,
-                            west = bounds.southwest.longitude,
-                        ),
-                    )
+                    try {
+                        val bounds = readyMap.projection.visibleRegion.latLngBounds
+                        currentOnBoundsChanged(
+                            GeoBounds(
+                                north = bounds.northeast.latitude,
+                                east = bounds.northeast.longitude,
+                                south = bounds.southwest.latitude,
+                                west = bounds.southwest.longitude,
+                            ),
+                        )
+                    } catch (error: RuntimeException) {
+                        Log.w("PilgrimageMap", "VISIBLE_BOUNDS failed (${error.javaClass.name})")
+                    }
                 }
                 map = readyMap
-            } catch (_: RuntimeException) {
+            } catch (error: RuntimeException) {
+                Log.w("PilgrimageMap", "READY_SETUP failed (${error.javaClass.name})")
                 map = null
                 currentOnMapUnavailable()
             }
@@ -70,33 +83,34 @@ fun PilgrimageMap(
                     pilgrimageMarkerOptions(point, point.id in selectedPointIds),
                 )?.tag = point.id
             }
-        } catch (_: RuntimeException) {
+        } catch (error: RuntimeException) {
+            Log.w("PilgrimageMap", "MARKERS failed (${error.javaClass.name})")
             map = null
             currentOnMapUnavailable()
         }
     }
 
-    LaunchedEffect(contentKey, points, map) {
+    LaunchedEffect(contentKey, points, map, viewportWidth, viewportHeight) {
         val readyMap = map ?: return@LaunchedEffect
         try {
             if (points.isNotEmpty() && centeredContentKey != contentKey) {
-                if (points.size == 1) {
-                    val point = points.single().coordinate
-                    readyMap.animateCamera(
-                        CameraUpdateFactory.newLatLngZoom(LatLng(point.latitude, point.longitude), 15f),
-                    )
-                } else {
-                    val builder = LatLngBounds.Builder()
-                    points.forEach { point ->
-                        builder.include(LatLng(point.coordinate.latitude, point.coordinate.longitude))
+                val cameraUpdate = withPositiveMapViewport(viewportWidth, viewportHeight) { width, height ->
+                    if (points.size == 1) {
+                        val point = points.single().coordinate
+                        CameraUpdateFactory.newLatLngZoom(LatLng(point.latitude, point.longitude), 15f)
+                    } else {
+                        val builder = LatLngBounds.Builder()
+                        points.forEach { point ->
+                            builder.include(LatLng(point.coordinate.latitude, point.coordinate.longitude))
+                        }
+                        CameraUpdateFactory.newLatLngBounds(builder.build(), width, height, 88)
                     }
-                    readyMap.animateCamera(CameraUpdateFactory.newLatLngBounds(builder.build(), 88))
-                }
+                } ?: return@LaunchedEffect
+                readyMap.animateCamera(cameraUpdate)
                 centeredContentKey = contentKey
             }
-        } catch (_: RuntimeException) {
-            map = null
-            currentOnMapUnavailable()
+        } catch (error: RuntimeException) {
+            Log.w("PilgrimageMap", "FIT_BOUNDS failed (${error.javaClass.name})")
         }
     }
 }

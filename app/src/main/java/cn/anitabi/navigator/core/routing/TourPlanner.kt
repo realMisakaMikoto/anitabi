@@ -10,6 +10,10 @@ import cn.anitabi.navigator.core.model.TourLeg
 import cn.anitabi.navigator.core.model.TourPlan
 import cn.anitabi.navigator.core.model.TravelMode
 import java.time.OffsetDateTime
+import java.time.format.DateTimeFormatter
+import java.time.format.DateTimeFormatterBuilder
+import java.time.temporal.ChronoField
+import java.util.Locale
 import java.util.UUID
 
 class TourPlanner(
@@ -239,7 +243,7 @@ class TourPlanner(
             if (returnToStart) listOf(returnDestination) else emptyList()
         val legs = mutableListOf<TourLeg>()
         var from = start
-        var nextDeparture = departureTime
+        var nextDeparture = formatTransitDepartureTime(OffsetDateTime.parse(departureTime))
         destinations.forEachIndexed { index, destination ->
             val journey = transitProvider.journey(from, destination, nextDeparture)
             val destinationPointId = orderedStops.getOrNull(index)?.id
@@ -250,7 +254,9 @@ class TourPlanner(
             nextDeparture = if (isFinalReturn) {
                 journey.arrivalTime
             } else {
-                OffsetDateTime.parse(journey.arrivalTime).plusMinutes(dwellMinutes.toLong()).toString()
+                formatTransitDepartureTime(
+                    OffsetDateTime.parse(journey.arrivalTime).plusMinutes(dwellMinutes.toLong()),
+                )
             }
             from = destination
         }
@@ -391,6 +397,17 @@ class TourPlanner(
         }
 
 }
+
+private val transitDepartureTimeFormatter = DateTimeFormatterBuilder()
+    .append(DateTimeFormatter.ISO_LOCAL_DATE)
+    .appendLiteral('T')
+    .appendPattern("HH:mm:ss")
+    .appendFraction(ChronoField.NANO_OF_SECOND, 0, 9, true)
+    .appendOffsetId()
+    .toFormatter(Locale.ROOT)
+
+internal fun formatTransitDepartureTime(value: OffsetDateTime): String =
+    transitDepartureTimeFormatter.format(value)
 
 data class RoadPlanRequest(
     val anime: Anime,

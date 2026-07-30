@@ -1169,3 +1169,63 @@
 - RC5 remains an immutable historical Prerelease and must not be retagged or described as successful. A successor must remove the inapplicable external initializer, narrowly retain and audit the reflected public zero-argument `CreatorImpl` constructor, wait for positive map-view dimensions and use the dimension-aware bounds update (or an equivalent documented post-layout mechanism), distinguish camera-placement failure from map-runtime failure, and pass a visible-basemap/marker Xiaomi test before the minimal two-point route test.
 - Removed the task-specific public-APK/device-capture directory after recording its hashes and acceptance evidence. The read-only AAR inspection directory was also removed; both exact temporary paths were verified absent. No unrelated temporary directory, SDK component, application file, user download, or running service was removed.
 - No secret, token, raw IP, coordinate, work title, search term, route body, service-account material, signing material, password, VPS credential, or SSH state was recorded or changed. No SSH action or VPS mutation occurred.
+
+## 2026-07-31 - Task 45: RC6 map lifecycle, DRIVE normalization, and TRANSIT timestamp repairs
+
+### Reproduction and implementation
+
+- Re-read the complete current `AGENT.md` before starting this repair task. Kept the Xiaomi 15T Pro as the only physical target and did not interact with any phone during this task.
+- Corrected the RC5 map diagnosis and implementation: removed the Navigation-SDK-inapplicable external `MapsInitializer` call, retained the reflectively constructed map creator's public zero-argument constructor, and added a release R8 audit that checks the creator class/constructor, Navigation registry package, class-merging exclusions, and absence of application `MapsInitializer` calls.
+- Reworked the hosted `NavigationView` lifecycle so attach and process lifecycle state gate `onCreate`, UI configuration, start/resume, and the single map request. Destruction is paired only with a successful creation, late callbacks are ignored after disposal, and privacy-safe stage/exception-class logging replaces undifferentiated fallback.
+- Both the selection map and route preview now wait for positive hosted-view dimensions and use the dimension-aware bounds update. Camera-fit failure no longer marks the entire map runtime unavailable. Route-preview drawing and camera operations are contained, and a configuration failure cannot leave a stale `GoogleMap` delegate active.
+- Reproduced the DRIVE failure with a legal mocked Google 2xx response whose protobuf JSON omitted default-valued distance/duration fields. The backend had incorrectly rejected omitted route/leg zero values. It now normalizes absent protobuf defaults to zero while continuing to reject explicit negative or wrong-typed values.
+- Reproduced the TRANSIT 400 entirely in memory: the Android client emitted an offset timestamp without seconds when the selected seconds were zero, and the strict backend RFC3339 schema rejected it before Google was called. Initial and every subsequent transit-segment departure are now normalized through one fixed-seconds RFC3339 formatter; the backend schema remains strict.
+- Extracted the existing planner error mapping for testing and changed only transport failures to explain that the route service could not be reached and that switching away from a blocked network exit may be required.
+
+### Verification and local-state boundary
+
+- Added regressions for positive map viewport dimensions, blocked-network failure text, fixed-seconds first/subsequent transit departures, and DRIVE protobuf default omission. The complete Android JVM suite passed 74 tests across 22 result files with zero failures, errors, or skips.
+- Debug and Release Lint, Debug APK, Android-test APK, the 18-test backend suite, production dependency audit, tracked-source credential audit, Debug APK content audit, Bash syntax checks, workflow YAML parsing, and `git diff --check` all passed.
+- A fresh release R8 run completed the shrinker but its unrelated automatic Crashlytics mapping upload hit a network TLS handshake failure afterward. The CI audit was corrected to exclude that upload. The corrected no-upload command then completed successfully and the fresh reflection audit passed; release publication still retains its normal mapping upload path.
+- Ignored the empty Gradle-created `.kotlin` session directory so it cannot enter Git. After all gates the system drive still had about 32 GB free and the project build output occupied about 0.8 GB; no emulator, SDK, Docker data, user file, or unrelated cache was removed.
+- No real Google route, matrix, navigation reservation, Firebase sign-in, VPS mutation, SSH connection, password use, APK installation, or device change occurred. No secret, token, raw IP, coordinate, work title, search term, route body, credential, or signing material was written to tracked source, Git, logs, or this record.
+
+## 2026-07-31 - Task 46: RC6 backend normalization deployment
+
+### Strict host verification and deployment boundary
+
+- Re-read the complete updated `AGENT.md` before starting this deployment task. Recovered the expected ED25519 host fingerprint from the prior successful deployment evidence, independently scanned the current host, and confirmed an exact fingerprint match even though the DNS address had changed. Every SSH and SCP connection used strict host-key checking with a task-specific temporary known-host file.
+- Used the user-authorized root password only through the interactive SSH password prompt. The password was not placed in a command line, file, environment variable, script, Git, documentation, or this record. No password, SSH daemon setting, authorized key, login policy, port, firewall rule, system-update policy, or provider-console setting was changed.
+- Performed a read-only production inventory before mutation. The existing Nginx configuration tested successfully, the Anitabi API was healthy on its loopback-only port, the VPS had sufficient free disk space, and all unrelated application, database, proxy, and personal-site containers were running. No unknown service was stopped, rebuilt, reconfigured, or restarted.
+
+### Backend update and production evidence
+
+- Compared the production `routes.ts` with the RC6 source before replacement; the only effective delta was the reviewed protobuf-default normalization and its explanatory comment. Preserved the previous source and image as explicit rollback artifacts, copied the new source through a temporary path, normalized its line endings, and verified its Git blob identity against the locally tested RC6 file before building.
+- Built the pinned Node 24 production image successfully and recreated only `anitabi-api-api-1` with `docker compose up -d --no-deps api`. The container reached `healthy`; both loopback and public HTTPS `/v1/health` returned service/database healthy.
+- Reverified that the API runs as the non-root `node` user with a read-only root filesystem and `unless-stopped` restart policy. Nginx syntax remained valid, all previously running unrelated containers remained running, and a privacy-safe scan of the new API container's startup log found no fatal, uncaught, unhandled, or error entry.
+- Removed the remote upload and both local task-specific temporary files after verification. The rollback source and image remain on the VPS. Approximately 9 GB remained free after the one-time pinned base-image pull and build.
+
+### Remaining acceptance boundary
+
+- No real Google route, matrix, transit, or navigation request was sent during this deployment, so no billable quota was consumed. The backend half of the DRIVE repair is live; TRANSIT still requires the RC6 Android formatter, and all three user-visible fixes still require the exact published RC6 APK on the authorized Xiaomi.
+- No APK installation, phone access, permission change, mock-location change, network-setting change, Firebase consent change, credential rotation, or Git publication occurred in this task. No secret, token, raw IP, coordinate, work title, search term, route body, private key, signing material, or password was written to tracked source, Git, documentation, or this record.
+
+## 2026-07-31 - Task 47: RC6 branch publication and clean-run R8 audit correction
+
+### Branch, review, and first protected run
+
+- Re-read the complete current `AGENT.md` before starting the publication task. Committed the RC6 Android/backend repairs and release documentation on `codex/v0.2.1-rc.6-map-runtime`, then committed a follow-up that made the R8 optimization-rule audit ignore comment-only lookalikes. Pushed both commits and opened draft pull request 6 through the authenticated GitHub UI because the command-line token lacks pull-request mutation scope.
+- An independent static review found no remaining application, backend, workflow, or documentation blocker. It confirmed that the signed Release workflow still performs its normal Crashlytics mapping upload and that all unexecuted branch/main/public-APK/Xiaomi gates remain explicitly unchecked.
+- The first latest-head pull-request run passed credential restoration, source auditing, all 74 JVM tests, Debug and Release Lint, Debug APK assembly, and Android-test APK assembly. Its Release R8 compilation also completed successfully, but the new post-build audit failed before the emulator jobs because it expected `mapping.txt` in the final assemble-output directory.
+
+### Clean-output reproduction and focused correction
+
+- Reproduced the GitHub failure locally after moving the existing mapping outputs aside and forcing the same standalone `minifyReleaseWithR8` task. The clean task writes `seeds.txt`, `usage.txt`, and `configuration.txt` to the public mapping-output directory, while its fresh `mapping.txt` remains in the task-specific intermediate directory until a complete Release assemble copies the final mapping.
+- Changed the audit script to accept an explicit mapping file independently from the other R8 reports. Pull-request/main CI now passes the standalone R8 intermediate mapping explicitly; the signed Release workflow keeps the default final mapping from the fully assembled public APK.
+- Verified the audit against both a complete Release output and the clean standalone-R8 split output. A negative invocation without the required split mapping failed as intended. Bash syntax, workflow YAML parsing, and `git diff --check` passed.
+- Ran the Gradle `clean` task after the probe, confirmed the probe directory was removed, and retained about 32.76 GB free. No emulator, SDK, Docker data, user file, unrelated cache, or retained release evidence was removed.
+
+### Remaining publication boundary
+
+- The focused CI correction is not yet committed or pushed, and the replacement branch run, merge, independent `main` run, annotated RC6 tag, signed Prerelease, exact-public-APK compatibility jobs, public artifact audit, and Xiaomi overlay tests are still pending.
+- No APK was installed, phone state was accessed, billable Google request was sent, VPS state was changed, SSH connection was made, or credential was rotated. No secret, token, raw IP, coordinate, work title, search term, route body, password, private key, or signing material was added to source, Git, documentation, or retained temporary files.

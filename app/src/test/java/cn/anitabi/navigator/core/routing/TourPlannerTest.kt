@@ -43,7 +43,7 @@ class TourPlannerTest {
     fun `transit planner chains dwell time into the next request`() = runBlocking {
         val transit = FakeTransitProvider()
         val planner = TourPlanner(FakeRoadProvider(), transit)
-        val departure = "2026-07-29T09:00:00+09:00"
+        val departure = "2026-07-29T09:00+09:00"
 
         val plan = planner.planTransit(
             TransitPlanRequest(
@@ -56,11 +56,8 @@ class TourPlannerTest {
             ),
         )
 
-        assertEquals(departure, transit.departures[0])
-        assertEquals(
-            OffsetDateTime.parse("2026-07-29T09:25:00+09:00"),
-            OffsetDateTime.parse(transit.departures[1]),
-        )
+        assertEquals("2026-07-29T09:00:00+09:00", transit.departures[0])
+        assertEquals("2026-07-29T09:25:00+09:00", transit.departures[1])
         assertEquals(2, plan.legs.size)
         assertEquals(2, transit.departures.size)
         assertEquals(TravelMode.TRANSIT, plan.mode)
