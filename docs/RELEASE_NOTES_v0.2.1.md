@@ -34,6 +34,6 @@ v0.2.1 将地图、道路导航和路线规划全面迁移到 Google，并通过
 
 ## RC 说明
 
-`v0.2.1-rc.N` 是正式签名预发布候选，不是稳定版。RC2 修复异常 Anitabi 可选字段与多作品联合选择；RC3 修复 Navigation SDK 与 R8 类合并造成的正式版崩溃。RC3 随后在另一台真机暴露地图工厂未初始化崩溃。RC4 删除客户端位图标记工厂依赖并在地图操作失败时安全回退到列表，但 Xiaomi 15T Pro 复验确认真实地图仍未出现。RC5 在创建 `NavigationView` 前显式初始化 Google 地图运行时，并用调用顺序测试防止回归；只有地图真实渲染和最小两点路线真机验收通过后，才能继续稳定版发布。
+`v0.2.1-rc.N` 是正式签名预发布候选，不是稳定版。RC2 修复异常 Anitabi 可选字段与多作品联合选择；RC3 修复 Navigation SDK 与 R8 类合并造成的正式版崩溃。RC3 随后在另一台真机暴露地图工厂未初始化崩溃。RC4 删除客户端位图标记工厂依赖并在地图操作失败时安全回退到列表，但 Xiaomi 15T Pro 复验确认真实地图仍未出现。RC5 尝试在创建 `NavigationView` 前调用 `MapsInitializer`；精确公开 APK 的模拟器兼容门禁通过，但 Xiaomi 15T Pro 首次打开和重试仍只进入列表回退。后续核对官方 Navigation SDK 参考及 7.8.0 字节码确认该 API 对 Navigation SDK 不适用，且 RC5 Release R8 产物删除了动态 `CreatorImpl` 的反射无参构造，因此 RC5 不得晋升稳定版。后续候选必须移除该错误提前调用、窄保留反射构造器，并同时修复地图视图尚未完成布局时执行边界相机更新的竞态；只有真实底图、点位和最小两点路线真机验收通过后，才能继续稳定版发布。
 
 许可证：GPL-3.0-or-later，并附 `LICENSE` 中仅针对 Google Navigation/Firebase SDK 的窄范围链接例外。第三方服务与数据署名见 `NOTICE.md`。
