@@ -1100,3 +1100,25 @@
 - The previous phone disconnected during an isolated single-tap map capture, so no incomplete screenshot or missing-device command was treated as product evidence. When the user switched phones, this task re-read the complete 1,080-line log before touching the new device.
 - Windows currently detects only a Huawei HDB interface. ADB USB and mDNS device lists remain empty even after restarting the desktop ADB server. Consequently the application version, existing installation, map, route, permissions, and crash state on the new phone cannot yet be inspected.
 - No APK was installed, overwritten, pulled, uninstalled, or cleared on the new phone. No phone permission, USB mode, HDB setting, input method, mock-location setting, network, password, SSH configuration, VPS state, Google credential, or billable request was changed. The precise resume condition is that the unlocked new phone expose an authorized ADB interface and accept this computer's debugging prompt.
+
+## 2026-07-30 - Task 42: RC3 marker crash repair, RC4 publication, and target-device identity hold
+
+### Physical reproduction and repair
+
+- Re-read the complete current `AGENT.md` before continuing the new-phone physical task. Installed the exact public RC3 on the then-authorized Android 12 phone only after confirming the application was absent; no uninstall, data clear, permission change, or device-configuration change occurred.
+- Cold launch succeeded, and a live production selection loaded 60 usable pilgrimage points. Opening the selection map from an isolated crash buffer reproduced a release crash: `IBitmapDescriptorFactory is not initialized`. The RC3 R8 mapping restored the failing call to the colored default-marker construction in `PilgrimageMap`.
+- Added shared marker-option builders that use Google default markers without `BitmapDescriptorFactory`, retained selected-state visibility through alpha and z-index, and used the same safe builders for pilgrimage, route, and current-location markers. Map listener, marker, and camera runtime failures now clear the map and invoke the existing unavailable/list fallback instead of terminating the process.
+- Added regression tests proving the marker options have no bitmap-factory-backed icon and preserve the intended alpha/z-index state. The complete local gate passed 71 JVM tests across 20 suites, Debug and Release Lint, Debug APK, Android-test APK, tracked-source credential audit, Debug APK content audit, fresh release R8/rule audit, backend 17-test suite, production dependency audit, and `git diff --check`.
+
+### Publication and downloaded Firebase evidence
+
+- Committed and pushed the isolated fix, opened pull request 4 through the authenticated GitHub UI after the command-line token again lacked PR mutation scope, and merged only after verify/API 26/API 37 run `30550636244` passed. Independent main run `30551504222` then passed the same three jobs.
+- Tagged the verified merge commit as annotated `v0.2.1-rc.4`. Signed Release run `30552400597` passed and published a non-draft Prerelease; exact-public-APK compatibility run `30552936822` passed on API 26 and API 37.
+- The public APK is 48,686,861 bytes with SHA-256 `bbf724e24f2fee36efaf9e137a2711688b7d0d06351aaa7bddebce064ea39ca7`. The checksum asset, GitHub digest, and independent download calculation agree. Package inspection reports version 0.2.1/code 7, minSdk 26, targetSdk 37, APK Signature Scheme v2, one RSA-4096 signer, and the unchanged production certificate.
+- The user supplied a downloaded Crashlytics stack rather than requesting Gmail access. It contains one older fatal session with a distinct R8 map ID and `IllegalAccessException` between the Navigation SDK reflective caller and package-private implementation. This is the RC2/R8 package-access failure already fixed and verified in RC3, not the Android 12 RC3 marker-factory crash and not evidence that RC4 regressed.
+
+### Current device hold
+
+- Before installing RC4, read-only ADB checks found that the sole currently connected device is the earlier Android 16 Xiaomi, not the Android 12 phone used for the RC3 marker reproduction. Its installed APK hash is the public RC3 hash and its existing permissions remain granted.
+- No RC4 installation was attempted on the mismatched device. No APK was uninstalled or cleared, and no permission, mock-location setting, network setting, input method, password, SSH configuration, VPS state, Google credential, or billable request was changed.
+- The remaining acceptance gate is device-specific: reconnect/identify the intended Android 12 phone for `adb install -r`, or explicitly authorize using the currently connected Xiaomi. Map acceptance still requires visible Google tiles and markers, and route acceptance still requires one minimal two-point road request; fallback-only behavior is not counted as a rendered map.
