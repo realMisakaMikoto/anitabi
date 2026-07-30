@@ -108,6 +108,25 @@ class OnboardingInstrumentedTest {
             val focus = focusedWindow().lowercase()
             if ("permissioncontroller" !in focus && "packageinstaller" !in focus) return
             val root = instrumentation.uiAutomation.rootInActiveWindow
+            val systemUiCrashClose = root
+                ?.findAccessibilityNodeInfosByViewId("android:id/aerr_close")
+                ?.firstOrNull()
+            if (systemUiCrashClose != null) {
+                val bounds = Rect().also(systemUiCrashClose::getBoundsInScreen)
+                val actionClicked = systemUiCrashClose.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+                instrumentation.waitForIdleSync()
+                if (!actionClicked && !bounds.isEmpty) {
+                    shell("input tap ${bounds.centerX()} ${bounds.centerY()}")
+                }
+                reportEvidence("ONBOARDING_SYSTEM_UI_CRASH_DISMISSED")
+                Thread.sleep(750L)
+                return@repeat
+            }
+            if ("application error: com.android.systemui" in focus) {
+                tapAndroid8SystemUiCrashFallback()
+                Thread.sleep(750L)
+                return@repeat
+            }
             val allowButton = listOf(
                 "com.android.packageinstaller:id/permission_allow_button",
                 "com.google.android.packageinstaller:id/permission_allow_button",
@@ -134,6 +153,8 @@ class OnboardingInstrumentedTest {
                 } else if (actionClicked) {
                     reportEvidence("ONBOARDING_PERMISSION_ALLOW_ACTION_CLICK")
                 }
+            } else {
+                tapAndroid8AllowFallback()
             }
             Thread.sleep(500L)
         }
@@ -166,6 +187,26 @@ class OnboardingInstrumentedTest {
             PackageManager.PERMISSION_GRANTED &&
             application.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) ==
             PackageManager.PERMISSION_GRANTED
+
+    private fun tapAndroid8AllowFallback() {
+        tapAtDisplayRatio(xPercent = 73, yPercent = 55)
+        reportEvidence("ONBOARDING_PERMISSION_ALLOW_GEOMETRY_TAP")
+    }
+
+    private fun tapAndroid8SystemUiCrashFallback() {
+        tapAtDisplayRatio(xPercent = 50, yPercent = 56)
+        reportEvidence("ONBOARDING_SYSTEM_UI_CRASH_GEOMETRY_DISMISS")
+    }
+
+    private fun tapAtDisplayRatio(xPercent: Int, yPercent: Int) {
+        val dimensions = Regex("(\\d+)x(\\d+)")
+            .findAll(shell("wm size"))
+            .lastOrNull()
+            ?: return
+        val width = dimensions.groupValues[1].toInt()
+        val height = dimensions.groupValues[2].toInt()
+        shell("input tap ${width * xPercent / 100} ${height * yPercent / 100}")
+    }
 
     private fun continueAfterPermissionGrantIfNeeded() {
         composeRule.waitUntil(timeoutMillis = 15_000L) {
