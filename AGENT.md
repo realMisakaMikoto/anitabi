@@ -863,3 +863,26 @@
 - Opened Google Cloud's native Firebase-key rotation flow and reached the replacement restriction form. No replacement key was created, no old key was revoked, and no cloud credential state changed before browser control stopped responding.
 - The authenticated browser extension can still enumerate the correct signed-in Google Cloud and GitHub tabs, but all subsequent page reads and actions time out. The documented clean-window recovery cannot launch the selected profile because this host has no Google Chrome profile at the expected location. Browser safety rules prohibit bypassing the extension by extracting browser sessions or scripting authenticated requests.
 - The local ignored `google-services.json`, ignored Navigation property, GitHub Actions secrets, and GitHub secret-scanning alert are unchanged. The application and Xiaomi phone were not accessed or modified. Rotation must resume only after the ChatGPT Chrome plugin is reinstalled or otherwise restored; completion requires both replacement keys to be installed and verified before both old values are revoked, followed by GitHub secret update and alert resolution.
+
+## 2026-07-30 - Task 33: Chrome control restoration and release-secret wiring
+
+### Preparation and recovery
+
+- Re-read the complete updated `AGENT.md` and the complete original pasted implementation plan before continuing the explicit key-rotation task.
+- Diagnosed the browser-control failure through the official Chrome plugin recovery checks. The native host manifest was valid, but Google Chrome and the ChatGPT Chrome Extension were initially absent from the selected profile.
+- Downloaded the official 64-bit Chrome installer directly from Google's HTTPS distribution endpoint with resumable transfer. Verified the exact advertised byte length and a valid Google LLC Authenticode signature before running it. Chrome was installed per-user; Edge remained the default browser and no browser data was imported by this task.
+- Opened the official extension store page after the user's permission. The user installed the ChatGPT Chrome Extension, and the official check now reports it installed and enabled in Chrome's selected profile. No extension was side-loaded and no native-host registry entry was manually created or repaired.
+
+### CI correction and verification
+
+- Fixed the signed-release workflow so the encrypted `ANITABI_NAVIGATION_API_KEY` repository secret is actually exposed to the Gradle release build. Previously the build script failed closed when that value was absent, but the workflow did not pass it, so a future v0.2.1 tag would have failed even after key rotation.
+- The tracked-source credential audit passes. `testDebugUnitTest`, `lintDebug`, and `assembleDebug` all pass, and `git diff --check` reports no whitespace error.
+- Recent GitHub Actions history shows the newest two Android CI runs on `main` succeeded; the cluster of failure emails came from older onboarding-emulator iterations that were followed by successful runs.
+
+### Key rotation completion and verification
+
+- After the user completed the supported Google and GitHub sign-in flow, created separate replacement keys named `Anitabi Firebase Android v0.2.1` and `Anitabi Navigation SDK Android v0.2.1`. The Firebase key retains Firebase's 25-API allowlist; the navigation key is restricted only to Navigation SDK. Both keys are restricted to `cn.anitabi.navigator` with the fixed release and current debug SHA-1 certificates.
+- Installed the replacement Firebase configuration in the ignored local `app/google-services.json` and the replacement Navigation key in ignored `local.properties`. Added the corresponding encrypted GitHub Actions secrets `ANITABI_GOOGLE_SERVICES_JSON_BASE64` and `ANITABI_NAVIGATION_API_KEY`. No key value was printed, committed, added to this log, or placed in a shell command.
+- Verified the replacement configurations with 59 JVM tests, Debug and Release Lint, Debug APK assembly, tracked-source credential audit, APK content audit, and `git diff --check`. A combined signed Release APK build was also attempted and failed closed before compilation because this machine does not have the external release-signing values; the encrypted signing secrets remain available only to GitHub Actions. This is a signing-environment boundary, not a replacement-key failure.
+- Deleted both superseded keys after the replacement configuration and CI secrets were in place. Google Cloud's deleted-credentials page shows both old credentials with restore actions, proving they can no longer serve API requests. Closed GitHub secret-scanning alert #1 as `Revoked` with a non-secret remediation note.
+- No password, one-time code, account cookie, browser storage, key value, signing private key, or signing password was read or recorded. No Google billable route request was made, no phone was accessed, and the installed v0.2.0 application was not changed.
