@@ -12,12 +12,12 @@ import androidx.compose.ui.graphics.toArgb
 import cn.anitabi.navigator.core.model.GeoPoint
 import cn.anitabi.navigator.core.model.TourPlan
 import cn.anitabi.navigator.ui.map.NavigationMapView
+import cn.anitabi.navigator.ui.map.currentLocationMarkerOptions
+import cn.anitabi.navigator.ui.map.routePointMarkerOptions
+import cn.anitabi.navigator.ui.map.toGoogleLatLng
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
-import com.google.android.gms.maps.model.BitmapDescriptorFactory
-import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.LatLngBounds
-import com.google.android.gms.maps.model.MarkerOptions
 import com.google.android.gms.maps.model.PolylineOptions
 
 @Composable
@@ -56,20 +56,10 @@ fun RoutePreviewMap(
             }
         }
         plan.orderedPoints.forEach { point ->
-            readyMap.addMarker(
-                MarkerOptions()
-                    .position(point.coordinate.toGoogleLatLng())
-                    .title(point.name)
-                    .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN)),
-            )
+            readyMap.addMarker(routePointMarkerOptions(point))
         }
         currentLocation?.let { location ->
-            readyMap.addMarker(
-                MarkerOptions()
-                    .position(location.toGoogleLatLng())
-                    .title("当前位置")
-                    .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE)),
-            )
+            readyMap.addMarker(currentLocationMarkerOptions(location, "当前位置"))
         }
     }
 
@@ -96,5 +86,3 @@ fun RoutePreviewMap(
         }
     }
 }
-
-private fun GeoPoint.toGoogleLatLng(): LatLng = LatLng(latitude, longitude)
