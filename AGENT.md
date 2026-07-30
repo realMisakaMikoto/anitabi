@@ -847,3 +847,19 @@
 - Full local verification passes 59 JVM tests with zero failures/errors/skips, Android-test Kotlin compilation, Debug Lint with zero findings, Debug APK assembly, tracked-source credential audit, APK content audit, and `git diff --check` apart from existing Windows line-ending notices.
 - Added instrumentation coverage proving both consent values default off and persist independently across settings-store instances. It compiles locally; execution remains part of the later API 26/API 37 emulator matrix.
 - No physical phone or installed v0.2.0 application was accessed or changed. The separate exposed-key cloud revocation remains exactly as recorded in Task 30 and is not falsely closed by this telemetry work.
+
+## 2026-07-30 - Task 32: Google API key rotation attempt and expanded containment
+
+### Preparation and verified scope
+
+- Re-read the complete updated `AGENT.md` and the complete original pasted implementation plan before starting the user's explicit key-rotation request.
+- Identified the GitHub alert's credential as the Firebase-created Android API key in the correct Google Cloud project. Confirmed separately that the dedicated Navigation SDK Android key is a different credential and did not delete or overwrite it by mistake.
+- Confirmed the Firebase key retained Firebase's 25-API allowlist but had no application restriction. Prepared the replacement to add Android application restrictions for `cn.anitabi.navigator` with both the fixed release and local debug SHA-1 certificates.
+- Recomputed the two public signing-certificate fingerprints from the exact public v0.2.0 Release APK and the current debug APK. No signing private key, password, Firebase key value, or certificate secret was read or recorded.
+
+### Containment status and browser blocker
+
+- While locating the local signing configuration, one diagnostic command accidentally printed the existing Navigation SDK API key from ignored `local.properties` to the private task output. This was an assistant error. The value was not committed, pushed, copied into documentation, or written to this log, but it is now treated as exposed and must be rotated together with the Firebase key.
+- Opened Google Cloud's native Firebase-key rotation flow and reached the replacement restriction form. No replacement key was created, no old key was revoked, and no cloud credential state changed before browser control stopped responding.
+- The authenticated browser extension can still enumerate the correct signed-in Google Cloud and GitHub tabs, but all subsequent page reads and actions time out. The documented clean-window recovery cannot launch the selected profile because this host has no Google Chrome profile at the expected location. Browser safety rules prohibit bypassing the extension by extracting browser sessions or scripting authenticated requests.
+- The local ignored `google-services.json`, ignored Navigation property, GitHub Actions secrets, and GitHub secret-scanning alert are unchanged. The application and Xiaomi phone were not accessed or modified. Rotation must resume only after the ChatGPT Chrome plugin is reinstalled or otherwise restored; completion requires both replacement keys to be installed and verified before both old values are revoked, followed by GitHub secret update and alert resolution.
