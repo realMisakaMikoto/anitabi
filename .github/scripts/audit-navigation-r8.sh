@@ -51,9 +51,10 @@ if [[ -n "$removed_constructor" ]]; then
 fi
 
 for disabled_optimization in \
-  '-optimizations !class/merging/horizontal' \
-  '-optimizations !class/merging/vertical'; do
-  if ! grep -Fq -- "$disabled_optimization" "$configuration_file"; then
+  '!class/merging/horizontal' \
+  '!class/merging/vertical'; do
+  if ! grep -Eq "^[[:space:]]*-optimizations[[:space:]]+${disabled_optimization}([[:space:]]|$)" \
+    "$configuration_file"; then
     echo "Missing Navigation SDK R8 class-merging exclusion" >&2
     exit 1
   fi
