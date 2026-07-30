@@ -658,7 +658,7 @@ private fun SelectionFooter(
 @Composable
 private fun Attribution(modifier: Modifier = Modifier) {
     Text(
-        text = "OpenFreeMap · OpenMapTiles · © OpenStreetMap contributors",
+        text = "Google Maps",
         color = Ink,
         style = MaterialTheme.typography.labelSmall,
         modifier = modifier

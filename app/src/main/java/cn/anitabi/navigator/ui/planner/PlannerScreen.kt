@@ -1,6 +1,9 @@
 package cn.anitabi.navigator.ui.planner
 
 import android.Manifest
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -59,6 +62,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cn.anitabi.navigator.navigation.AndroidLocationProvider
+import cn.anitabi.navigator.navigation.requestGoogleNavigationTerms
 import cn.anitabi.navigator.core.model.EndPolicy
 import cn.anitabi.navigator.core.model.PilgrimagePoint
 import cn.anitabi.navigator.core.model.RouteObjective
@@ -87,6 +91,30 @@ fun PlannerRoute(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     var pendingNavigationPlan by remember { mutableStateOf<TourPlan?>(null) }
+    var navigationTermsRequestInFlight by remember { mutableStateOf(false) }
+    val startAfterPermissions: (TourPlan) -> Unit = { pending ->
+        if (pending.mode == TravelMode.TRANSIT) {
+            onStartNavigation(pending)
+        } else {
+            val activity = context.findActivity()
+            if (activity == null) {
+                viewModel.navigationPermissionDenied("无法打开 Google 导航条款，请重新打开应用后再试")
+            } else if (!navigationTermsRequestInFlight) {
+                navigationTermsRequestInFlight = true
+                requestGoogleNavigationTerms(
+                    activity = activity,
+                    onReady = {
+                        navigationTermsRequestInFlight = false
+                        onStartNavigation(pending)
+                    },
+                    onError = { message ->
+                        navigationTermsRequestInFlight = false
+                        viewModel.navigationPermissionDenied(message)
+                    },
+                )
+            }
+        }
+    }
     val locationPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
     ) { result ->
@@ -103,7 +131,7 @@ fun PlannerRoute(
             PackageManager.PERMISSION_GRANTED
         val permissionError = navigationPermissionError(hasLocation, hasNotifications)
         if (pending != null && permissionError == null) {
-            onStartNavigation(pending)
+            startAfterPermissions(pending)
         } else if (permissionError != null) {
             viewModel.navigationPermissionDenied(permissionError)
         }
@@ -145,7 +173,7 @@ fun PlannerRoute(
                     ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) ==
                     PackageManager.PERMISSION_GRANTED
                 if (hasLocation && hasNotifications) {
-                    onStartNavigation(plan)
+                    startAfterPermissions(plan)
                 } else {
                     pendingNavigationPlan = plan
                     val permissions = buildList {
@@ -162,6 +190,12 @@ fun PlannerRoute(
             },
         )
     }
+}
+
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
 }
 
 internal fun navigationPermissionError(
@@ -386,7 +420,7 @@ private fun RoutePreviewScreen(
                 item {
                     Column(modifier = Modifier.padding(vertical = 8.dp)) {
                         Text(
-                            "OpenFreeMap · OpenMapTiles · © OpenStreetMap contributors",
+                            "Google Maps",
                             color = MutedInk,
                             style = MaterialTheme.typography.bodyMedium,
                         )

@@ -39,7 +39,7 @@ class AppContainer(context: Context) {
         json = json,
     )
     val tourRepository = TourRepository(database.tourPlanDao(), json)
-    private val backendApi = BackendApi(
+    val backendApi = BackendApi(
         httpClient = httpClient,
         tokenProvider = FirebaseAnonymousTokenProvider(),
         json = json,

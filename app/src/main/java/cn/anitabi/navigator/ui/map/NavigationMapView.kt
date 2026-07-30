@@ -17,17 +17,18 @@ import com.google.android.libraries.navigation.NavigationView
 fun NavigationMapView(
     onMapReady: (GoogleMap) -> Unit,
     modifier: Modifier = Modifier,
+    navigationUiEnabled: Boolean = false,
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val currentOnMapReady = rememberUpdatedState(onMapReady)
-    val navigationView = remember {
+    val navigationView = remember(navigationUiEnabled) {
         NavigationView(context).apply {
             onCreate(null)
-            setNavigationUiEnabled(false)
-            setHeaderEnabled(false)
-            setEtaCardEnabled(false)
-            setTripProgressBarEnabled(false)
+            setNavigationUiEnabled(navigationUiEnabled)
+            setHeaderEnabled(navigationUiEnabled)
+            setEtaCardEnabled(navigationUiEnabled)
+            setTripProgressBarEnabled(navigationUiEnabled)
         }
     }
 

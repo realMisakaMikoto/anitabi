@@ -34,6 +34,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cn.anitabi.navigator.core.model.NavigationState
 import cn.anitabi.navigator.core.model.TravelMode
 import cn.anitabi.navigator.navigation.NavigationViewModel
+import cn.anitabi.navigator.ui.map.NavigationMapView
 import cn.anitabi.navigator.ui.planner.RoutePreviewMap
 import cn.anitabi.navigator.ui.theme.Ink
 import cn.anitabi.navigator.ui.theme.MutedInk
@@ -87,14 +88,24 @@ fun NavigationRoute(viewModel: NavigationViewModel, onBack: (String?) -> Unit) {
                 )
             }
 
-            RoutePreviewMap(
-                plan = plan,
-                currentLocation = state.currentLocation,
-                followCurrentLocation = state.isRunning,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-            )
+            if (plan.mode == TravelMode.TRANSIT) {
+                RoutePreviewMap(
+                    plan = plan,
+                    currentLocation = state.currentLocation,
+                    followCurrentLocation = state.isRunning,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                )
+            } else {
+                NavigationMapView(
+                    onMapReady = { map -> map.uiSettings.isMapToolbarEnabled = false },
+                    navigationUiEnabled = true,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                )
+            }
 
             Column(
                 modifier = Modifier
@@ -137,8 +148,8 @@ fun NavigationRoute(viewModel: NavigationViewModel, onBack: (String?) -> Unit) {
                     Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 8.dp))
                 }
                 Text(
-                    "OpenFreeMap · OpenMapTiles · © OpenStreetMap contributors · " +
-                        plan.legs.firstOrNull()?.source.orEmpty(),
+                    (if (plan.mode == TravelMode.TRANSIT) "Google Routes" else "Google Navigation") +
+                        plan.legs.firstOrNull()?.source?.let { " · $it" }.orEmpty(),
                     color = MutedInk,
                     style = MaterialTheme.typography.labelSmall,
                     modifier = Modifier.padding(top = 8.dp),
