@@ -187,8 +187,8 @@ function normalizeRoute(value: unknown): NormalizedRoute {
   const legs = legsValue.map(normalizeLeg);
   return withOptionalPolyline(
     {
-      distanceMeters: requireNonNegativeNumber(record["distanceMeters"]),
-      durationSeconds: parseDuration(record["duration"]),
+      distanceMeters: nonNegativeNumberOrZero(record["distanceMeters"]),
+      durationSeconds: durationOrZero(record["duration"]),
       legs,
     },
     record["polyline"],
@@ -201,8 +201,8 @@ function normalizeLeg(value: unknown): NormalizedRouteLeg {
   const steps = Array.isArray(stepsValue) ? stepsValue.map(normalizeStep) : [];
   return withOptionalPolyline(
     {
-      distanceMeters: requireNonNegativeNumber(record["distanceMeters"]),
-      durationSeconds: parseDuration(record["duration"]),
+      distanceMeters: nonNegativeNumberOrZero(record["distanceMeters"]),
+      durationSeconds: durationOrZero(record["duration"]),
       steps,
     },
     record["polyline"],
@@ -277,6 +277,14 @@ function optionalDuration(value: unknown): number | undefined {
   if (typeof value !== "string" || !/^\d+(?:\.\d+)?s$/.test(value)) return undefined;
   const parsed = Number(value.slice(0, -1));
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
+}
+
+function durationOrZero(value: unknown): number {
+  return value === undefined ? 0 : parseDuration(value);
+}
+
+function nonNegativeNumberOrZero(value: unknown): number {
+  return value === undefined ? 0 : requireNonNegativeNumber(value);
 }
 
 function requireNonNegativeNumber(value: unknown): number {

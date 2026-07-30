@@ -160,6 +160,62 @@ test("transit route uses exactly one origin/destination pair and strips the Goog
   });
 });
 
+test("drive route accepts protobuf JSON with omitted default-valued route fields", async () => {
+  let capturedBody: Record<string, unknown> | undefined;
+  const client = new GoogleRoutesClient({
+    projectId: "anitabi-test",
+    oauth,
+    fetch: async (input, init) => {
+      assert.equal(input, GOOGLE_ROUTE_URL);
+      capturedBody = JSON.parse(init?.body as string) as Record<string, unknown>;
+      return Response.json({
+        routes: [
+          {
+            legs: [
+              {
+                steps: [{ travelMode: "DRIVE" }],
+              },
+            ],
+          },
+        ],
+      });
+    },
+  });
+
+  const result = await client.route({
+    mode: "DRIVE",
+    locations: [
+      { latitude: 35, longitude: 139 },
+      { latitude: 35, longitude: 139 },
+    ],
+  });
+
+  assert.equal(capturedBody?.["travelMode"], "DRIVE");
+  assert.equal(capturedBody?.["routingPreference"], "TRAFFIC_UNAWARE");
+  assert.deepEqual(capturedBody?.["routeModifiers"], {
+    avoidTolls: false,
+    avoidHighways: false,
+    avoidFerries: false,
+  });
+  assert.deepEqual(result, {
+    distanceMeters: 0,
+    durationSeconds: 0,
+    legs: [
+      {
+        distanceMeters: 0,
+        durationSeconds: 0,
+        steps: [
+          {
+            travelMode: "DRIVE",
+            distanceMeters: 0,
+            durationSeconds: 0,
+          },
+        ],
+      },
+    ],
+  });
+});
+
 test("upstream failures map to a safe unified error without reading the response body", async () => {
   const client = new GoogleRoutesClient({
     projectId: "anitabi-test",

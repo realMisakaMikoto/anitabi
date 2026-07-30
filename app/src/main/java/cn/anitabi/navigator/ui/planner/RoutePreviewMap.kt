@@ -1,5 +1,6 @@
 package cn.anitabi.navigator.ui.planner
 
+import android.util.Log
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -15,6 +16,7 @@ import cn.anitabi.navigator.ui.map.NavigationMapView
 import cn.anitabi.navigator.ui.map.currentLocationMarkerOptions
 import cn.anitabi.navigator.ui.map.routePointMarkerOptions
 import cn.anitabi.navigator.ui.map.toGoogleLatLng
+import cn.anitabi.navigator.ui.map.withPositiveMapViewport
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.model.LatLngBounds
@@ -28,61 +30,88 @@ fun RoutePreviewMap(
     followCurrentLocation: Boolean = false,
 ) {
     var map by remember { mutableStateOf<GoogleMap?>(null) }
+    var viewportWidth by remember { mutableStateOf(0) }
+    var viewportHeight by remember { mutableStateOf(0) }
 
     NavigationMapView(
         modifier = modifier,
+        onViewportSizeChanged = { width, height ->
+            viewportWidth = width
+            viewportHeight = height
+        },
+        onUnavailable = {
+            map = null
+        },
         onMapReady = { readyMap ->
-            map = readyMap
             readyMap.uiSettings.isMapToolbarEnabled = false
+            map = readyMap
         },
     )
 
     LaunchedEffect(plan, currentLocation, map) {
         val readyMap = map ?: return@LaunchedEffect
-        readyMap.clear()
-        plan.legs.forEach { leg ->
-            val geometry = leg.geometry.ifEmpty { listOf(leg.from, leg.to) }
-                .fold(mutableListOf<GeoPoint>()) { coordinates, point ->
-                    if (coordinates.lastOrNull() != point) coordinates += point
-                    coordinates
+        try {
+            readyMap.clear()
+            plan.legs.forEach { leg ->
+                val geometry = leg.geometry.ifEmpty { listOf(leg.from, leg.to) }
+                    .fold(mutableListOf<GeoPoint>()) { coordinates, point ->
+                        if (coordinates.lastOrNull() != point) coordinates += point
+                        coordinates
+                    }
+                if (geometry.size >= 2) {
+                    readyMap.addPolyline(
+                        PolylineOptions()
+                            .addAll(geometry.map(GeoPoint::toGoogleLatLng))
+                            .color(Color(0xFFC94736).toArgb())
+                            .width(10f),
+                    )
                 }
-            if (geometry.size >= 2) {
-                readyMap.addPolyline(
-                    PolylineOptions()
-                        .addAll(geometry.map(GeoPoint::toGoogleLatLng))
-                        .color(Color(0xFFC94736).toArgb())
-                        .width(10f),
-                )
             }
-        }
-        plan.orderedPoints.forEach { point ->
-            readyMap.addMarker(routePointMarkerOptions(point))
-        }
-        currentLocation?.let { location ->
-            readyMap.addMarker(currentLocationMarkerOptions(location, "当前位置"))
+            plan.orderedPoints.forEach { point ->
+                readyMap.addMarker(routePointMarkerOptions(point))
+            }
+            currentLocation?.let { location ->
+                readyMap.addMarker(currentLocationMarkerOptions(location, "当前位置"))
+            }
+        } catch (error: RuntimeException) {
+            Log.w("RoutePreviewMap", "DRAW_CONTENT failed (${error.javaClass.name})")
         }
     }
 
-    LaunchedEffect(currentLocation, followCurrentLocation, map) {
+    LaunchedEffect(currentLocation, followCurrentLocation, map, viewportWidth, viewportHeight) {
         val location = currentLocation ?: return@LaunchedEffect
         val readyMap = map ?: return@LaunchedEffect
         if (followCurrentLocation) {
-            readyMap.animateCamera(CameraUpdateFactory.newLatLngZoom(location.toGoogleLatLng(), 16f))
+            try {
+                val cameraUpdate = withPositiveMapViewport(viewportWidth, viewportHeight) { _, _ ->
+                    CameraUpdateFactory.newLatLngZoom(location.toGoogleLatLng(), 16f)
+                } ?: return@LaunchedEffect
+                readyMap.animateCamera(cameraUpdate)
+            } catch (error: RuntimeException) {
+                Log.w("RoutePreviewMap", "FOLLOW_LOCATION failed (${error.javaClass.name})")
+            }
         }
     }
 
-    LaunchedEffect(plan.id, plan.legs, map) {
+    LaunchedEffect(plan.id, plan.legs, map, viewportWidth, viewportHeight) {
         val readyMap = map ?: return@LaunchedEffect
         val coordinates = plan.legs.flatMap { leg -> leg.geometry.ifEmpty { listOf(leg.from, leg.to) } }
             .ifEmpty { plan.orderedPoints.map { point -> point.coordinate } }
-        when (coordinates.size) {
-            0 -> Unit
-            1 -> readyMap.animateCamera(CameraUpdateFactory.newLatLngZoom(coordinates.single().toGoogleLatLng(), 15f))
-            else -> {
-                val builder = LatLngBounds.Builder()
-                coordinates.forEach { builder.include(it.toGoogleLatLng()) }
-                readyMap.animateCamera(CameraUpdateFactory.newLatLngBounds(builder.build(), 76))
-            }
+        try {
+            val cameraUpdate = withPositiveMapViewport(viewportWidth, viewportHeight) { width, height ->
+                when (coordinates.size) {
+                    0 -> null
+                    1 -> CameraUpdateFactory.newLatLngZoom(coordinates.single().toGoogleLatLng(), 15f)
+                    else -> {
+                        val builder = LatLngBounds.Builder()
+                        coordinates.forEach { builder.include(it.toGoogleLatLng()) }
+                        CameraUpdateFactory.newLatLngBounds(builder.build(), width, height, 76)
+                    }
+                }
+            } ?: return@LaunchedEffect
+            readyMap.animateCamera(cameraUpdate)
+        } catch (error: RuntimeException) {
+            Log.w("RoutePreviewMap", "FIT_BOUNDS failed (${error.javaClass.name})")
         }
     }
 }
