@@ -1229,3 +1229,27 @@
 
 - The focused CI correction is not yet committed or pushed, and the replacement branch run, merge, independent `main` run, annotated RC6 tag, signed Prerelease, exact-public-APK compatibility jobs, public artifact audit, and Xiaomi overlay tests are still pending.
 - No APK was installed, phone state was accessed, billable Google request was sent, VPS state was changed, SSH connection was made, or credential was rotated. No secret, token, raw IP, coordinate, work title, search term, route body, password, private key, or signing material was added to source, Git, documentation, or retained temporary files.
+
+## 2026-07-31 - Task 48: RC6 publication, exact Xiaomi overlay, and secure-keyguard hold
+
+### Protected publication and public-artifact evidence
+
+- Re-read the complete updated `AGENT.md` before starting this continuation. Committed and pushed Task 47's clean-output correction, obtained a fully green replacement pull-request run `30570203541`, marked pull request 6 ready, and merged only after its verify, API 26, and API 37 jobs passed.
+- Independent `main` run `30571396977` passed verify, API 26, and API 37 at merge commit `76d086b86cdb5dffbf1fe3e19cc94784d086970f`. Created annotated tag `v0.2.1-rc.6` only after that gate and did not move or overwrite any earlier RC tag.
+- Signed Release run `30572533202` passed source auditing, protected Firebase/Navigation/signing configuration restoration, tag/version validation, tests, Release Lint, signed assembly, R8 audit, APK audit, signature verification, checksum generation, and public non-draft Prerelease publication.
+- Exact-public-APK compatibility run `30573125093` downloaded the Release asset and passed on API 26 and API 37. The public APK is 48,686,861 bytes with SHA-256 `b8cf6c4f4da977ed766a4509f2d68684c71fafd964842b089c4809f2931f1795`; its checksum asset, GitHub digest, and independent calculation agree.
+- Independent inspection reports package `cn.anitabi.navigator`, version 0.2.1/code 7, minSdk 26, targetSdk 37, APK Signature Scheme v2, one RSA-4096 signer, and the unchanged fixed certificate SHA-256 `9679c83769368c7150f629d9cba3c0e5d633fa7f1043ce251fdba6c7c64fb00a`.
+
+### Exact Xiaomi overlay and current blocker
+
+- Confirmed exactly one authorized Xiaomi 15T Pro and proved its pre-install package was the exact public RC5. Used `adb install -r` with the exact public RC6 only; no uninstall, data clear, permission change, mock-location change, network change, input-method change, or other device-setting change occurred.
+- Android reported a successful overlay. The installed APK hash exactly matches the public RC6, the first-install time is unchanged, and the existing coarse/fine location plus notification grants remain present.
+- Cleared only the application crash log buffer for isolated diagnostics, then force-stopped and cold-launched the application. Its process remained present, `MainActivity` was resumed, and the isolated application crash count was zero.
+- The display was dozing behind the system keyguard. Waking the display did not remove the secure lock, and read-only Android state reported the device as locked and untrusted. One normal keyguard-dismiss request and one normal upward swipe did not unlock it; testing stopped without guessing a password, bypassing security, or changing lock settings.
+- Because the secure keyguard prevents visible application interaction, completed-onboarding and selected-point retention have not yet been visually confirmed on RC6. A real Google basemap with markers, WALK, DRIVE, and TRANSIT also remain unverified; no map request or billable route request was sent.
+- The task-specific public APK copy remains in its dedicated temporary acceptance directory only until physical testing completes. The next safe step is for the user to unlock the Xiaomi and leave the application visible; testing can then continue without another installation.
+
+### Safety and remaining boundary
+
+- No password, SSH setting, VPS state, Google/Firebase configuration, credential, token, raw IP, coordinate, work title, search term, route body, private key, or signing material was changed or recorded. The deployed backend was not mutated during publication or phone work.
+- RC6 publication and exact overlay are complete, but the candidate must not be promoted to stable v0.2.1 until the visible map/marker retry and minimal WALK, DRIVE, and TRANSIT physical gates pass.
