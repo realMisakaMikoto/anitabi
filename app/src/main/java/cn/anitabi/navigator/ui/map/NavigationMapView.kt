@@ -26,6 +26,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.google.android.gms.maps.GoogleMap
+import com.google.android.gms.maps.MapsInitializer
 import com.google.android.libraries.navigation.NavigationView
 
 @Composable
@@ -43,13 +44,18 @@ fun NavigationMapView(
     var runtimeFailure by remember(navigationUiEnabled, attempt) { mutableStateOf(false) }
     val creation = remember(navigationUiEnabled, attempt) {
         runCatching {
-            NavigationView(context).apply {
-                onCreate(null)
-                setNavigationUiEnabled(navigationUiEnabled)
-                setHeaderEnabled(navigationUiEnabled)
-                setEtaCardEnabled(navigationUiEnabled)
-                setTripProgressBarEnabled(navigationUiEnabled)
-            }
+            initializeGoogleMapRuntime(
+                initialize = { MapsInitializer.initialize(context) },
+                create = {
+                    NavigationView(context).apply {
+                        onCreate(null)
+                        setNavigationUiEnabled(navigationUiEnabled)
+                        setHeaderEnabled(navigationUiEnabled)
+                        setEtaCardEnabled(navigationUiEnabled)
+                        setTripProgressBarEnabled(navigationUiEnabled)
+                    }
+                },
+            )
         }
     }
     val navigationView = creation.getOrNull()
