@@ -5,10 +5,12 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import cn.anitabi.navigator.core.model.Anime
 import cn.anitabi.navigator.core.model.PilgrimagePoint
+import cn.anitabi.navigator.core.model.StoredTourV2
 import cn.anitabi.navigator.data.network.ApiException
 import cn.anitabi.navigator.data.network.bangumi.BangumiApi
 import cn.anitabi.navigator.data.repository.PilgrimageData
 import cn.anitabi.navigator.data.repository.PilgrimageRepository
+import cn.anitabi.navigator.data.repository.TourRepository
 import cn.anitabi.navigator.data.repository.mergePilgrimageData
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,9 +22,31 @@ import kotlinx.coroutines.launch
 class SearchViewModel(
     private val bangumiApi: BangumiApi,
     private val pilgrimageRepository: PilgrimageRepository,
+    private val tourRepository: TourRepository,
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(SearchUiState())
     val state: StateFlow<SearchUiState> = mutableState.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            val stored = runCatching { tourRepository.getMostRecent()?.storedTour }.getOrNull()
+                ?: return@launch
+            val cached = stored.selectedAnimes.mapNotNull { anime ->
+                runCatching { pilgrimageRepository.loadCached(anime.subjectId) }.getOrNull()
+            }
+            val restored = restoreSearchSelection(stored, cached) ?: return@launch
+            mutableState.update { current ->
+                if (current.selectedAnimeData.isNotEmpty() || current.selectedPointIds.isNotEmpty()) {
+                    current
+                } else {
+                    current.copy(
+                        selectedAnimeData = restored.animeData,
+                        selectedPointIds = restored.selectedPointIds,
+                    )
+                }
+            }
+        }
+    }
 
     fun updateQuery(query: String) {
         mutableState.update { it.copy(query = query, errorMessage = null) }
@@ -132,6 +156,15 @@ class SearchViewModel(
         mutableState.update { it.copy(showList = showList) }
     }
 
+    fun handleMapUnavailable() {
+        mutableState.update {
+            it.copy(
+                showList = true,
+                errorMessage = "Google 地图暂时无法加载，已切换为列表选点",
+            )
+        }
+    }
+
     fun openPlanner() {
         mutableState.update { current ->
             if (current.selectedPointIds.size < 2) {
@@ -182,12 +215,39 @@ class SearchViewModel(
     class Factory(
         private val bangumiApi: BangumiApi,
         private val pilgrimageRepository: PilgrimageRepository,
+        private val tourRepository: TourRepository,
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            return SearchViewModel(bangumiApi, pilgrimageRepository) as T
+            return SearchViewModel(bangumiApi, pilgrimageRepository, tourRepository) as T
         }
     }
+}
+
+internal data class RestoredSearchSelection(
+    val animeData: Map<Long, PilgrimageData>,
+    val selectedPointIds: Set<String>,
+)
+
+internal fun restoreSearchSelection(
+    stored: StoredTourV2,
+    cached: List<PilgrimageData>,
+): RestoredSearchSelection? {
+    val selectedAnimeIds = stored.selectedAnimes.mapTo(linkedSetOf(), Anime::subjectId)
+    if (selectedAnimeIds.isEmpty()) return null
+    val animeData = cached
+        .filter { it.anime.subjectId in selectedAnimeIds }
+        .associateBy { it.anime.subjectId }
+    if (animeData.keys != selectedAnimeIds) return null
+    val availablePointIds = mergePilgrimageData(animeData.values)
+        ?.points
+        .orEmpty()
+        .mapTo(mutableSetOf(), PilgrimagePoint::id)
+    val storedPointIds = stored.selectedPoints.mapTo(mutableSetOf(), PilgrimagePoint::id)
+    return RestoredSearchSelection(
+        animeData = animeData,
+        selectedPointIds = storedPointIds.intersect(availablePointIds),
+    )
 }
 
 data class SearchUiState(

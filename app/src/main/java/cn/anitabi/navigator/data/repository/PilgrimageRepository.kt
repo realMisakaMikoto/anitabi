@@ -13,11 +13,13 @@ class PilgrimageRepository(
     private val json: Json,
     private val now: () -> Long = System::currentTimeMillis,
 ) {
+    suspend fun loadCached(subjectId: Long): PilgrimageData? = cacheDao.get(subjectId)?.let {
+        json.decodeFromString(PilgrimageData.serializer(), it.payloadJson)
+    }
+
     suspend fun load(subjectId: Long, refresh: Boolean = false): PilgrimageData {
         if (!refresh) {
-            cacheDao.get(subjectId)?.let {
-                return json.decodeFromString(PilgrimageData.serializer(), it.payloadJson)
-            }
+            loadCached(subjectId)?.let { return it }
         }
 
         val (lite, detailDtos) = coroutineScope {

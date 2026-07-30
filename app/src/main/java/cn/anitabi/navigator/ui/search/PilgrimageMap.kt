@@ -24,6 +24,7 @@ fun PilgrimageMap(
     selectedPointIds: Set<String>,
     onPointToggle: (String) -> Unit,
     onVisibleBoundsChanged: (GeoBounds) -> Unit,
+    onMapUnavailable: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val currentOnPointToggle by rememberUpdatedState(onPointToggle)
@@ -33,6 +34,7 @@ fun PilgrimageMap(
 
     NavigationMapView(
         modifier = modifier,
+        onUnavailable = onMapUnavailable,
         onMapReady = { readyMap ->
             map = readyMap
             readyMap.uiSettings.isMapToolbarEnabled = false

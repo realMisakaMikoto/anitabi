@@ -1,5 +1,6 @@
 package cn.anitabi.navigator.ui.planner
 
+import cn.anitabi.navigator.core.model.TravelMode
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -27,5 +28,15 @@ class PlannerFormattingTest {
             "需要定位和通知权限才能开始导航",
             navigationPermissionError(hasLocation = false, hasNotifications = false),
         )
+    }
+
+    @Test
+    fun `Google walking and cycling routes show beta notice`() {
+        val notice = "Google 地图的步行和骑行路线仍为测试版，请以现场道路和交通规则为准。"
+
+        assertEquals(notice, googleRouteBetaNotice(TravelMode.WALK))
+        assertEquals(notice, googleRouteBetaNotice(TravelMode.BIKE))
+        assertNull(googleRouteBetaNotice(TravelMode.DRIVE))
+        assertNull(googleRouteBetaNotice(TravelMode.TRANSIT))
     }
 }
