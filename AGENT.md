@@ -1209,3 +1209,23 @@
 
 - No real Google route, matrix, transit, or navigation request was sent during this deployment, so no billable quota was consumed. The backend half of the DRIVE repair is live; TRANSIT still requires the RC6 Android formatter, and all three user-visible fixes still require the exact published RC6 APK on the authorized Xiaomi.
 - No APK installation, phone access, permission change, mock-location change, network-setting change, Firebase consent change, credential rotation, or Git publication occurred in this task. No secret, token, raw IP, coordinate, work title, search term, route body, private key, signing material, or password was written to tracked source, Git, documentation, or this record.
+
+## 2026-07-31 - Task 47: RC6 branch publication and clean-run R8 audit correction
+
+### Branch, review, and first protected run
+
+- Re-read the complete current `AGENT.md` before starting the publication task. Committed the RC6 Android/backend repairs and release documentation on `codex/v0.2.1-rc.6-map-runtime`, then committed a follow-up that made the R8 optimization-rule audit ignore comment-only lookalikes. Pushed both commits and opened draft pull request 6 through the authenticated GitHub UI because the command-line token lacks pull-request mutation scope.
+- An independent static review found no remaining application, backend, workflow, or documentation blocker. It confirmed that the signed Release workflow still performs its normal Crashlytics mapping upload and that all unexecuted branch/main/public-APK/Xiaomi gates remain explicitly unchecked.
+- The first latest-head pull-request run passed credential restoration, source auditing, all 74 JVM tests, Debug and Release Lint, Debug APK assembly, and Android-test APK assembly. Its Release R8 compilation also completed successfully, but the new post-build audit failed before the emulator jobs because it expected `mapping.txt` in the final assemble-output directory.
+
+### Clean-output reproduction and focused correction
+
+- Reproduced the GitHub failure locally after moving the existing mapping outputs aside and forcing the same standalone `minifyReleaseWithR8` task. The clean task writes `seeds.txt`, `usage.txt`, and `configuration.txt` to the public mapping-output directory, while its fresh `mapping.txt` remains in the task-specific intermediate directory until a complete Release assemble copies the final mapping.
+- Changed the audit script to accept an explicit mapping file independently from the other R8 reports. Pull-request/main CI now passes the standalone R8 intermediate mapping explicitly; the signed Release workflow keeps the default final mapping from the fully assembled public APK.
+- Verified the audit against both a complete Release output and the clean standalone-R8 split output. A negative invocation without the required split mapping failed as intended. Bash syntax, workflow YAML parsing, and `git diff --check` passed.
+- Ran the Gradle `clean` task after the probe, confirmed the probe directory was removed, and retained about 32.76 GB free. No emulator, SDK, Docker data, user file, unrelated cache, or retained release evidence was removed.
+
+### Remaining publication boundary
+
+- The focused CI correction is not yet committed or pushed, and the replacement branch run, merge, independent `main` run, annotated RC6 tag, signed Prerelease, exact-public-APK compatibility jobs, public artifact audit, and Xiaomi overlay tests are still pending.
+- No APK was installed, phone state was accessed, billable Google request was sent, VPS state was changed, SSH connection was made, or credential was rotated. No secret, token, raw IP, coordinate, work title, search term, route body, password, private key, or signing material was added to source, Git, documentation, or retained temporary files.

@@ -3,7 +3,7 @@ set -euo pipefail
 
 mapping_dir="${1:-app/build/outputs/mapping/release}"
 class_name="com.google.android.gms.maps.internal.CreatorImpl"
-mapping_file="$mapping_dir/mapping.txt"
+mapping_file="${2:-$mapping_dir/mapping.txt}"
 seeds_file="$mapping_dir/seeds.txt"
 usage_file="$mapping_dir/usage.txt"
 configuration_file="$mapping_dir/configuration.txt"
