@@ -132,6 +132,7 @@ class NavigationService : Service(), LocationListener, TextToSpeech.OnInitListen
     }
 
     private suspend fun loadAndStart(tourId: String?) {
+        var routeRefreshRequired = false
         try {
             NavigationRuntime.update { it.copy(errorMessage = null) }
             runCatching { locationManager.removeUpdates(this) }
@@ -149,6 +150,15 @@ class NavigationService : Service(), LocationListener, TextToSpeech.OnInitListen
                 it.copy(completedPointIds = it.completedPointIds + startPointIds)
             }
             if (saved.routeNeedsRefresh) {
+                routeRefreshRequired = true
+                NavigationRuntime.set(
+                    NavigationRuntimeState(
+                        plan = loadedPlan,
+                        progress = initialProgress,
+                        instruction = ROUTE_REFRESH_REQUIRED_MESSAGE,
+                        errorMessage = ROUTE_REFRESH_REQUIRED_MESSAGE,
+                    ),
+                )
                 val currentLocation = container.locationProvider.currentLocation()
                 loadedPlan = container.tourPlanner.replanRemaining(
                     plan = loadedPlan,
@@ -158,6 +168,8 @@ class NavigationService : Service(), LocationListener, TextToSpeech.OnInitListen
                 )
                 initialProgress = initialProgress.afterRouteRefresh(loadedPlan.legs.isNotEmpty())
                 container.tourRepository.save(loadedPlan, initialProgress)
+                routeRefreshRequired = false
+                NavigationRuntime.update { it.copy(errorMessage = null) }
             }
             if (initialProgress.state == NavigationState.COMPLETED) {
                 error("这条巡礼路线已经完成")
@@ -202,7 +214,13 @@ class NavigationService : Service(), LocationListener, TextToSpeech.OnInitListen
         } catch (exception: CancellationException) {
             throw exception
         } catch (exception: Exception) {
-            failAndStop(exception.message ?: "无法开始连续导航")
+            failAndStop(
+                if (routeRefreshRequired) {
+                    ROUTE_REFRESH_REQUIRED_MESSAGE
+                } else {
+                    exception.message ?: "无法开始连续导航"
+                },
+            )
         }
     }
 
@@ -502,6 +520,8 @@ class NavigationService : Service(), LocationListener, TextToSpeech.OnInitListen
         const val ACTION_MANUAL_ARRIVAL = "cn.anitabi.navigator.navigation.MANUAL_ARRIVAL"
         const val ACTION_REFRESH_TRANSIT = "cn.anitabi.navigator.navigation.REFRESH_TRANSIT"
         const val EXTRA_TOUR_ID = "tour_id"
+        private const val ROUTE_REFRESH_REQUIRED_MESSAGE =
+            "路线暂时无法刷新，请联网后重试；行程顺序和导航进度已保留"
         private const val CHANNEL_ID = "continuous_navigation"
         private const val NOTIFICATION_ID = 1001
     }

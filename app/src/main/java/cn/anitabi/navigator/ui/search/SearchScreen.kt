@@ -58,6 +58,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cn.anitabi.navigator.core.model.Anime
+import cn.anitabi.navigator.core.model.NavigationState
 import cn.anitabi.navigator.core.model.PilgrimagePoint
 import cn.anitabi.navigator.data.repository.PilgrimageWarning
 import cn.anitabi.navigator.ui.theme.Ink
@@ -84,8 +85,14 @@ fun SearchRoute(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val navigationState by navigationViewModel.state.collectAsStateWithLifecycle()
     val navigationPlanId = navigationState.plan?.id
+    val hasRecoverableNavigation = navigationPlanId != null &&
+        navigationState.errorMessage != null &&
+        navigationState.progress?.state?.let { state ->
+            state != NavigationState.PLANNED && state != NavigationState.COMPLETED
+        } == true
     val showNavigation = state.navigationOpen ||
-        (navigationState.isRunning && navigationPlanId != state.hiddenNavigationTourId)
+        ((navigationState.isRunning || hasRecoverableNavigation) &&
+            navigationPlanId != state.hiddenNavigationTourId)
     BackHandler(
         enabled = !showNavigation && (state.aboutOpen || state.selectionOpen),
         onBack = when {

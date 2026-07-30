@@ -4,6 +4,7 @@ import android.Manifest
 import android.app.Instrumentation
 import android.os.Build
 import android.os.Bundle
+import android.view.accessibility.AccessibilityNodeInfo
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.v2.createEmptyComposeRule
@@ -88,6 +89,10 @@ class OnboardingInstrumentedTest {
     }
 
     private fun grantRequiredPermissions() {
+        if (Build.VERSION.SDK_INT == Build.VERSION_CODES.O) {
+            grantAndroid8PermissionDialog()
+            return
+        }
         grantRuntimePermission(Manifest.permission.ACCESS_COARSE_LOCATION)
         grantRuntimePermission(Manifest.permission.ACCESS_FINE_LOCATION)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -95,16 +100,31 @@ class OnboardingInstrumentedTest {
         }
     }
 
+    private fun grantAndroid8PermissionDialog() {
+        repeat(8) {
+            if (application.packageName in focusedWindow().lowercase()) return
+            val root = instrumentation.uiAutomation.rootInActiveWindow
+            val allowButton = listOf(
+                "com.android.packageinstaller:id/permission_allow_button",
+                "com.google.android.packageinstaller:id/permission_allow_button",
+            ).firstNotNullOfOrNull { viewId ->
+                root?.findAccessibilityNodeInfosByViewId(viewId)?.firstOrNull()
+            } ?: listOf("ALLOW", "Allow", "允许").firstNotNullOfOrNull { label ->
+                root?.findAccessibilityNodeInfosByText(label)?.firstOrNull { node -> node.isClickable }
+            }
+            if (allowButton != null) {
+                check(allowButton.performAction(AccessibilityNodeInfo.ACTION_CLICK))
+            }
+            Thread.sleep(500L)
+        }
+        throw AssertionError("The Android 8 permission dialog did not return to the app")
+    }
+
     private fun grantRuntimePermission(permission: String) {
         shell("pm grant ${application.packageName} $permission")
     }
 
     private fun returnFromPermissionDialog() {
-        if (Build.VERSION.SDK_INT == Build.VERSION_CODES.O) {
-            shell("am force-stop com.google.android.packageinstaller")
-            Thread.sleep(500L)
-            return
-        }
         repeat(4) {
             if (application.packageName in focusedWindow().lowercase()) return
             shell("input keyevent 4")
@@ -115,7 +135,7 @@ class OnboardingInstrumentedTest {
 
     private fun continueAfterPermissionGrantIfNeeded() {
         composeRule.waitUntil(timeoutMillis = 15_000L) {
-            composeRule.onAllNodesWithTag("onboarding-key-input").fetchSemanticsNodes().isNotEmpty() ||
+            composeRule.onAllNodesWithTag("onboarding-service-step").fetchSemanticsNodes().isNotEmpty() ||
                 composeRule.onAllNodesWithTag("onboarding-permission-continue")
                     .fetchSemanticsNodes().isNotEmpty()
         }

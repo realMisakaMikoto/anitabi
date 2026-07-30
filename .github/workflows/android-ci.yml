@@ -180,6 +180,8 @@ jobs:
             sleep 2
           done
           grep -q "Runtime Smoke Tour" smoke-output/recovery-*.xml
+          grep -q "路线暂时无法刷新" smoke-output/recovery-*.xml
+          grep -q "Runtime Stop A" smoke-output/recovery-*.xml
           adb exec-out screencap -p > smoke-output/recovery-first.png
           adb shell dumpsys notification --noredact > smoke-output/recovery-notifications-first.txt
           grep -q "cn.anitabi.navigator" smoke-output/recovery-notifications-first.txt
@@ -189,6 +191,8 @@ jobs:
           timeout 30 adb shell uiautomator dump /sdcard/recovery-restart.xml || true
           adb pull /sdcard/recovery-restart.xml smoke-output/recovery-restart.xml || true
           grep -q "Runtime Smoke Tour" smoke-output/recovery-restart.xml
+          grep -q "路线暂时无法刷新" smoke-output/recovery-restart.xml
+          grep -q "Runtime Stop A" smoke-output/recovery-restart.xml
           adb exec-out screencap -p > smoke-output/recovery-restart.png
           adb shell dumpsys notification --noredact > smoke-output/recovery-notifications-restart.txt
           grep -q "cn.anitabi.navigator" smoke-output/recovery-notifications-restart.txt

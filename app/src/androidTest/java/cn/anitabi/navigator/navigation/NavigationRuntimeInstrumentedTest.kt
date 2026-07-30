@@ -284,7 +284,7 @@ class NavigationRuntimeInstrumentedTest {
             TourLeg(
                 from = from.coordinate,
                 to = to.coordinate,
-                mode = TravelMode.WALK,
+                mode = TravelMode.TRANSIT,
                 geometry = listOf(from.coordinate, to.coordinate),
                 steps = listOf(
                     RouteStep(
@@ -306,7 +306,7 @@ class NavigationRuntimeInstrumentedTest {
             selectedPoints = points,
             orderedPoints = points,
             legs = legs,
-            mode = TravelMode.WALK,
+            mode = TravelMode.TRANSIT,
             objective = RouteObjective.FASTEST,
             endPolicy = EndPolicy.OPEN,
             estimatedDurationSeconds = 180.0,
