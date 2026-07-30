@@ -101,8 +101,9 @@ class OnboardingInstrumentedTest {
     }
 
     private fun grantAndroid8PermissionDialog() {
-        repeat(8) {
-            if (application.packageName in focusedWindow().lowercase()) return
+        repeat(30) {
+            val focus = focusedWindow().lowercase()
+            if ("permissioncontroller" !in focus && "packageinstaller" !in focus) return
             val root = instrumentation.uiAutomation.rootInActiveWindow
             val allowButton = listOf(
                 "com.android.packageinstaller:id/permission_allow_button",
@@ -114,6 +115,7 @@ class OnboardingInstrumentedTest {
             }
             if (allowButton != null) {
                 check(allowButton.performAction(AccessibilityNodeInfo.ACTION_CLICK))
+                instrumentation.waitForIdleSync()
             }
             Thread.sleep(500L)
         }
@@ -125,9 +127,13 @@ class OnboardingInstrumentedTest {
     }
 
     private fun returnFromPermissionDialog() {
-        repeat(4) {
+        repeat(30) {
             if (application.packageName in focusedWindow().lowercase()) return
-            shell("input keyevent 4")
+            Thread.sleep(500L)
+        }
+        shell("input keyevent 4")
+        repeat(10) {
+            if (application.packageName in focusedWindow().lowercase()) return
             Thread.sleep(500L)
         }
         throw AssertionError("The app did not regain focus after permissions were granted")
