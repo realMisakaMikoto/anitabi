@@ -54,7 +54,7 @@ fun AboutScreen(onBack: () -> Unit) {
                 }
                 Column {
                     Text("关于巡礼手帖", color = Color.White, style = MaterialTheme.typography.titleLarge)
-                    Text("零预算 · 全应用内 · GPL-3.0-or-later", color = Sand)
+                    Text("Google 路线 · 自建配额保护 · GPL-3.0-or-later", color = Sand)
                 }
             }
             LazyColumn(
@@ -63,36 +63,29 @@ fun AboutScreen(onBack: () -> Unit) {
             ) {
                 item {
                     AboutCard("隐私") {
-                        Text("不含广告、分析、账号、云同步或位置日志。路线与进度只保存在本机。")
+                        Text("不含广告或云同步。路线与进度只保存在本机；路线响应不会持久化。")
                         Text(
-                            "规划或偏航重算时，必要坐标会发送给 ORS；规划或重算公交路线时发送给 Transitous。地图瓦片由 OpenFreeMap 提供。",
+                            "规划或偏航重算时，必要坐标、模式和出发时间会经自建服务发送给 Google。Firebase 匿名身份不需要邮箱、姓名或密码；Analytics 与 Crashlytics 默认关闭。",
                             color = MutedInk,
                             modifier = Modifier.padding(top = 6.dp),
                         )
                     }
                 }
                 item {
-                    AboutCard("地图与道路路线") {
-                        SourceLink("OpenFreeMap · OpenMapTiles · © OpenStreetMap contributors") {
-                            uriHandler.openUri("https://openfreemap.org/")
+                    AboutCard("地图、路线与公共交通") {
+                        SourceLink("Google Navigation SDK 与 Routes API") {
+                            uriHandler.openUri("https://developers.google.com/maps/documentation/navigation/android-sdk")
                         }
-                        SourceLink("openrouteservice / HeiGIT") {
-                            uriHandler.openUri("https://openrouteservice.org/")
+                        SourceLink("Firebase") {
+                            uriHandler.openUri("https://firebase.google.com/")
                         }
                         Text(
-                            "道路路线需要每位用户自己的免费 ORS Key；Key 经 Android Keystore 加密，仅保存在本机。",
+                            "道路导航使用 Navigation SDK；路线矩阵、道路预览与相邻两点公交使用 Routes API。无需用户填写 API Key，达到项目硬额度后停止请求。",
                             color = MutedInk,
                             modifier = Modifier.padding(top = 6.dp),
                         )
-                    }
-                }
-                item {
-                    AboutCard("公共交通") {
-                        SourceLink("Transitous 数据来源与各运营方许可") {
-                            uriHandler.openUri("https://transitous.org/sources/")
-                        }
                         Text(
-                            "仅在用户生成或重算公交路线时按相邻点逐段请求；服务为 best-effort，覆盖范围不保证完整。",
+                            "公交仅按相邻两点逐段请求；没有路线时会明确提示，不会生成猜测路线。",
                             color = MutedInk,
                             modifier = Modifier.padding(top = 6.dp),
                         )

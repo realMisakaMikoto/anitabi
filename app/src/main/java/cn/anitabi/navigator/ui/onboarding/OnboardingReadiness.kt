@@ -3,13 +3,12 @@ package cn.anitabi.navigator.ui.onboarding
 internal data class OnboardingReadiness(
     val hasLocationPermission: Boolean,
     val hasNotificationPermission: Boolean,
-    val hasOrsKey: Boolean,
 ) {
     val permissionsReady: Boolean
         get() = hasLocationPermission && hasNotificationPermission
 
     val canFinish: Boolean
-        get() = permissionsReady && hasOrsKey
+        get() = permissionsReady
 }
 
 internal fun onboardingPermissionError(

@@ -36,7 +36,7 @@ class TourPlannerTest {
         assertEquals(setOf("a", "b"), plan.orderedPoints.map { it.id }.toSet())
         assertEquals(3, plan.legs.size)
         assertEquals(GeoPoint(0.0, 0.0), plan.legs.last().to)
-        assertEquals(listOf("openrouteservice / HeiGIT", "© OpenStreetMap contributors"), plan.attribution)
+        assertEquals(listOf(GOOGLE_ROUTES_SOURCE, "Google"), plan.attribution)
     }
 
     @Test
@@ -169,7 +169,11 @@ private class FakeRoadProvider : RoadRoutingProvider {
     val matrixRequestSizes = mutableListOf<Int>()
     val directionRequestSizes = mutableListOf<Int>()
 
-    override suspend fun matrix(mode: TravelMode, points: List<GeoPoint>): TravelMatrix {
+    override suspend fun matrix(
+        mode: TravelMode,
+        points: List<GeoPoint>,
+        objective: RouteObjective,
+    ): TravelMatrix {
         matrixRequestSizes += points.size
         val matrix = List(points.size) { from ->
             List<Double?>(points.size) { to -> kotlin.math.abs(from - to).toDouble() }

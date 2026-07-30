@@ -16,7 +16,6 @@ import cn.anitabi.navigator.core.routing.TourPlanner
 import cn.anitabi.navigator.core.routing.TransitPlanRequest
 import cn.anitabi.navigator.data.network.ApiException
 import cn.anitabi.navigator.data.repository.TourRepository
-import cn.anitabi.navigator.security.OrsKeyStore
 import cn.anitabi.navigator.navigation.CurrentLocationProvider
 import cn.anitabi.navigator.navigation.LocationUnavailableException
 import cn.anitabi.navigator.navigation.MissingLocationPermissionException
@@ -34,7 +33,6 @@ import kotlinx.coroutines.launch
 class PlannerViewModel(
     private val planner: TourPlanner,
     private val repository: TourRepository,
-    private val keyStore: OrsKeyStore,
     private val locationProvider: CurrentLocationProvider,
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(PlannerUiState())
@@ -50,7 +48,6 @@ class PlannerViewModel(
             fixedEndPointId = points.last().id,
             departureDate = now.toLocalDate().toString(),
             departureTime = now.toLocalTime().toString(),
-            hasStoredOrsKey = keyStore.hasKey(),
         )
     }
 
@@ -110,10 +107,6 @@ class PlannerViewModel(
         mutableState.update { it.copy(dwellMinutesInput = value.filter(Char::isDigit).take(3), plan = null) }
     }
 
-    fun setOrsKey(value: String) {
-        mutableState.update { it.copy(orsKeyInput = value.trim(), errorMessage = null) }
-    }
-
     fun generate() {
         val current = state.value
         val anime = current.anime ?: return
@@ -125,9 +118,6 @@ class PlannerViewModel(
                     locationProvider.currentLocation()
                 } else {
                     requireNotNull(startPoint).coordinate
-                }
-                if (current.mode != TravelMode.TRANSIT && current.orsKeyInput.isNotBlank()) {
-                    keyStore.save(current.orsKeyInput)
                 }
                 val plan = if (current.mode == TravelMode.TRANSIT) {
                     val departure = LocalDateTime.of(
@@ -166,8 +156,6 @@ class PlannerViewModel(
                         plan = plan,
                         draftOrder = plan.orderedPoints,
                         isLoading = false,
-                        hasStoredOrsKey = keyStore.hasKey(),
-                        orsKeyInput = "",
                     )
                 }
             } catch (exception: Exception) {
@@ -217,40 +205,18 @@ class PlannerViewModel(
 
     private fun handleFailure(throwable: Throwable) {
         if (throwable is CancellationException) throw throwable
-        val isTransit = state.value.mode == TravelMode.TRANSIT
         val message = when (throwable) {
-            is ApiException.MissingOrsKey -> "请先填写自己的免费 ORS Key"
-            is ApiException.InvalidCredentials -> "ORS Key 无效或已失效，请重新填写"
-            is ApiException.Forbidden -> if (isTransit) {
-                "Transitous 拒绝了当前网络的访问，请停止重试并更换网络"
-            } else {
-                "ORS Key 无效或已失效，请重新填写"
-            }
-            is ApiException.RateLimited -> if (isTransit) {
-                "Transitous 请求过于频繁，请稍后再试"
-            } else {
-                "今日 ORS 配额已用尽，请明天再试"
-            }
-            is ApiException.NotFound -> if (isTransit) {
-                "Transitous 未找到可用行程"
-            } else {
-                "ORS 未找到可用路线"
-            }
-            is ApiException.Server -> if (isTransit) {
-                "Transitous 服务暂时不可用，请稍后再试"
-            } else {
-                "ORS 服务暂时不可用，请稍后再试"
-            }
-            is ApiException.InvalidResponse -> if (isTransit) {
-                "Transitous 返回了无法识别的数据"
-            } else {
-                "ORS 返回了无法识别的数据"
-            }
-            is ApiException.Http -> if (isTransit) {
-                "Transitous 请求失败，请稍后再试"
-            } else {
-                "ORS 请求失败，请稍后再试"
-            }
+            is ApiException.Unauthenticated -> "匿名连接失败，请检查网络后重试"
+            is ApiException.InvalidArgument -> "路线请求参数无效，请重新选择地点"
+            is ApiException.NoRoute, is ApiException.NotFound -> "所选地点之间暂无可用路线"
+            is ApiException.QuotaExhausted -> "本月免费路线额度已用尽，达到上限后不会继续计费"
+            is ApiException.RateLimited -> "请求过于频繁，请稍后再试"
+            is ApiException.UpstreamUnavailable -> "Google 路线服务暂时不可用，请稍后再试"
+            is ApiException.BackendUnavailable, is ApiException.Server ->
+                "路线服务暂时不可用；行程和导航进度仍保留在本机"
+            is ApiException.InvalidResponse -> "路线服务返回了无法识别的数据"
+            is ApiException.InvalidCredentials, is ApiException.Forbidden, is ApiException.Http ->
+                "路线请求失败，请稍后再试"
             is ApiException.Network -> "网络连接失败，请检查网络后重试"
             is NoTransitDataException -> "本区域暂无开放公交数据"
             is NoRouteException -> "所选地点之间存在不可达路段"
@@ -265,12 +231,11 @@ class PlannerViewModel(
     class Factory(
         private val planner: TourPlanner,
         private val repository: TourRepository,
-        private val keyStore: OrsKeyStore,
         private val locationProvider: CurrentLocationProvider,
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T =
-            PlannerViewModel(planner, repository, keyStore, locationProvider) as T
+            PlannerViewModel(planner, repository, locationProvider) as T
     }
 }
 
@@ -286,8 +251,6 @@ data class PlannerUiState(
     val departureDate: String = "",
     val departureTime: String = "",
     val dwellMinutesInput: String = "15",
-    val orsKeyInput: String = "",
-    val hasStoredOrsKey: Boolean = false,
     val plan: TourPlan? = null,
     val draftOrder: List<PilgrimagePoint> = emptyList(),
     val orderChanged: Boolean = false,

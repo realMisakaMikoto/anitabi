@@ -49,6 +49,7 @@ class ApiHttpClient(
     suspend fun <T> execute(
         request: Request,
         deserializer: DeserializationStrategy<T>,
+        errorMapper: (status: Int, body: String) -> ApiException = ApiException::fromStatus,
     ): T {
         val response = try {
             client.newCall(request).await()
@@ -59,7 +60,7 @@ class ApiHttpClient(
         return response.use {
             val responseBody = it.body.string()
             if (!it.isSuccessful) {
-                throw ApiException.fromStatus(it.code, responseBody.take(MAX_ERROR_BODY_LENGTH))
+                throw errorMapper(it.code, responseBody.take(MAX_ERROR_BODY_LENGTH))
             }
             try {
                 json.decodeFromString(deserializer, responseBody)
@@ -101,7 +102,12 @@ sealed class ApiException(message: String, cause: Throwable? = null) : Exception
     class Forbidden : ApiException("API access was forbidden")
     class Network(cause: IOException) : ApiException("Network request failed", cause)
     class InvalidResponse(cause: Throwable) : ApiException("API response could not be parsed", cause)
-    class MissingOrsKey : ApiException("An ORS API key is required")
+    class Unauthenticated(cause: Throwable? = null) : ApiException("Authentication failed", cause)
+    class InvalidArgument : ApiException("The request is invalid")
+    class NoRoute : ApiException("No route is available")
+    class QuotaExhausted : ApiException("The routing quota is exhausted")
+    class UpstreamUnavailable : ApiException("The routing provider is unavailable")
+    class BackendUnavailable : ApiException("The routing backend is unavailable")
 
     companion object {
         @Suppress("UNUSED_PARAMETER")

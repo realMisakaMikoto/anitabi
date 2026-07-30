@@ -12,7 +12,6 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
-import androidx.compose.ui.test.performTextInput
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -38,8 +37,8 @@ class OnboardingInstrumentedTest {
         get() = ApplicationProvider.getApplicationContext()
 
     @Test
-    fun completesPermissionsKeyAndRestartFlow() {
-        assertFalse(application.container.orsKeyStore.hasCompletedOnboarding())
+    fun completesPermissionsServiceAndRestartFlow() {
+        assertFalse(application.container.appSettingsStore.hasCompletedOnboarding())
         ActivityScenario.launch(MainActivity::class.java).use {
             composeRule.onNodeWithText("初次使用设置").assertIsDisplayed()
             composeRule.onNodeWithTag("onboarding-start").performClick()
@@ -51,31 +50,20 @@ class OnboardingInstrumentedTest {
             returnFromPermissionDialog()
             continueAfterPermissionGrantIfNeeded()
 
-            awaitTag("onboarding-key-input")
-            composeRule.onNodeWithTag("onboarding-open-ors")
+            awaitTag("onboarding-service-step")
+            composeRule.onNodeWithTag("onboarding-service-step")
                 .performScrollTo()
                 .assertIsDisplayed()
-            reportEvidence("ONBOARDING_KEY_GUIDE_SHOWN")
+            reportEvidence("ONBOARDING_SERVICE_GUIDE_SHOWN")
 
-            composeRule.onNodeWithTag("onboarding-key-submit")
-                .performScrollTo()
-                .performClick()
-            composeRule.onNodeWithTag("onboarding-key-error")
-                .performScrollTo()
-                .assertIsDisplayed()
-            reportEvidence("ONBOARDING_EMPTY_KEY_BLOCKED")
-
-            composeRule.onNodeWithTag("onboarding-key-input")
-                .performScrollTo()
-                .performTextInput(TEST_KEY)
-            composeRule.onNodeWithTag("onboarding-key-submit")
+            composeRule.onNodeWithTag("onboarding-service-submit")
                 .performScrollTo()
                 .performClick()
             composeRule.onNodeWithText("搜索 Bangumi").assertIsDisplayed()
             reportEvidence("ONBOARDING_COMPLETED_TO_SEARCH")
         }
 
-        assertTrue(application.container.orsKeyStore.hasCompletedOnboarding())
+        assertTrue(application.container.appSettingsStore.hasCompletedOnboarding())
         ActivityScenario.launch(MainActivity::class.java).use {
             composeRule.onNodeWithText("搜索 Bangumi").assertIsDisplayed()
             composeRule.onAllNodesWithTag("onboarding-start").fetchSemanticsNodes()
@@ -169,9 +157,5 @@ class OnboardingInstrumentedTest {
         return descriptor.use {
             FileInputStream(it.fileDescriptor).bufferedReader().use { reader -> reader.readText() }
         }
-    }
-
-    companion object {
-        private const val TEST_KEY = "instrumentation-only-invalid-ors-key"
     }
 }

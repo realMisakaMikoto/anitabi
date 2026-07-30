@@ -1,70 +1,87 @@
 package cn.anitabi.navigator.core.routing
 
-import cn.anitabi.navigator.data.network.transit.TransitLegDto
-import cn.anitabi.navigator.data.network.transit.TransitPlaceDto
-import cn.anitabi.navigator.data.network.transit.TransitPolylineDto
+import cn.anitabi.navigator.core.model.GeoPoint
+import cn.anitabi.navigator.core.model.RouteObjective
+import cn.anitabi.navigator.core.model.TravelMode
+import cn.anitabi.navigator.data.auth.IdTokenProvider
+import cn.anitabi.navigator.data.network.ApiHttpClient
+import cn.anitabi.navigator.data.network.UserAgentInterceptor
+import cn.anitabi.navigator.data.network.backend.BackendApi
+import kotlinx.coroutines.runBlocking
+import okhttp3.mockwebserver.MockResponse
+import okhttp3.mockwebserver.MockWebServer
+import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 
 class RoutingProvidersTest {
-    @Test
-    fun `transit mapper keeps line platforms stops realtime and cancellation`() {
-        val leg = TransitLegDto(
-            mode = "TRAIN",
-            from = TransitPlaceDto("Tokyo", 35.0, 139.0, tz = "Asia/Tokyo", track = "3"),
-            to = TransitPlaceDto("Ueno", 35.1, 139.1, tz = "Asia/Tokyo", scheduledTrack = "6"),
-            duration = 600,
-            startTime = "2026-07-29T23:55:00+09:00",
-            endTime = "2026-07-30T00:05:00+09:00",
-            distance = 5_000.0,
-            headsign = "Ueno",
-            routeShortName = "JY",
-            intermediateStops = listOf(TransitPlaceDto("Akihabara", 35.05, 139.05)),
-            legGeometry = TransitPolylineDto(),
-            realTime = true,
-            cancelled = true,
-        ).toTourLeg()
+    private lateinit var server: MockWebServer
+    private lateinit var api: BackendApi
 
-        val transit = leg.transit!!
-        assertEquals("JY", transit.line)
-        assertEquals("Ueno", transit.direction)
-        assertEquals("3", transit.departurePlatform)
-        assertEquals("6", transit.arrivalPlatform)
-        assertEquals(listOf("Akihabara"), transit.intermediateStops)
-        assertTrue(transit.realtime)
-        assertTrue(transit.cancelled)
-        assertEquals("2026-07-30T00:05:00+09:00", transit.arrivalTime)
-        assertEquals("Asia/Tokyo", transit.departureTimeZone)
-        assertEquals("Asia/Tokyo", transit.arrivalTimeZone)
+    @Before
+    fun setUp() {
+        server = MockWebServer()
+        server.start()
+        api = BackendApi(
+            httpClient = ApiHttpClient(UserAgentInterceptor("AnitabiNavigator", "test", "https://example.org")),
+            tokenProvider = IdTokenProvider { "test-token" },
+            baseUrl = server.url("/").toString(),
+        )
+    }
+
+    @After
+    fun tearDown() {
+        server.shutdown()
     }
 
     @Test
-    fun `transit mapper derives missing distance and rejects single point geometry`() {
-        val route = TransitLegDto(
-            mode = "REGIONAL_RAIL",
-            from = TransitPlaceDto("Tokyo", 35.0, 139.0),
-            to = TransitPlaceDto("Ueno", 35.1, 139.1),
-            duration = 600,
-            startTime = "2026-07-30T00:00:00Z",
-            endTime = "2026-07-30T00:10:00Z",
-            distance = null,
-            legGeometry = TransitPolylineDto("_p~iF~ps|U_ulLnnqC_mqNvxq`@", length = 3),
-        ).toTourLeg()
-        val stationary = TransitLegDto(
-            mode = "WALK",
-            from = TransitPlaceDto("Same", 35.0, 139.0),
-            to = TransitPlaceDto("Same", 35.0, 139.0),
-            duration = 0,
-            startTime = "2026-07-30T00:00:00Z",
-            endTime = "2026-07-30T00:00:00Z",
-            legGeometry = TransitPolylineDto(),
-        ).toTourLeg()
+    fun `road provider maps matrix unreachable elements and Google polyline`() = runBlocking {
+        server.enqueue(
+            MockResponse().setBody(
+                """{"elements":[{"originIndex":0,"destinationIndex":0,"status":"OK","distanceMeters":0,"durationSeconds":0},{"originIndex":0,"destinationIndex":1,"status":"UNREACHABLE"},{"originIndex":1,"destinationIndex":0,"status":"OK","distanceMeters":1000,"durationSeconds":600},{"originIndex":1,"destinationIndex":1,"status":"OK","distanceMeters":0,"durationSeconds":0}]}""",
+            ),
+        )
+        server.enqueue(
+            MockResponse().setBody(
+                """{"distanceMeters":1000,"durationSeconds":600,"legs":[{"distanceMeters":1000,"durationSeconds":600,"encodedPolyline":"_p~iF~ps|U_ulLnnqC_mqNvxq`@","steps":[{"travelMode":"WALK","distanceMeters":1000,"durationSeconds":600,"encodedPolyline":"_p~iF~ps|U_ulLnnqC_mqNvxq`@","instruction":"直行"}]}]}""",
+            ),
+        )
+        val provider = BackendRoadRoutingProvider(api)
+        val points = listOf(GeoPoint(38.5, -120.2), GeoPoint(43.252, -126.453))
 
-        assertTrue(route.distanceMeters > 0.0)
-        assertEquals(route.distanceMeters, route.steps.single().distanceMeters, 0.001)
-        assertEquals(3, route.geometry.size)
-        assertEquals(1, stationary.geometry.size)
-        assertEquals(0.0, stationary.distanceMeters, 0.001)
+        val matrix = provider.matrix(TravelMode.WALK, points, RouteObjective.FASTEST)
+        val route = provider.directions(TravelMode.WALK, points)
+
+        assertNull(matrix.durations[0][1])
+        assertEquals(600.0, matrix.durations[1][0])
+        assertEquals(3, route.segments.single().geometry.size)
+        assertEquals("直行", route.segments.single().steps.single().instruction)
+    }
+
+    @Test
+    fun `transit provider keeps Google line stop times and uses no invented platform`() = runBlocking {
+        server.enqueue(
+            MockResponse().setBody(
+                """{"distanceMeters":5000,"durationSeconds":900,"legs":[{"distanceMeters":5000,"durationSeconds":900,"steps":[{"travelMode":"WALK","distanceMeters":200,"durationSeconds":180,"encodedPolyline":"_p~iF~ps|U_ulLnnqC"},{"travelMode":"TRANSIT","distanceMeters":4800,"durationSeconds":720,"encodedPolyline":"_ulLnnqC_mqNvxq`@","transit":{"departureStop":"Tokyo","arrivalStop":"Ueno","departureTime":"2026-07-29T09:03:00+09:00","arrivalTime":"2026-07-29T09:15:00+09:00","lineShortName":"JY","headsign":"Ueno","vehicleType":"HEAVY_RAIL","stopCount":3}}]}]}""",
+            ),
+        )
+        val journey = BackendTransitJourneyProvider(api).journey(
+            from = GeoPoint(38.5, -120.2),
+            to = GeoPoint(43.252, -126.453),
+            departureTime = "2026-07-29T09:00:00+09:00",
+        )
+
+        assertEquals(2, journey.legs.size)
+        assertEquals("2026-07-29T09:15:00+09:00", journey.arrivalTime)
+        val transit = journey.legs.last().transit!!
+        assertEquals("JY", transit.line)
+        assertEquals("Ueno", transit.direction)
+        assertEquals("HEAVY_RAIL", transit.vehicleMode)
+        assertNull(transit.departurePlatform)
+        assertTrue(transit.intermediateStops.isEmpty())
+        assertTrue(journey.legs.all { it.source == GOOGLE_ROUTES_SOURCE })
     }
 }

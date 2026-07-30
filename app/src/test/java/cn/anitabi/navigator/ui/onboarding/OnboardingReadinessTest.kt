@@ -8,26 +8,23 @@ import org.junit.Test
 
 class OnboardingReadinessTest {
     @Test
-    fun `cannot finish until permissions and key are ready`() {
-        assertFalse(
-            OnboardingReadiness(
-                hasLocationPermission = true,
-                hasNotificationPermission = true,
-                hasOrsKey = false,
-            ).canFinish,
-        )
+    fun `cannot finish until required permissions are ready`() {
         assertFalse(
             OnboardingReadiness(
                 hasLocationPermission = false,
                 hasNotificationPermission = true,
-                hasOrsKey = true,
+            ).canFinish,
+        )
+        assertFalse(
+            OnboardingReadiness(
+                hasLocationPermission = true,
+                hasNotificationPermission = false,
             ).canFinish,
         )
         assertTrue(
             OnboardingReadiness(
                 hasLocationPermission = true,
                 hasNotificationPermission = true,
-                hasOrsKey = true,
             ).canFinish,
         )
     }

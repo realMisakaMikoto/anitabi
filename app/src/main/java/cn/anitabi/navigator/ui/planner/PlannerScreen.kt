@@ -26,7 +26,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.DirectionsBike
 import androidx.compose.material.icons.automirrored.rounded.DirectionsWalk
-import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material.icons.rounded.DirectionsBus
 import androidx.compose.material.icons.rounded.DirectionsCar
 import androidx.compose.material.icons.rounded.DragHandle
@@ -56,9 +55,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cn.anitabi.navigator.navigation.AndroidLocationProvider
@@ -133,7 +130,6 @@ fun PlannerRoute(
             onDepartureDateChange = viewModel::setDepartureDate,
             onDepartureTimeChange = viewModel::setDepartureTime,
             onDwellChange = viewModel::setDwellMinutes,
-            onOrsKeyChange = viewModel::setOrsKey,
             onGenerate = viewModel::generate,
         )
     } else {
@@ -191,10 +187,8 @@ private fun PlannerSettingsScreen(
     onDepartureDateChange: (String) -> Unit,
     onDepartureTimeChange: (String) -> Unit,
     onDwellChange: (String) -> Unit,
-    onOrsKeyChange: (String) -> Unit,
     onGenerate: () -> Unit,
 ) {
-    val uriHandler = LocalUriHandler.current
     Surface(color = Paper, modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
             PlannerTopBar(title = "编排一日路线", onBack = onBack)
@@ -261,7 +255,7 @@ private fun PlannerSettingsScreen(
 
                 if (state.mode != TravelMode.TRANSIT) {
                     item {
-                        SectionTitle("优化目标", "Matrix 计算后由手机本地精确排序")
+                        SectionTitle("优化目标", "路线矩阵分批计算后由手机本地排序")
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             ChoiceChip("预计最快", state.objective == RouteObjective.FASTEST) {
                                 onObjectiveChange(RouteObjective.FASTEST)
@@ -269,28 +263,6 @@ private fun PlannerSettingsScreen(
                             ChoiceChip("距离最短", state.objective == RouteObjective.SHORTEST) {
                                 onObjectiveChange(RouteObjective.SHORTEST)
                             }
-                        }
-                    }
-                    item {
-                        SectionTitle("你的 ORS Key", "每位用户使用自己的免费 HeiGIT Key；只加密保存在本机")
-                        OutlinedTextField(
-                            value = state.orsKeyInput,
-                            onValueChange = onOrsKeyChange,
-                            modifier = Modifier.fillMaxWidth(),
-                            placeholder = {
-                                Text(if (state.hasStoredOrsKey) "已安全保存；留空继续使用" else "粘贴 ORS Key")
-                            },
-                            visualTransformation = PasswordVisualTransformation(),
-                            singleLine = true,
-                            shape = RoundedCornerShape(10.dp),
-                        )
-                        TextButton(onClick = { uriHandler.openUri("https://account.heigit.org/") }) {
-                            Icon(
-                                Icons.AutoMirrored.Rounded.OpenInNew,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp),
-                            )
-                            Text("如何获取 ORS Key", modifier = Modifier.padding(start = 6.dp))
                         }
                     }
                 } else {

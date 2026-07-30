@@ -109,7 +109,7 @@ class TransitRefreshPolicyTest {
                     steps = emptyList(),
                     distanceMeters = 1_000.0,
                     durationSeconds = 600.0,
-                    source = "Transitous / MOTIS",
+                    source = "Google Routes API",
                     transit = TransitLegDetails(vehicleMode = "TRAIN", cancelled = cancelled),
                     destinationPointId = "stop",
                 ),

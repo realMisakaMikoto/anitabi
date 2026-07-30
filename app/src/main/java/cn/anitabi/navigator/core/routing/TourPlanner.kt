@@ -59,7 +59,7 @@ class TourPlanner(
             objective = request.objective,
             endPolicy = request.endPolicy,
             estimatedDurationSeconds = route.segments.sumOf { it.durationSeconds },
-            attribution = listOf("openrouteservice / HeiGIT", "© OpenStreetMap contributors"),
+            attribution = listOf(GOOGLE_ROUTES_SOURCE, "Google"),
             initialStart = request.start,
             state = NavigationState.PLANNED,
         )
@@ -97,11 +97,7 @@ class TourPlanner(
             endPolicy = request.endPolicy,
             estimatedDurationSeconds = legs.sumOf(TourLeg::durationSeconds) +
                 request.dwellMinutes * 60.0 * orderedStops.size,
-            attribution = listOf(
-                "Transitous / MOTIS",
-                "Transit data sources: https://transitous.org/sources/",
-                "© OpenStreetMap contributors",
-            ),
+            attribution = listOf(GOOGLE_ROUTES_SOURCE, "Google"),
             departureTime = request.departureTime,
             dwellMinutes = request.dwellMinutes,
             initialStart = request.start,
@@ -285,7 +281,11 @@ class TourPlanner(
         val refined = ArrayList<PilgrimagePoint>(approximate.size)
         var anchor = start
         approximate.chunked(TourRequestBatcher.MAX_MATRIX_LOCATIONS - 1).forEachIndexed { index, window ->
-            val matrix = roadProvider.matrix(mode, listOf(anchor) + window.map(PilgrimagePoint::coordinate))
+            val matrix = roadProvider.matrix(
+                mode = mode,
+                points = listOf(anchor) + window.map(PilgrimagePoint::coordinate),
+                objective = objective,
+            )
             val costs = when (objective) {
                 RouteObjective.FASTEST -> matrix.durations
                 RouteObjective.SHORTEST -> matrix.distances
@@ -325,7 +325,7 @@ class TourPlanner(
                 steps = segment.steps,
                 distanceMeters = segment.distanceMeters,
                 durationSeconds = segment.durationSeconds,
-                source = "openrouteservice / HeiGIT",
+                source = GOOGLE_ROUTES_SOURCE,
                 destinationPointId = destinationPointIds.getOrNull(index),
             )
         }
