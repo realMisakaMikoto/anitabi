@@ -1078,3 +1078,25 @@
 - The exact parser regression test changed from red to green. The complete Android JVM suite passes 69 tests across 19 suites with zero failures, errors, or skips. Debug and Release Kotlin compilation, Debug and Release Lint, Debug APK assembly, Debug androidTest APK assembly, tracked-source credential audit, Debug APK content audit, and `git diff --check` all pass.
 - All temporary local API samples, screenshots, and UI hierarchies were deleted after extracting type/count evidence; all task-specific device captures were deleted immediately after pulling. The phone disconnected after the completed interactions, and no post-disconnect state is claimed.
 - No response body, coordinate, anime name, search term, API key, Firebase token, service-account material, signing secret, password, VPS credential, or SSH state was written to tracked source, Git, this record, or retained temporary files. No Google route/navigation request or VPS mutation occurred. The fixes remain uncommitted with the other rc2 audit changes on `codex/v0.2.1-rc.2-audit-fixes`.
+
+## 2026-07-30 - Task 41: release-map crash repair, rc3 publication, and new-phone retest handoff
+
+### Release-only root cause and repair
+
+- Re-read the complete current `AGENT.md` before starting the task. Reproduced the installed rc2 map failure from a fresh application crash buffer and traced it to R8 moving the Navigation SDK's reflective registry caller out of the package that contains its package-private implementation.
+- Read the Navigation SDK 7.8.0 embedded shrinker requirements and added only its required class-merging exclusions plus a targeted keep rule for the reflective caller. Release minification remained enabled. A fresh R8 mapping proved the caller and target remain package-compatible while unrelated application and dependency code is still obfuscated.
+- The complete local Android gate passed 69 JVM tests across 19 suites, Debug and Release Lint, Debug APK assembly, Android-test APK assembly, tracked-source credential audit, APK content audit, backend 17-test suite, production dependency audit, release R8 mapping audit, and `git diff --check`.
+
+### rc3 publication and prior-phone evidence
+
+- Committed the reviewed repair on `codex/v0.2.1-rc.3-navigation-r8-fix`, opened pull request 3, obtained green verify/API 26/API 37 jobs, merged it through the authenticated GitHub UI, and obtained an independent green main run. Tagged and published signed prerelease `v0.2.1-rc.3`; its Release workflow and exact-public-APK compatibility workflow passed.
+- The public rc3 APK is 48,686,861 bytes with SHA-256 `00cfbeb1fec2fed237f1dd825e1f0a727f552959ba4c4b1e7915d3900419470f`. It reports package `cn.anitabi.navigator`, version code 7, version name 0.2.1, minimum SDK 26, target SDK 37, APK Signature Scheme v2, one RSA-4096 signer, and the unchanged production certificate.
+- With the user's explicit permission, overlaid the exact public rc3 APK on the previously connected phone using `adb install -r` only. The installation preserved first-install time, application data, permissions, completed onboarding, and the fixed certificate. The installed APK hash matched the public asset, cold launch succeeded, and the application no longer terminated when entering the selection flow.
+- The existing two-work selection survived and displayed the merged point count. This reconfirmed the parser/multi-selection repair, but it did not prove that a Google map tile rendered or that a route was generated.
+
+### Unresolved functional failure and new-phone boundary
+
+- The user reported that rc3 still cannot display the map or plan a route. The acceptance standard was therefore corrected from merely preventing a crash to requiring a visibly rendered Google map and a successful two-point route. Neither is marked passed.
+- The previous phone disconnected during an isolated single-tap map capture, so no incomplete screenshot or missing-device command was treated as product evidence. When the user switched phones, this task re-read the complete 1,080-line log before touching the new device.
+- Windows currently detects only a Huawei HDB interface. ADB USB and mDNS device lists remain empty even after restarting the desktop ADB server. Consequently the application version, existing installation, map, route, permissions, and crash state on the new phone cannot yet be inspected.
+- No APK was installed, overwritten, pulled, uninstalled, or cleared on the new phone. No phone permission, USB mode, HDB setting, input method, mock-location setting, network, password, SSH configuration, VPS state, Google credential, or billable request was changed. The precise resume condition is that the unlocked new phone expose an authorized ADB interface and accept this computer's debugging prompt.
