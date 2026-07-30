@@ -69,6 +69,7 @@ class AnitabiDatabaseMigrationTest {
         assertEquals(first?.storedTour, second?.storedTour)
         assertTrue(first?.routeNeedsRefresh == true)
         assertTrue(first?.plan?.legs?.isEmpty() == true)
+        assertEquals(setOf(101L, 202L), first?.storedTour?.selectedAnimes?.mapTo(mutableSetOf(), Anime::subjectId))
         assertEquals(setOf("101::a"), first?.progress?.completedPointIds)
         database.openHelper.readableDatabase.query(
             "SELECT storedTourJson, legacyPlanJson, legacyProgressJson, migrationError FROM tour_plans WHERE id = ?",

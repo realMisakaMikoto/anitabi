@@ -250,6 +250,14 @@ private fun PlannerSettingsScreen(
                             enabled = true,
                         )
                     }
+                    googleRouteBetaNotice(state.mode)?.let { notice ->
+                        Text(
+                            notice,
+                            color = MutedInk,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(top = 8.dp),
+                        )
+                    }
                 }
 
                 item {
@@ -396,6 +404,11 @@ private fun RoutePreviewScreen(
                 item {
                     Text("长按拖动调整顺序", color = MutedInk, style = MaterialTheme.typography.bodyMedium)
                 }
+                googleRouteBetaNotice(plan.mode)?.let { notice ->
+                    item {
+                        Text(notice, color = MutedInk, style = MaterialTheme.typography.bodySmall)
+                    }
+                }
                 itemsIndexed(state.draftOrder, key = { _, point -> point.id }) { index, point ->
                     ReorderPointCard(
                         point = point,
@@ -491,6 +504,13 @@ private fun TransitLegCard(leg: TourLeg, index: Int, legCount: Int) {
                 color = MutedInk,
                 modifier = Modifier.padding(top = 6.dp),
             )
+            if (transit?.departureStop != null || transit?.arrivalStop != null) {
+                Text(
+                    listOfNotNull(transit.departureStop, transit.arrivalStop).joinToString(" → "),
+                    color = MutedInk,
+                )
+            }
+            transit?.stopCount?.let { Text("途经 $it 站", color = MutedInk) }
             transit?.departurePlatform?.let { Text("上车站台：$it", color = MutedInk) }
             transit?.arrivalPlatform?.let { Text("下车站台：$it", color = MutedInk) }
             transit?.intermediateStops?.takeIf { it.isNotEmpty() }?.let {
@@ -503,6 +523,12 @@ private fun TransitLegCard(leg: TourLeg, index: Int, legCount: Int) {
             }
         }
     }
+}
+
+internal fun googleRouteBetaNotice(mode: TravelMode): String? = when (mode) {
+    TravelMode.WALK, TravelMode.BIKE ->
+        "Google 地图的步行和骑行路线仍为测试版，请以现场道路和交通规则为准。"
+    TravelMode.DRIVE, TravelMode.TRANSIT -> null
 }
 
 @Composable

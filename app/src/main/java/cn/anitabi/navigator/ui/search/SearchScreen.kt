@@ -136,6 +136,7 @@ fun SearchRoute(
             onSelectVisible = viewModel::selectVisiblePoints,
             onClearSelection = viewModel::clearSelection,
             onShowList = viewModel::setShowList,
+            onMapUnavailable = viewModel::handleMapUnavailable,
             onPlan = {
                 state.combinedPilgrimageData?.let { data ->
                     val points = data.points.filter { it.id in state.selectedPointIds }
@@ -441,6 +442,7 @@ private fun PilgrimageSelectionScreen(
     onSelectVisible: () -> Unit,
     onClearSelection: () -> Unit,
     onShowList: (Boolean) -> Unit,
+    onMapUnavailable: () -> Unit,
     onPlan: () -> Unit,
 ) {
     val data = state.combinedPilgrimageData
@@ -469,6 +471,7 @@ private fun PilgrimageSelectionScreen(
                         selectedPointIds = state.selectedPointIds,
                         onPointToggle = onTogglePoint,
                         onVisibleBoundsChanged = onBoundsChanged,
+                        onMapUnavailable = onMapUnavailable,
                         modifier = Modifier.fillMaxSize(),
                     )
                     OutlinedButton(

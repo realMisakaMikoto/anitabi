@@ -24,7 +24,11 @@ import cn.anitabi.navigator.ui.theme.Paper
 class MainActivity : ComponentActivity() {
     private val container by lazy { (application as AnitabiApplication).container }
     private val searchViewModel by viewModels<SearchViewModel> {
-        SearchViewModel.Factory(container.bangumiApi, container.pilgrimageRepository)
+        SearchViewModel.Factory(
+            container.bangumiApi,
+            container.pilgrimageRepository,
+            container.tourRepository,
+        )
     }
     private val plannerViewModel by viewModels<PlannerViewModel> {
         PlannerViewModel.Factory(

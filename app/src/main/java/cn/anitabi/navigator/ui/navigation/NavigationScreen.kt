@@ -175,6 +175,14 @@ fun NavigationRoute(viewModel: NavigationViewModel, onBack: (String?) -> Unit) {
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(top = 10.dp),
                     )
+                    if (transit?.departureStop != null || transit?.arrivalStop != null) {
+                        Text(
+                            listOfNotNull(transit.departureStop, transit.arrivalStop).joinToString(" → "),
+                            color = MutedInk,
+                            modifier = Modifier.padding(top = 4.dp),
+                        )
+                    }
+                    transit?.stopCount?.let { Text("途经 $it 站", color = MutedInk) }
                     transit?.departurePlatform?.let {
                         Text("上车站台：$it", color = MutedInk, modifier = Modifier.padding(top = 4.dp))
                     }

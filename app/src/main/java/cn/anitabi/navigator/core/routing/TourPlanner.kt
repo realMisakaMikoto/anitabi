@@ -212,9 +212,9 @@ class TourPlanner(
             )
         } else {
             val coordinates = buildRouteCoordinates(start, visits, plan.endPolicy)
-            roadDirections(plan.mode, coordinates).toTourLegs(
-                points = coordinates,
-                mode = plan.mode,
+            refreshChangedRoadLegs(
+                plan = plan,
+                coordinates = coordinates,
                 destinationPointIds = visits.map { it.id } +
                     if (plan.endPolicy == EndPolicy.RETURN_TO_START) listOf(null) else emptyList(),
             )
@@ -310,6 +310,66 @@ class TourPlanner(
             roadProvider.directions(mode, batch).segments
         },
     )
+
+    private suspend fun refreshChangedRoadLegs(
+        plan: TourPlan,
+        coordinates: List<GeoPoint>,
+        destinationPointIds: List<String?>,
+    ): List<TourLeg> {
+        if (plan.legs.size != coordinates.size - 1 || plan.legs.any { it.mode != plan.mode }) {
+            return roadDirections(plan.mode, coordinates).toTourLegs(
+                points = coordinates,
+                mode = plan.mode,
+                destinationPointIds = destinationPointIds,
+            )
+        }
+        val changedIndexes = plan.legs.indices.filter { index ->
+            plan.legs[index].from != coordinates[index] ||
+                plan.legs[index].to != coordinates[index + 1] ||
+                plan.legs[index].destinationPointId != destinationPointIds.getOrNull(index)
+        }
+        if (changedIndexes.isEmpty()) return plan.legs
+
+        val refreshed = plan.legs.toMutableList()
+        changedLegRanges(changedIndexes).forEach { range ->
+            val requestPoints = coordinates.slice(range.first..range.last + 1)
+            val segments = roadProvider.directions(plan.mode, requestPoints).segments
+            check(segments.size == range.count()) { "Route leg count does not match changed locations" }
+            segments.forEachIndexed { offset, segment ->
+                val index = range.first + offset
+                refreshed[index] = TourLeg(
+                    from = coordinates[index],
+                    to = coordinates[index + 1],
+                    mode = plan.mode,
+                    geometry = segment.geometry,
+                    steps = segment.steps,
+                    distanceMeters = segment.distanceMeters,
+                    durationSeconds = segment.durationSeconds,
+                    source = GOOGLE_ROUTES_SOURCE,
+                    destinationPointId = destinationPointIds.getOrNull(index),
+                )
+            }
+        }
+        return refreshed
+    }
+
+    private fun changedLegRanges(changedIndexes: List<Int>): List<IntRange> {
+        val maxLegs = TourRequestBatcher.MAX_ROUTE_LOCATIONS - 1
+        val ranges = mutableListOf<IntRange>()
+        var start = changedIndexes.first()
+        var end = start
+        changedIndexes.drop(1).forEach { index ->
+            if (index == end + 1 && index - start < maxLegs) {
+                end = index
+            } else {
+                ranges += start..end
+                start = index
+                end = index
+            }
+        }
+        ranges += start..end
+        return ranges
+    }
 
     private fun RoadRoute.toTourLegs(
         points: List<GeoPoint>,

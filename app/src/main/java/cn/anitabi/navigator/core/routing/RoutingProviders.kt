@@ -181,6 +181,9 @@ private fun List<BackendRouteStep>.toTransitLegs(
                     vehicleMode = it.vehicleType ?: step.travelMode,
                     line = line,
                     direction = it.headsign,
+                    departureStop = it.departureStop,
+                    arrivalStop = it.arrivalStop,
+                    stopCount = it.stopCount,
                     departureTime = it.departureTime,
                     arrivalTime = it.arrivalTime,
                 )

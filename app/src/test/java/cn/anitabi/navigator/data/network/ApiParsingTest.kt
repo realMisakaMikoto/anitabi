@@ -38,6 +38,20 @@ class ApiParsingTest {
     }
 
     @Test
+    fun `Anitabi optional text type changes do not reject valid point data`() {
+        val points = json.decodeFromString(
+            ListSerializer(AnitabiPointDto.serializer()),
+            """[{"id":"p1","name":28,"cn":null,"image":false,"geo":[35.6812,139.7671],"origin":1,"originURL":[]}]""",
+        )
+        val point = points.single().toPilgrimagePointOrNull()!!
+
+        assertEquals("未命名地点", point.name)
+        assertNull(point.imageUrl)
+        assertNull(point.origin)
+        assertNull(point.originUrl)
+    }
+
+    @Test
     fun `Anitabi invalid coordinate is skipped`() {
         val point = AnitabiPointDto(id = "bad", geo = listOf(200.0))
 

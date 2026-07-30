@@ -158,6 +158,34 @@ class TourPlannerTest {
         assertEquals(start, rerouted.initialStart)
     }
 
+    @Test
+    fun `manual road reorder refreshes only changed adjacent legs`() = runBlocking {
+        val road = FakeRoadProvider()
+        val planner = TourPlanner(road, FakeTransitProvider())
+        val plan = planner.planRoad(
+            RoadPlanRequest(
+                anime = anime,
+                selectedPoints = (1..25).map { point("point-$it", it / 100.0) },
+                start = GeoPoint(0.0, 0.0),
+                mode = TravelMode.WALK,
+                objective = RouteObjective.FASTEST,
+                endPolicy = EndPolicy.OPEN,
+            ),
+        )
+        val originalFirstLeg = plan.legs.first()
+        val reordered = plan.orderedPoints.toMutableList().apply {
+            val moved = removeAt(4)
+            add(5, moved)
+        }
+        road.directionRequestSizes.clear()
+
+        val rebuilt = planner.rebuild(plan, reordered)
+
+        assertEquals(listOf(4), road.directionRequestSizes)
+        assertEquals(originalFirstLeg, rebuilt.legs.first())
+        assertEquals(reordered.map { it.id }, rebuilt.orderedPoints.map { it.id })
+    }
+
     private fun point(id: String, latitude: Double) = PilgrimagePoint(
         id = id,
         name = id,
