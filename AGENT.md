@@ -1271,3 +1271,18 @@
 - Rechecked the authorized Xiaomi before and after the static audit. Android continued to report the owner profile as `deviceLocked=1`, untrusted, and the display as dozing. No password was guessed, no security boundary was bypassed, and no device setting was changed.
 - No UI input, map request, Firebase sign-in, Google route/matrix/navigation request, billable operation, APK installation, data clear, permission change, mock-location change, network change, SSH connection, VPS mutation, or credential operation occurred.
 - Static inspection strengthens the RC6 implementation evidence but cannot replace the required visible basemap/marker and WALK, DRIVE, and TRANSIT results. The next action remains unchanged: after the user unlocks the Xiaomi and leaves the application visible, continue directly without reinstalling.
+
+## 2026-07-31 - Task 50: third secure-keyguard audit and blocked handoff
+
+### Repeated external-state verification
+
+- Re-read the complete updated `AGENT.md` before starting this continuation. Confirmed the repository remained clean and synchronized with `origin/main`; no application, backend, workflow, release, or acceptance source changed after the RC6 production-path audit.
+- Rechecked the sole authorized Xiaomi through the exact installed Platform-Tools executable. ADB still reports the device as connected and authorized, but Android again reports the owner profile as `deviceLocked=1`, untrusted, with the display dozing behind the secure keyguard.
+- This is the same blocking condition across three consecutive goal turns: Task 48 first found the exact public RC6 running behind the secure lock, Task 49 repeated the lock after completing all remaining static production-path audits, and this task again finds the secure lock unchanged after a complete reread.
+
+### Blocked boundary and precise resume condition
+
+- All safe work that does not require visible phone interaction is complete: the map, DRIVE, and TRANSIT fixes are in the signed public RC6; branch/main/release/API 26/API 37 gates pass; the DRIVE backend repair is deployed; exact overlay integrity is proven; and independent production-path audits found no remaining deterministic blocker.
+- No further source edit, emulator run, static audit, backend probe, or background process check can prove that Google tiles and markers are visibly rendered or that WALK, DRIVE, and TRANSIT complete through the installed physical UI. Treating those indirect checks as acceptance would be false.
+- Testing is therefore blocked on one external action only: the user must unlock the Xiaomi 15T Pro and leave the Anitabi application visible. After that, resume without reinstalling, confirm retained onboarding/selection state, explicitly open/retry the map, and execute the minimum two-point WALK, DRIVE, and TRANSIT requests.
+- No password was guessed, no keyguard was bypassed, and no device setting, APK, application data, permission, mock-location configuration, network, input method, VPS, SSH state, credential, or billable request was changed in this task.
