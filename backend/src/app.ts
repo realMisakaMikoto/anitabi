@@ -29,8 +29,8 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   const app = Fastify({
     logger: false,
     bodyLimit: 16 * 1_024,
-    // The container port is published on host loopback only. Caddy overwrites
-    // forwarded headers before proxying, so the container can trust that hop.
+    // The container port is published on host loopback only. The configured
+    // reverse proxy overwrites forwarded headers, so the container trusts that hop.
     trustProxy: true,
   });
   const requestStartedAt = new WeakMap<FastifyRequest, number>();

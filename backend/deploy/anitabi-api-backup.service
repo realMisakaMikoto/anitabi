@@ -1,0 +1,12 @@
+[Unit]
+Description=Create an integrity-checked Anitabi API SQLite backup
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/anitabi-api
+ExecStart=/opt/anitabi-api/deploy/backup.sh
+
+[Install]
+WantedBy=multi-user.target

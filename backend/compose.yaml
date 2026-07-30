@@ -8,7 +8,7 @@ services:
     user: node
     read_only: true
     ports:
-      - "127.0.0.1:8787:8787"
+      - "127.0.0.1:${ANITABI_HOST_PORT:-8787}:8787"
     environment:
       ANITABI_FIREBASE_PROJECT_ID: "${ANITABI_GOOGLE_PROJECT_ID:?Set ANITABI_GOOGLE_PROJECT_ID}"
       ANITABI_GOOGLE_PROJECT_ID: "${ANITABI_GOOGLE_PROJECT_ID:?Set ANITABI_GOOGLE_PROJECT_ID}"

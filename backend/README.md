@@ -39,6 +39,8 @@ Tests use generated keys and simulated Google responses. No Google credential is
 - Data and seven-day backups: `/var/lib/anitabi-api`
 - Read-only secrets: `/etc/anitabi-api/secrets`
 
-The Compose file publishes the container only on host `127.0.0.1:8787`, runs as the non-root `node` user, drops all capabilities, uses a read-only root filesystem, and mounts only the data and secret paths. `deploy/Caddyfile.api` is an additive virtual host; it must be merged into the existing proxy only after the listening services have been inventoried.
+The Compose file publishes the container only on host `127.0.0.1:8787` by default. Set the non-secret `ANITABI_HOST_PORT` Compose variable when that host port is already occupied; the container still listens on port 8787. The container runs as the non-root `node` user, drops all capabilities, uses a read-only root filesystem, and mounts only the data and secret paths. `deploy/Caddyfile.api` and `deploy/nginx-api.conf` are additive virtual hosts; use only the one matching the inventoried reverse proxy.
 
-Do not place credentials in `.env`. The Google project ID is the only Compose variable. Create the service-account JSON and a random 32-byte-or-longer HMAC key directly in `/etc/anitabi-api/secrets` with owner-only permissions.
+Install `deploy/anitabi-api-backup.service` and `deploy/anitabi-api-backup.timer` as a pair to run the existing integrity-checked backup script daily with a randomized delay.
+
+Do not place credentials in `.env`. The Google project ID and optional loopback host port are the only Compose variables. Create the service-account JSON and a random 32-byte-or-longer HMAC key directly in `/etc/anitabi-api/secrets` with owner-only permissions.

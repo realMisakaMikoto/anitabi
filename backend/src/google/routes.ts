@@ -68,7 +68,7 @@ export class GoogleRoutesClient implements RoutesProvider {
   async matrix(request: MatrixRequest): Promise<NormalizedMatrix> {
     const locations = request.coordinates.map(toGoogleWaypoint);
     const body: Record<string, unknown> = {
-      origins: locations.map((waypoint) => ({ waypoint, routeModifiers: fixedRouteModifiers() })),
+      origins: locations.map((waypoint) => ({ waypoint })),
       destinations: locations.map((waypoint) => ({ waypoint })),
       travelMode: request.mode,
       languageCode: "zh-CN",
@@ -173,7 +173,9 @@ function normalizeMatrixElement(value: unknown): NormalizedMatrixElement {
     originIndex,
     destinationIndex,
     status,
-    distanceMeters: requireNonNegativeNumber(record["distanceMeters"]),
+    // Protobuf JSON omits numeric fields at their default value. A matrix
+    // diagonal therefore has no distanceMeters field and represents 0 m.
+    distanceMeters: optionalNonNegativeNumber(record["distanceMeters"]) ?? 0,
     durationSeconds: parseDuration(record["duration"]),
   };
 }

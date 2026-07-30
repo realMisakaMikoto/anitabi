@@ -28,6 +28,12 @@ test("matrix client uses only the fixed upstream and returns normalized reachabl
       return Response.json([
         {
           originIndex: 0,
+          destinationIndex: 0,
+          condition: "ROUTE_EXISTS",
+          duration: "0s",
+        },
+        {
+          originIndex: 0,
           destinationIndex: 1,
           condition: "ROUTE_EXISTS",
           distanceMeters: 1234,
@@ -50,10 +56,19 @@ test("matrix client uses only the fixed upstream and returns normalized reachabl
 
   assert.equal(capturedBody?.["travelMode"], "DRIVE");
   assert.equal(capturedBody?.["routingPreference"], "TRAFFIC_UNAWARE");
-  assert.equal((capturedBody?.["origins"] as unknown[]).length, 2);
+  const origins = capturedBody?.["origins"] as Array<Record<string, unknown>>;
+  assert.equal(origins.length, 2);
+  assert.equal(origins.every((origin) => !("routeModifiers" in origin)), true);
   assert.equal((capturedBody?.["destinations"] as unknown[]).length, 2);
   assert.deepEqual(result, {
     elements: [
+      {
+        originIndex: 0,
+        destinationIndex: 0,
+        status: "OK",
+        distanceMeters: 0,
+        durationSeconds: 0,
+      },
       {
         originIndex: 0,
         destinationIndex: 1,
