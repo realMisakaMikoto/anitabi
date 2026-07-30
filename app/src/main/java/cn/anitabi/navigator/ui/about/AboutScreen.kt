@@ -142,7 +142,12 @@ fun AboutScreen(
                 }
                 item {
                     AboutCard("开源与联系") {
-                        Text("应用代码采用 GPL-3.0-or-later。第三方服务和数据分别遵循其自身条款。")
+                        Text(
+                            "应用代码采用 GPL-3.0-or-later，并附仅用于 Google Navigation/Firebase SDK 的窄范围链接例外；项目自有代码仍保持开源。第三方服务和数据分别遵循其自身条款。",
+                        )
+                        SourceLink("源代码、GPL 与链接例外") {
+                            uriHandler.openUri("https://github.com/realMisakaMikoto/anitabi/blob/main/LICENSE")
+                        }
                         SourceLink("项目联系人：realMisakaMikoto") {
                             uriHandler.openUri("https://github.com/realMisakaMikoto")
                         }

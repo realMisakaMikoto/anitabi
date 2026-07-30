@@ -672,3 +672,25 @@ may consider it more useful to permit linking proprietary applications with
 the library.  If this is what you want to do, use the GNU Lesser General
 Public License instead of this License.  But first, please read
 <https://www.gnu.org/licenses/why-not-lgpl.html>.
+
+-------------------------------------------------------------------------------
+
+Anitabi Navigator Google SDK Linking Exception
+
+Copyright (C) 2026 realMisakaMikoto
+
+As a special exception, the copyright holder of Anitabi Navigator gives you
+permission to link this Program with unmodified versions of the Google
+Navigation SDK for Android and the Firebase Android SDKs, and to copy and
+distribute the resulting linked executable, provided that you comply with the
+GNU General Public License, version 3 or (at your option) any later version,
+for all of the Program other than those SDKs.
+
+This exception applies only to the act of linking and distributing with the
+SDKs named above. It grants no rights to those SDKs, does not waive their
+terms, does not cover other proprietary libraries or services, and does not
+permit relicensing or closing the source of any part of this Program.
+
+If you modify this Program, you may extend this exception to your version,
+but you are not obligated to do so. If you do not wish to extend it, delete
+this exception statement from your version.

@@ -1,45 +1,58 @@
-# 发布检查清单
+# v0.2.1 发布检查清单
 
-以下项目全部满足后才能创建 `v*` tag。
+稳定 `v0.2.1` 发布前必须全部满足。`v0.2.1-rc.N` 可在“真机覆盖安装”小节仍未完成时发布，但必须标记为 GitHub Prerelease，且发布说明必须明确禁止把 RC 证据冒充稳定版验收。
 
-本文件是每次发布使用的模板，不直接勾选。每个版本应在 `docs/releases/` 保存一份带证据的实际验收记录；未验证项必须明确保留为未完成。
+每个版本或 RC 在 `docs/releases/` 保存一份带证据的实际记录；未验证项保持未勾选。
 
-## 政策与许可
+## 版本、许可与文档
 
-- [ ] 重新核对 OpenFreeMap 署名、隐私和使用条款；地图仍显示 OpenFreeMap、OpenMapTiles、© OpenStreetMap contributors。
-- [ ] 重新核对 ORS Standard 套餐、限制、API 域名和服务条款；没有项目共享 Key。
-- [ ] 重新核对 Transitous API 使用政策和数据来源；项目仍为公开 FOSS、非营利且免费分发。
-- [ ] Transitous 只使用正式 API 地址并发送应用名、版本、联系方式 User-Agent；关于页与公交路线保留数据来源链接。
-- [ ] 公交请求仍限制为最多 8 点、用户操作/路线事件触发、逐段串行、无后台轮询、无批量下载、无并发抓取和无自动重试；若预计负载明显增加，已先联系维护者。
-- [ ] Anitabi 数据请求仅访问 `api.anitabi.cn`，自动图片请求仅访问 `image.anitabi.cn`，两者都发送可识别 User-Agent；截图仍显示 `origin` 并保留 `originURL`；未打包全量数据。
-- [ ] `LICENSE`、`NOTICE.md`、关于页和 GPL-3.0-or-later 声明一致。
+- [ ] `versionCode=7`、`versionName=0.2.1`，RC 标签为 `v0.2.1-rc.N`，稳定标签为 `v0.2.1`。
+- [ ] README、NOTICE、隐私说明、关于页和发布说明只描述 Google/Firebase/VPS 当前架构；MapLibre、OpenFreeMap、ORS 与 Transitous 只出现在明确标注的历史记录中。
+- [ ] GPL-3.0-or-later 与 `LICENSE` 中仅针对 Google Navigation/Firebase SDK 的窄范围链接例外一致。
+- [ ] Google Maps Platform、Navigation SDK、Routes API、Firebase、Bangumi 与 Anitabi 的署名和链接可见。
+- [ ] v0.2.0 的发布记录、哈希与真机证据保持历史原文，没有改写成 v0.2.1 结果。
 
-## 自动验证
+## Google、Firebase 与费用控制
 
-- [ ] `./gradlew testDebugUnitTest lintRelease assembleRelease --stacktrace` 通过。
-- [ ] R8 release 构建没有缺失类或序列化/Room/MapLibre 反射错误。
-- [ ] `apksigner verify --verbose --print-certs app/build/outputs/apk/release/app-release.apk` 通过，证书 SHA-256 与上一版本一致。
-- [ ] APK SHA-256 已生成并随 GitHub Release 发布。
-- [ ] 扫描源码和解包 APK：没有 ORS Key、keystore、密码、Google Billing、Firebase/分析/广告 SDK。
-- [ ] 扫描源码：没有旧 `api.openrouteservice.org`，没有跳转 Google Maps/Organic Maps 等外部导航应用的 Intent。
+- [ ] Navigation SDK Android Key 只允许 `cn.anitabi.navigator`、正式/调试 SHA-1 和 Navigation SDK。
+- [ ] Firebase Android Key 只允许该包名、正式/调试 SHA-1 和所需 Firebase API；旧泄露 Key 保持删除状态。
+- [ ] VPS 服务账号只有所需最小权限，JSON 不在 APK、Git、日志或构建产物中。
+- [ ] Google Cloud 预算告警有效；VPS 月度硬上限仍为 Matrix 9,000 元素、Route 9,000 次、Navigation 900 个目的地。
+- [ ] UID 每日上限仍为 Matrix 2,000 元素、Route 200 次、Navigation 20 个目的地；突发令牌桶生效。
+- [ ] Analytics 与 Crashlytics 默认关闭，分别选择加入并可撤回；撤回时执行既定本机清理。
 
-## 模拟器与真机
+## 后端与安全
 
-- [ ] Android 8、当前稳定 Android 和 target SDK 对应 Android 版本至少各启动一次。
-- [ ] 搜索动漫 → 选择作品 → 地图区域批选 → 生成道路路线 → 一次开始连续导航完整走通。
-- [ ] 2、8、12 点的自由终点、指定终点、返回起点均验证。
-- [ ] 无效 ORS Key、429 配额耗尽、404/5xx 和弱网提示可理解，不泄露响应或 Key。
-- [ ] GPS 跳点未立即重算；步行/骑行 60 米、驾车 100 米持续 15 秒后才重算，60 秒冷却有效。
-- [ ] 到达、停留、自动下一站、手动到达、偏航、锁屏、杀进程、重启恢复和跨午夜均验证。
-- [ ] 断网后旧路线可继续；重算失败保留旧路线；未批量下载 OpenFreeMap 瓦片。
-- [ ] 拒绝定位或通知权限时应用不崩溃且提示明确。
-- [ ] 公交启用时，在有覆盖区域验证步行、线路、方向、站台、中途站、换乘、取消、无实时、地下无 GPS、错过班次和严重延误。
-- [ ] 无公交覆盖区域明确显示“本区域暂无开放公交数据”，没有伪造路线。
+- [ ] `npm test` 全部通过，包含 Firebase JWT、固定 OAuth/Routes 上游、single-flight、输入边界、并发 SQLite 配额、周期切换、脱敏与错误映射。
+- [ ] 12 个并发 SQLite 连接证明 9,000 元素月度上限不会被突破。
+- [ ] 公网 `GET /v1/health` 仅返回服务与数据库健康；HTTP 跳转 HTTPS，证书有效。
+- [ ] 容器非 root、只读根文件系统、无额外 capabilities、只读密钥、健康检查、自动重启和 loopback-only 端口均保持。
+- [ ] SQLite 一致性备份定时器有效、保留七日；恢复后的计费默认关闭逻辑经过测试。
+- [ ] 现有个人网站和原有容器仍正常；没有修改用户的密码、SSH 配置、端口、登录方式或防火墙。
+
+## Android 自动验证
+
+- [ ] `testDebugUnitTest`、`lintRelease`、`assembleRelease` 通过；当前 JVM 报告为 65 个测试、0 失败。
+- [ ] Room 使用真实 v0.2.0 schema/记录完成 1→2 迁移：保留导览、行程和进度，删除旧 Key/路线，失败记录可恢复，重复迁移幂等。
+- [ ] 大行程覆盖 200 点排序、10 点矩阵窗口、12 位置预览批次、25 目的地 SDK 批次、20 目的地生产配额批次、公交逐段、拖动受影响窗口和不可达点。
+- [ ] API 26/API 37 均通过冷启动、完整权限导览、迁移、遥测设置、两次离线恢复、前台服务、息屏模拟位置到达、崩溃检查和证据上传。
+- [ ] tracked-source audit 与 APK audit 通过；APK 不含服务端 Google 私钥、VPS 凭据、签名密码、ORS Key、Transitous/ORS/OpenFreeMap/MapLibre 请求路径或 keystore。
+- [ ] `apksigner verify --verbose --print-certs` 通过，证书 SHA-256 与公开 v0.2.0 相同；APK SHA-256 随 Release 发布。
+
+## 正式签名真机覆盖安装
+
+- [ ] Xiaomi 15T Pro 从公开 v0.2.0 直接覆盖安装正式签名 v0.2.1，不卸载、不清数据、不安装辅助应用。
+- [ ] 覆盖后导览完成状态、多作品选择、顺序、设置和导航进度保留；旧 ORS Key 与旧路线内容移除并提示刷新。
+- [ ] 用户明确同意 Google Navigation 条款，GMS 地图与当前位置正常。
+- [ ] 驾车、骑行或步行完成 Google 原生语音、锁屏、偏航重路由、到达/停留/下一站和服务结束。
+- [ ] 长行程跨生产 20 目的地配额批次，批次边界前完成下一次原子预留；额度耗尽时不绕过。
+- [ ] 公交逐段路线展示线路、站点、换乘、时间和步行接驳，不朗读 Google 路线指令、不启动原生公交导航。
+- [ ] 真实定位、断网/VPS 故障、额度错误和恢复路径符合隐私与本地进度保留要求。
 
 ## 发布
 
-- [ ] `versionCode` 递增，`versionName` 与 tag 一致。
-- [ ] 固定签名 keystore 在工作区外且已有离线加密备份。
-- [ ] GitHub Actions Secrets 完整，日志中没有打印密码或 Base64 keystore。
-- [ ] 仓库公开，Release 免费分发，不上传应用商店。
-- [ ] 发布说明列出政策核对日期、已知覆盖限制、隐私变化和升级注意事项。
+- [ ] RC 在 GitHub 标记为 Prerelease；稳定版仅在上述真机项全部完成后发布。
+- [ ] 固定签名 keystore 位于工作区外且有离线加密备份；Actions Secrets 完整，日志未输出秘密或 Base64 keystore。
+- [ ] 发布说明列出升级迁移、GMS 要求、联网要求、费用熔断、隐私变化、已知限制和证据边界。
+- [ ] 精确 Release APK 在 API 26/API 37 完成下载、版本检查、安装、冷启动、首次导览和空崩溃缓冲区验证。
+- [ ] 稳定 `v0.2.1` 发布后更新“Latest”状态和最终验收记录；RC 不标记为 Latest。

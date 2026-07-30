@@ -1,112 +1,89 @@
 # 注意：本产品为基于 https://github.com/anitabi 打造的开源产品。如需要访问圣地巡礼网站，请访问 anitabi.cn
 # 巡礼手帖（Anitabi Navigator）
 
-一个零预算、无自建后端、全程留在应用内的 Android 动漫圣地巡礼导航器。用户可以搜索 Bangumi 作品、从 Anitabi 选择巡礼点、在手机本地优化访问顺序，再用 MapLibre 连续导航全部地点。
+巡礼手帖是一款 Android 动漫圣地巡礼规划与连续导航应用。用户可以搜索 Bangumi 作品，从 Anitabi 选择任意数量的巡礼点，在手机本地生成访问顺序，再使用 Google 地图、路线与道路导航完成行程。
 
-> 当前状态：49 个 JVM 单元测试、Android SDK 37 编译、Lint、R8、APK 内容审计和固定签名发布均由 GitHub Actions 验证；debug APK 已在 Android 8（API 26）和 Android 17（API 37）模拟器通过全程断网、两次强制停止/恢复、前台服务通知、模拟 GPS 自动到达、息屏时自动进入下一站、两站完成和 Room 进度持久化，实际签名版也会在两个版本完成安装与冷启动复验。[v0.2.0 APK](https://github.com/realMisakaMikoto/anitabi/releases/tag/v0.2.0) 新增首次启动导览与多作品联合巡礼；Xiaomi 15T Pro 已完成系统栏、正式 Anitabi、ORS 道路路线、Transitous 公交路线、多作品地图和连续导航复验，用户已确认真机 TTS 可听且切回真实定位后功能正常。真实 GNSS 8–12 点整段实走、长时间 OEM 省电和真实错过班次仍需现场完成。
+> 当前开发版本为 v0.2.1（versionCode 7）。公开稳定版仍是 [v0.2.0](https://github.com/realMisakaMikoto/anitabi/releases/tag/v0.2.0)。v0.2.1 已通过 65 个 JVM 测试、Android 8/API 26 与 Android 17/API 37 的完整模拟器矩阵，以及生产 VPS、HTTPS、Firebase 鉴权、Google Routes 和硬额度账本验证。正式签名 RC 用于后续覆盖安装验收；在真机覆盖安装、Google Navigation 语音/偏航/锁屏和长行程换批完成前，不发布稳定 v0.2.1。
 
-## 功能
+## v0.2.1 功能
 
-- Bangumi 动漫搜索与 Anitabi 巡礼点加载、地图/列表选点、当前地图范围批选。
-- 可跨多次搜索选择多部动画，把它们的巡礼点合并到同一张地图后再自行选点。
-- 首次启动用三步导览解释权限与费用，完成定位、通知和个人 ORS Key 设置后才进入地图；拒绝权限时提供重试与系统设置入口。
-- 驾车、骑行、步行最多 12 点：ORS Matrix + 手机本地 Held–Karp 排序 + 一次多停靠 Directions。
-- 公交最多 8 点：按地理距离推荐顺序，并按出发/到达/停留时间逐段串联 Transitous 行程。
-- 自由终点、指定终点、返回起点，以及路线预览和手动重排。
-- Android 定位前台服务、应用内地图跟随、中文 TTS、自动到达/停留/下一站、偏航重算和进程恢复。
-- Room 只缓存用户实际访问的数据与已生成路线；不包含广告、分析、账号、云同步或位置日志。
+- Bangumi 搜索、Anitabi 巡礼点加载、多作品联合选择、地图/列表选点和可见区域批选。
+- 行程总点数不设固定上限；最近邻与有限轮次 2-opt 生成全局顺序，最多 10 点的矩阵窗口可再用 Held–Karp 精确优化。
+- Google 单次请求始终受限：矩阵窗口最多 10 个坐标/100 个元素，道路预览最多 12 个位置，Navigation SDK 每批最多 25 个目的地。
+- 驾车、骑行和步行使用 Google Navigation SDK 的地图、定位、道路导航、偏航处理和语音。
+- 公交通过 Google Routes API 按相邻两点逐段规划，展示线路、站点、换乘、时间和步行接驳；公交不启动 Google 原生导航。
+- `StoredTourV2` 和 Room 只保存用户拥有的点位、顺序、设置、完成状态和导航状态；Google 矩阵、路线、折线、步骤、预计时间与公交详情仅驻留内存。
+- 从公开 v0.2.0 覆盖升级时保留首次导览、作品选择、行程顺序、设置和进度，移除旧 ORS Key 与旧路线内容，并要求联网刷新路线。
+- Firebase Anonymous Auth 只用于访问自建路线 API。Analytics 与 Crashlytics 分别默认关闭、独立选择加入，并可随时撤回。
+- 无 GMS 设备仍可查看已经保存的点位、顺序与进度，但不提供地图或路线回退。
 
-## 费用与外部服务
+## 架构、费用与额度
 
-应用自身不使用服务器、域名、付费 SDK、Google Billing 或应用商店，必需现金成本为 0 元。公共服务均为 best-effort，没有 SLA：
-
-| 用途 | 服务 | 使用条件 |
+| 用途 | 实现 | 边界 |
 |---|---|---|
-| 地图 | [MapLibre Native](https://maplibre.org/) + [OpenFreeMap](https://openfreemap.org/) | 无 Key；必须保留地图数据署名 |
-| 道路路线 | [openrouteservice](https://openrouteservice.org/plans/) | 每位安装者申请自己的免费 Standard Key；当前 Directions 2,000/日、Matrix 500/日 |
-| 公交 | [Transitous](https://transitous.org/api/) | 仅 FOSS/非营利 best-effort 使用；使用官方 API、可识别 User-Agent 和可见数据来源链接；对请求负载有疑虑时联系维护者 |
-| 动漫 | [Bangumi API](https://bangumi.github.io/api/) | 无登录搜索，发送可识别 User-Agent |
-| 巡礼点 | [Anitabi API](https://github.com/anitabi/anitabi.cn-document/blob/main/api.md) | 非商业并署名；程序仅访问官方数据与图片 API，不请求主域；数据为 CC BY-NC-SA 4.0 |
+| 地图与道路导航 | Google Navigation SDK for Android | APK 只包含受包名、签名和 Navigation SDK 限制的 Android 客户端 Key |
+| 矩阵、路线预览与公交 | Google Routes API，经自建 VPS | 服务账号只在 VPS；响应规范化后返回，不缓存 Google 路线内容 |
+| 客户端鉴权 | Firebase Anonymous Auth | 不要求邮箱、姓名或密码；VPS 验证 Firebase ID Token |
+| 可选遥测 | Firebase Analytics / Crashlytics | 两项默认关闭、分别同意；不记录坐标、动漫名、搜索词或路线正文 |
+| 动漫元数据 | [Bangumi API](https://bangumi.github.io/api/) | 发送可识别 User-Agent |
+| 巡礼点与图片 | [Anitabi API](https://github.com/anitabi/anitabi.cn-document/blob/main/api.md) | 仅访问官方 API/图片域名，低频用户触发；数据为 CC BY-NC-SA 4.0 |
 
-政策最后核对日期：2026-07-29。每次发布前请重新执行 [发布检查清单](docs/RELEASE_CHECKLIST.md)。
+Google 项目绑定了结算账户，但 VPS 以免费额度的 90% 为硬上限：矩阵每月 9,000 个计费元素、路线每月 9,000 次、导航每月 900 个目的地，并叠加每 UID 每日额度和突发限速。达到上限、账本异常、磁盘满或额度状态无法确认时会停止计费请求，不会自动清零或绕过限制。Google Cloud 预算告警不是硬停机开关，VPS SQLite 账本才是本项目的 fail-closed 熔断器。
 
-如果应用提示“当前公网 IP 被公共服务拒绝”，说明 Cloudflare 拒绝的是当前 Wi-Fi 或移动网络的公网出口。请停止重复请求并更换网络，必要时联系运营商更换公网 IP；重装应用或修改 User-Agent 不能解除 IP 封禁。
+生产 API 为 `https://api.anitabi.afunnypersonlol0.site`。断网、VPS 故障或额度耗尽时，应用保留行程和进度并明确提示路线暂时无法刷新。
 
-## 新手构建步骤（Windows）
+## 隐私与安全
 
-1. 安装 Android Studio，并在 SDK Manager 安装 Android SDK Platform 37、Build-Tools 37.0.0 和 Platform-Tools。Android Studio 首次启动时会让你阅读并自行决定是否接受 Android SDK 许可。
-2. 确保命令行使用 JDK 17。Android Studio 自带的 JBR 17 也可以。
-3. 在项目根目录创建不提交的 `local.properties`，填入你实际的 SDK 路径：
+- 应用禁止系统备份和设备迁移，不建立用户邮箱账号，也不持久化 Google 路线响应。
+- 规划所需的坐标、模式和出发时间经 HTTPS 发送到自建 VPS，再由 VPS 调用固定的 Google 上游。VPS 日志不包含 Token、原始 IP、坐标、动漫名、搜索词或正文。
+- VPS 只用 HMAC 后的 IP 做宽松辅助限速；主要配额按 Firebase 匿名 UID 计数。
+- Anitabi 数据与图片由 Android 直接低频访问官方域名，不经过 VPS。
+- APK 不包含 Google 服务账号私钥、VPS 凭据、签名密码、ORS Key 或 Transitous 请求路径。
+- Analytics 与 Crashlytics 的具体开关、清理和数据边界见 [隐私说明](PRIVACY.md)；安全报告方式见 [SECURITY.md](SECURITY.md)。
+
+## 本地构建（Windows）
+
+1. 安装 JDK 17、Android SDK Platform 37、Build-Tools 37.0.0 和 Platform-Tools。
+2. 在项目根目录创建不提交的 `local.properties`：
 
    ```properties
    sdk.dir=C:\\Users\\your-name\\AppData\\Local\\Android\\Sdk
+   ANITABI_NAVIGATION_API_KEY=your-android-restricted-navigation-key
    ```
 
-4. 运行测试和调试 APK：
+3. 从你自己的 Firebase 项目下载 Android 配置到不提交的 `app/google-services.json`。应用包名必须为 `cn.anitabi.navigator`。不要使用 CI 的无效占位配置运行真实应用。
+4. 将 Navigation SDK Key 限制为该包名、实际调试/正式 SHA-1 证书和 Navigation SDK API。服务账号 JSON 绝不能进入 Android 工程。
+5. 运行：
 
    ```powershell
    .\gradlew.bat testDebugUnitTest lintDebug assembleDebug
    ```
 
-5. APK 位于 `app\build\outputs\apk\debug\app-debug.apk`。首次启动会引导你授权定位与通知、申请并填写自己的 ORS Key；Key 会经 Android Keystore 加密后保存在本机。
+调试 APK 位于 `app\build\outputs\apk\debug\app-debug.apk`。首次启动会依次说明用途、请求定位/通知权限并展示服务与隐私披露；不再要求用户填写 ORS Key。
 
-ORS Key 获取：打开 [HeiGIT 账户中心](https://account.heigit.org/)，注册并验证邮箱，登录后接受服务条款，在 Dashboard 复制免费的 Standard API Key。以 `eyJ...` 开头的 JWT 形态属于正常格式；只应粘贴到应用内，不要发送到聊天或提交到 Git。
+## 固定签名与发布
 
-不要把 ORS Key 写入 `local.properties`、Gradle 文件、截图、日志或 GitHub Secrets。它是每位应用用户自己的 Key，不是项目共享 Key。
+正式 APK 必须沿用 v0.2.0 的 RSA-4096 固定签名。私钥与密码只允许位于工作区外或 GitHub Actions 加密 Secrets；Gradle 会拒绝缺少完整签名参数或 Navigation SDK Key 的 release 构建。
 
-## Transitous 使用边界
+GitHub Actions 还需要：
 
-Transitous 官方政策没有“必须取得明确批准后才能启用”的条件。项目只访问正式地址 `https://api.transitous.org/api/v6/plan`，发送包含应用名、版本和联系地址的 User-Agent，并在应用内显著链接其数据来源。
-
-为控制路由请求负载，公交最多选择 8 个巡礼点；请求仅由用户生成路线、手动重算或到站/取消事件触发，按路段串行执行；已生成路线保存在本机供断网继续使用，不进行后台轮询、批量下载、并发抓取或自动重试。项目已按官网建议通过 Matrix 说明这一低频用途，相关记录见 [Transitous 沟通记录](docs/TRANSITOUS_CONTACT_RECORD.md)。如果用户规模或请求模式发生明显变化，发布者必须重新评估负载并再次联系维护者。
-
-## 固定签名与 GitHub Releases
-
-正式 APK 必须始终使用同一把签名私钥。私钥须放在工作区外；Gradle 会拒绝使用项目目录内的 keystore，也会拒绝生成未签名 release APK。
-
-首次创建 keystore 的示例（请自行替换路径和别名，并安全备份）：
-
-```powershell
-keytool -genkeypair -v -keystore C:\keys\anitabi-release.jks -alias anitabi -keyalg RSA -keysize 4096 -validity 10000
-```
-
-本机打包前设置四个环境变量：
-
-```powershell
-$env:ANITABI_STORE_FILE = "C:\keys\anitabi-release.jks"
-$env:ANITABI_STORE_PASSWORD = "your-store-password"
-$env:ANITABI_KEY_ALIAS = "anitabi"
-$env:ANITABI_KEY_PASSWORD = "your-key-password"
-.\gradlew.bat testDebugUnitTest lintRelease assembleRelease
-```
-
-GitHub 仓库需配置以下 Actions Secrets：
-
-- `ANITABI_KEYSTORE_BASE64`：keystore 文件的 Base64 内容。
+- `ANITABI_KEYSTORE_BASE64`
 - `ANITABI_STORE_PASSWORD`
 - `ANITABI_KEY_ALIAS`
 - `ANITABI_KEY_PASSWORD`
+- `ANITABI_GOOGLE_SERVICES_JSON_BASE64`
+- `ANITABI_NAVIGATION_API_KEY`
 
-推送 `v*` tag 后，[发布工作流](.github/workflows/release.yml)会测试、Lint、R8、签名 APK、生成 SHA-256，再创建 GitHub Release。私钥在 runner 的临时目录恢复，不写入工作区或构建产物。
-
-当前签名版与逐项证据见 [v0.2.0 发布验收记录](docs/releases/v0.2.0.md)。
-
-## 隐私与安全
-
-- ORS Key 的密文和 IV 存在应用私有 SharedPreferences，AES-GCM 密钥由 Android Keystore 管理；应用禁用备份和设备迁移。
-- 路线规划或偏航重算时，必要坐标会发送给 ORS；规划或重算公交路线时会发送给 Transitous；地图瓦片从 OpenFreeMap 加载。应用自身不建立遥测或位置日志。
-- 断网后可以沿已保存路线继续导航，但不能重新规划；公共地图只使用正常 HTTP 缓存，不批量下载瓦片。
-- 仅允许 HTTPS，Manifest 禁止明文流量。
-
-安全问题请参考 [SECURITY.md](SECURITY.md)。第三方署名与许可见 [NOTICE.md](NOTICE.md)。
+`v0.2.1-rc.N` 标签会生成正式签名、R8/resource-shrunk 的 GitHub Prerelease；`v0.2.1` 才生成稳定 Release。两者都会执行测试、Release Lint、源码/APK 密钥审计、签名验证和 SHA-256 生成。发布前逐项执行 [发布检查清单](docs/RELEASE_CHECKLIST.md)，证据见 [v0.2.1 RC 验收记录](docs/releases/v0.2.1-rc.1.md)。
 
 ## 已知限制
 
-- Transitous 在日本只覆盖部分地区；无数据时应用会明确提示，不生成猜测路线。
-- 第一版没有完整离线地图、断网重算、实时路况、车道级提示、精确票价或公交全局最优保证。
-- 公交错过班次/严重延误的重算依赖网络与 Transitous 可用性。
-- 公共服务策略和配额可能变化，发布者必须在每次发布前重新核对。
+- 新路线必须联网；断网时只能查看已保存的用户数据和进度。
+- 公交路线只能按相邻两点逐段计算，不提供 Google 原生公交导航；站台信息只显示 Google 上游实际提供的文字。
+- Navigation SDK 要求设备具备可用的 Google Play 服务；无 GMS 时没有 MapLibre/ORS 回退。
+- “无限点”只表示总行程不设产品上限，不表示绕过 Google 单次请求、每日或每月限制。
+- 真实 8–12 点 GNSS 现场路线、长时间 Xiaomi/OEM 后台存活、真实错过班次，以及 v0.2.0 到 v0.2.1 的正式签名真机覆盖安装仍需现场验收。
 
 ## 许可证
 
-项目代码采用 [GNU GPL v3 或更高版本](LICENSE)。第三方代码、地图和数据不因此改为 GPL，仍分别遵守各自许可和服务条款。
+项目自有代码采用 [GNU GPL v3 或更高版本，并附仅针对 Google Navigation/Firebase SDK 链接的窄范围例外](LICENSE)。该例外不改变第三方 SDK、服务或数据自身的条款，也不允许把项目自有代码改为闭源。完整第三方署名见 [NOTICE.md](NOTICE.md)。
