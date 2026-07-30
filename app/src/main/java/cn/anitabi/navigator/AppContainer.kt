@@ -14,12 +14,18 @@ import cn.anitabi.navigator.core.routing.BackendRoadRoutingProvider
 import cn.anitabi.navigator.core.routing.BackendTransitJourneyProvider
 import cn.anitabi.navigator.core.routing.TourPlanner
 import cn.anitabi.navigator.security.AppSettingsStore
+import cn.anitabi.navigator.telemetry.FirebaseTelemetryRuntime
+import cn.anitabi.navigator.telemetry.TelemetryConsentController
 import cn.anitabi.navigator.navigation.AndroidLocationProvider
 
 class AppContainer(context: Context) {
     private val json = ApiHttpClient.defaultJson
     private val database = AnitabiDatabase.create(context)
     val appSettingsStore = AppSettingsStore(context)
+    val telemetryConsentController = TelemetryConsentController(
+        store = appSettingsStore,
+        runtime = FirebaseTelemetryRuntime(context),
+    )
     val locationProvider = AndroidLocationProvider(context)
     private val httpClient = ApiHttpClient(
         userAgentInterceptor = createAppUserAgentInterceptor(),

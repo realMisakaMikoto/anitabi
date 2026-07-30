@@ -829,3 +829,21 @@
 - Full local verification passes 56 JVM tests with zero failures/errors/skips, Android-test Kotlin compilation, Debug Lint with zero findings, Debug APK assembly, tracked-source credential audit, APK content audit, shell syntax checks, CI-placeholder generation in an isolated temporary directory, `git diff --check`, and remote-ref/tree/history checks.
 - No APK was installed on the Xiaomi, and the existing v0.2.0 installation and phone data were not accessed or changed.
 - The exposed Google client key still requires cloud-side rotation/revocation, the new ignored JSON must then be stored as the GitHub Actions encrypted secret, and the GitHub alert must be resolved as revoked. The authenticated Chrome tabs are present, but the ChatGPT Chrome extension times out on every Google Console read or interaction even after the documented new-window recovery retry. Browser safety rules prohibit extracting the user's session through another script; the user has been asked to reinstall/re-enable the Chrome plugin. This task does not falsely claim that the old key is revoked or the alert closed.
+
+## 2026-07-30 - Task 31: separate Analytics and Crashlytics opt-in controls
+
+### Preparation and implementation
+
+- Re-read the complete updated `AGENT.md` and the complete original pasted implementation plan before starting this new task. Used Agent Reach's prescribed Exa route first; when its MCP metadata remained unavailable, used the browser fallback restricted to current official Firebase Android documentation.
+- Confirmed from Firebase's official Analytics guide and Android reference that manifest-default collection can remain off, runtime `setAnalyticsCollectionEnabled` persists the user's override, and `resetAnalyticsData` clears device analytics data and resets the app instance ID. Confirmed from the official Crashlytics guide/reference that runtime collection overrides persist, disabling takes full effect on the next process launch, and `deleteUnsentReports` removes locally queued reports without sending them.
+- Added independently persisted Analytics and Crashlytics consent values, both defaulting to false. Added a runtime controller with injectable interfaces so consent ordering and cleanup behavior can be tested without invoking Firebase.
+- Application startup now reapplies the stored choices before normal UI use and deletes unsent Crashlytics reports whenever Crashlytics consent is absent. Enabling Analytics first resets any pre-consent local analytics state; withdrawing disables collection and resets local analytics data. Enabling Crashlytics first deletes reports created before consent; withdrawing persists the disable override and deletes queued reports immediately.
+- Added separate accessible switches to the About/privacy page. The copy states that both choices are optional and independently withdrawable, excludes coordinates, anime names, search terms, and route bodies, and accurately notes that Crashlytics disablement is fully effective on the next launch.
+- Kept both Firebase manifest defaults disabled and additionally disabled Advertising ID collection and default ad-personalization signals. No custom telemetry event, user ID, coordinate, route body, anime title, or search term is recorded by this task.
+
+### Verification
+
+- The test was added first and initially failed compilation on the absent consent controller/runtime/store types. After implementation, the targeted controller tests and Android-test Kotlin compilation passed.
+- Full local verification passes 59 JVM tests with zero failures/errors/skips, Android-test Kotlin compilation, Debug Lint with zero findings, Debug APK assembly, tracked-source credential audit, APK content audit, and `git diff --check` apart from existing Windows line-ending notices.
+- Added instrumentation coverage proving both consent values default off and persist independently across settings-store instances. It compiles locally; execution remains part of the later API 26/API 37 emulator matrix.
+- No physical phone or installed v0.2.0 application was accessed or changed. The separate exposed-key cloud revocation remains exactly as recorded in Task 30 and is not falsely closed by this telemetry work.

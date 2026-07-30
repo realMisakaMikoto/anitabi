@@ -48,4 +48,23 @@ class AppSettingsStoreMigrationTest {
         assertNull(legacy.getString(AppSettingsStore.LEGACY_ORS_KEY, null))
         assertFalse(legacy.contains(AppSettingsStore.LEGACY_ONBOARDING_COMPLETE))
     }
+
+    @Test
+    fun telemetryConsentDefaultsOffAndPersistsIndependently() {
+        val first = AppSettingsStore(context)
+
+        assertFalse(first.telemetryConsent().analyticsEnabled)
+        assertFalse(first.telemetryConsent().crashlyticsEnabled)
+
+        first.setAnalyticsConsent(true)
+        val second = AppSettingsStore(context)
+        assertTrue(second.telemetryConsent().analyticsEnabled)
+        assertFalse(second.telemetryConsent().crashlyticsEnabled)
+
+        second.setAnalyticsConsent(false)
+        second.setCrashlyticsConsent(true)
+        val third = AppSettingsStore(context)
+        assertFalse(third.telemetryConsent().analyticsEnabled)
+        assertTrue(third.telemetryConsent().crashlyticsEnabled)
+    }
 }

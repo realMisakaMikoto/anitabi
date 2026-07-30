@@ -10,6 +10,11 @@ import okhttp3.OkHttpClient
 class AnitabiApplication : Application(), SingletonImageLoader.Factory {
     val container by lazy { AppContainer(this) }
 
+    override fun onCreate() {
+        super.onCreate()
+        container.telemetryConsentController.applyStoredConsent()
+    }
+
     override fun newImageLoader(context: Context): ImageLoader {
         val imageHttpClient = OkHttpClient.Builder()
             .addInterceptor(createAppUserAgentInterceptor())

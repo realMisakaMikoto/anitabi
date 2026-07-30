@@ -55,6 +55,7 @@ class MainActivity : ComponentActivity() {
                             viewModel = searchViewModel,
                             plannerViewModel = plannerViewModel,
                             navigationViewModel = navigationViewModel,
+                            telemetryConsentController = container.telemetryConsentController,
                         )
                     } else {
                         OnboardingRoute(

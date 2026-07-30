@@ -2,9 +2,11 @@ package cn.anitabi.navigator.security
 
 import android.content.Context
 import androidx.core.content.edit
+import cn.anitabi.navigator.telemetry.TelemetryConsent
+import cn.anitabi.navigator.telemetry.TelemetryConsentStore
 import java.security.KeyStore
 
-class AppSettingsStore(context: Context) {
+class AppSettingsStore(context: Context) : TelemetryConsentStore {
     private val preferences = context.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
 
     init {
@@ -16,6 +18,19 @@ class AppSettingsStore(context: Context) {
 
     fun markOnboardingComplete() {
         preferences.edit(commit = true) { putBoolean(PREFERENCE_ONBOARDING_COMPLETE, true) }
+    }
+
+    override fun telemetryConsent(): TelemetryConsent = TelemetryConsent(
+        analyticsEnabled = preferences.getBoolean(PREFERENCE_ANALYTICS_CONSENT, false),
+        crashlyticsEnabled = preferences.getBoolean(PREFERENCE_CRASHLYTICS_CONSENT, false),
+    )
+
+    override fun setAnalyticsConsent(enabled: Boolean) {
+        preferences.edit(commit = true) { putBoolean(PREFERENCE_ANALYTICS_CONSENT, enabled) }
+    }
+
+    override fun setCrashlyticsConsent(enabled: Boolean) {
+        preferences.edit(commit = true) { putBoolean(PREFERENCE_CRASHLYTICS_CONSENT, enabled) }
     }
 
     private fun migrateLegacyRoutingSettings(context: Context) {
@@ -39,6 +54,8 @@ class AppSettingsStore(context: Context) {
     companion object {
         internal const val PREFERENCES_NAME = "anitabi_settings_v2"
         internal const val PREFERENCE_ONBOARDING_COMPLETE = "onboarding_complete"
+        internal const val PREFERENCE_ANALYTICS_CONSENT = "analytics_consent"
+        internal const val PREFERENCE_CRASHLYTICS_CONSENT = "crashlytics_consent"
         internal const val LEGACY_PREFERENCES_NAME = "secure_routing_settings"
         internal const val LEGACY_ORS_KEY = "ors_key_encrypted"
         internal const val LEGACY_ONBOARDING_COMPLETE = "onboarding_complete"

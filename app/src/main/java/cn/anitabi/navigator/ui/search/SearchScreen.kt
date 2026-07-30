@@ -71,6 +71,7 @@ import cn.anitabi.navigator.ui.planner.PlannerViewModel
 import cn.anitabi.navigator.navigation.NavigationViewModel
 import cn.anitabi.navigator.ui.navigation.NavigationRoute
 import cn.anitabi.navigator.ui.about.AboutScreen
+import cn.anitabi.navigator.telemetry.TelemetryConsentController
 import coil3.compose.AsyncImage
 
 @Composable
@@ -78,6 +79,7 @@ fun SearchRoute(
     viewModel: SearchViewModel,
     plannerViewModel: PlannerViewModel,
     navigationViewModel: NavigationViewModel,
+    telemetryConsentController: TelemetryConsentController,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val navigationState by navigationViewModel.state.collectAsStateWithLifecycle()
@@ -96,7 +98,10 @@ fun SearchRoute(
     if (showNavigation) {
         NavigationRoute(viewModel = navigationViewModel, onBack = viewModel::closeNavigation)
     } else if (state.aboutOpen) {
-        AboutScreen(onBack = viewModel::closeAbout)
+        AboutScreen(
+            onBack = viewModel::closeAbout,
+            telemetryConsentController = telemetryConsentController,
+        )
     } else if (state.plannerOpen) {
         PlannerRoute(
             viewModel = plannerViewModel,
