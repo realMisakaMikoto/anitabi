@@ -1395,3 +1395,28 @@
 - No phone was connected, read, installed to, or changed. No SSH connection, VPS mutation, DNS change, Google/Firebase configuration change, credential rotation, tag deletion, history rewrite, stable-release publication, billable route request, or local APK build occurred.
 - No secret, token, raw IP, coordinate, work title, search term, route body, Google/Firebase credential, signing material, VPS credential, password, or SSH state was written to source, Git, documentation, browser forms, or this record.
 - `docs/RELEASE_NOTES_v0.2.1.md` intentionally describes the current RC7 asset because the release workflow reuses it for candidates. Before a future stable `v0.2.1` tag, its RC7 title, prerelease wording, filename, size, and SHA-256 must be replaced with the actual stable artifact details.
+
+## 2026-07-31 - Task 56: RC7 transit acceptance withdrawal and quota/no-route diagnosis
+
+### Preparation and evidence boundary
+
+- Re-read the complete current 1,397-line `AGENT.md` in UTF-8 before starting this new task, then inspected both user-supplied screenshots at original resolution. The screenshots were treated as evidence only; no phone, application state, permission, mock-location setting, network setting, or device configuration was accessed or changed.
+- Performed a read-only trace of the Android navigation/planner paths and the backend quota/Google Routes normalizer. Used current official Google Routes documentation for transit request, timestamp, response, and error semantics. No production SSH connection, VPS read or mutation, Firebase sign-in, Google request, billable operation, credential access, or password use occurred.
+
+### Navigation quota finding
+
+- The exact English text in the first screenshot is the Android client's local `ApiException.QuotaExhausted` message. In this screen it can only arise when `/v1/navigation/reserve` rejects the initial road-navigation destination batch; it is not the Navigation SDK's own quota status and is not a phone-network error.
+- The displayed 18-leg trip attempts to reserve 18 destinations at once. The backend permits only 20 navigation destinations per anonymous UID per UTC day, so any prior successful reservation of at least three destinations makes that 18-destination start fail. The same error code also represents the 900-destination shared monthly ceiling; without reading the production ledger the screenshot cannot prove which scope rejected it, although the 18-of-20 daily interaction is the likely cause after repeated testing.
+- The application publishes `NAVIGATING` and “Google navigation is guiding” before reservation and SDK destination loading complete. On failure it renders the exception's English text verbatim and leaves the prior instruction/progress wording visible even though Google guidance never started. This is a separate state/localization defect, not evidence that navigation continued.
+
+### Transit finding and corrected meaning
+
+- The transit request shape in RC7 uses exactly one origin/destination pair, `TRANSIT`, no intermediate waypoint, and a complete RFC3339 timestamp with seconds. Google's official current window is seven days before through 100 days after the request time; the same-day time shown in the screenshot is valid. An invalid request would map to the separate `INVALID_ARGUMENT` message, not the screenshot's text.
+- “本区域暂无开放公交数据” is a Transitous-era message incorrectly retained during the Google migration. The Android provider emits it only after classifying the request as `NO_ROUTE`. The backend currently classifies both a successful Google response with no routes and any Google HTTP 404 as `NO_ROUTE`, while the Android client can also map an unrecognized backend 404 to the same result. The screenshot therefore supports only “this adjacent pair at this time did not yield a transit route,” not “the region has no transit data.”
+- Transit tours are requested serially per adjacent point pair. One `NO_ROUTE` aborts the complete multi-point plan, so a nearby segment with no useful vehicle itinerary can make an otherwise valid transit tour fail globally. Correct handling needs to distinguish genuine empty-route results from upstream 404 errors and either represent a walking-only connector for that segment or report the exact failed segment; no product fix was implemented without a requested behavior choice.
+
+### Acceptance correction and verification
+
+- Withdrew only the TRANSIT acceptance from `docs/releases/v0.2.1-rc.7.md`; retained the user's confirmed Google map/point, WALK, and DRIVE results. The record explicitly preserves that the user first reported all modes normal and later supplied contradictory transit evidence rather than silently rewriting history.
+- Corrected `README.md` and `docs/RELEASE_NOTES_v0.2.1.md` so they no longer advertise RC7 transit as accepted. Added user-facing explanations for the 20-destination daily navigation limit, the untranslated quota message, the false “guiding” state, and the overbroad transit no-data message.
+- `git diff --check` passes apart from the repository's normal Windows line-ending notices. No application/backend source, APK, tag, Release asset, stable release, quota value, ledger, SSH setting, VPS service, Google/Firebase setting, or phone state changed in this diagnosis.
