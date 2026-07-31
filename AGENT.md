@@ -1365,3 +1365,33 @@
 - No source change, emulator run, backend probe, release rerun, or static inspection can honestly prove visible Google rendering or successful WALK, DRIVE, and TRANSIT behavior on the target phone. Further work without a physical result would create churn rather than advance the requested completion standard.
 - The goal is therefore blocked until either the user reports all four results from the exact public `v0.2.1-rc.7` APK or the authorized Xiaomi 15T Pro becomes physically available for testing. No product, backend, workflow, Release, SSH, VPS, credential, or stable-version change was made in this audit.
 - No secret, token, raw IP, coordinate, work title, search term, route body, Google/Firebase credential, signing material, VPS credential, password, or SSH state was printed, recorded, or changed.
+
+## 2026-07-31 - Task 55: RC7 user acceptance, buggy Release cleanup, and user-facing documentation
+
+### User acceptance and evidence boundary
+
+- Re-read the complete current 1,367-line `AGENT.md` in UTF-8 before starting this task. The user then reported that RC7 was fully normal in their physical test. Updated the RC7 acceptance record only for the explicitly confirmed Google basemap/markers plus WALK, DRIVE, and TRANSIT results.
+- This report closes the three outstanding user-visible failures: the map is visible instead of crashing or falling back, a valid DRIVE route is accepted, and TRANSIT no longer fails parameter validation. It does not prove a particular `adb install -r` procedure, data retention under that exact procedure, lock-screen recovery, rerouting, voice, real GNSS movement, or long-tour batch switching; those claims remain intentionally absent.
+- Stable `v0.2.1` was not published. RC7 remains a non-draft Prerelease and `v0.2.0` remains the Latest stable Release.
+
+### Buggy Release cleanup and retained history
+
+- Inventoried every public Release, tag, attachment, title, status, size, and digest before deletion. The known-buggy set was exactly `v0.2.1-rc.1` through `v0.2.1-rc.6`; each represented a superseded candidate with a reproduced parser, map, rendering, DRIVE, or TRANSIT defect recorded in earlier tasks.
+- Deleted only those six GitHub Release objects and their attached APK/checksum assets. The command-line credential was rejected with HTTP 403 before the first deletion, so no partial CLI mutation occurred; deletion was completed through the already-authenticated GitHub browser. No credential value was printed or recorded.
+- Deliberately retained the six annotated Git tags and their commits for audit and source recovery. Final authoritative checks show exactly seven public Releases: `v0.1.0` through `v0.1.4`, `v0.2.0`, and `v0.2.1-rc.7`; all RC1-RC7 remote tags still exist.
+- The seven retained Releases still contain exactly fourteen uploaded attachments, one APK and one checksum file per version. Their filenames, sizes, APK digests, checksum contents, draft/prerelease flags, fixed signing-certificate digest, and `v0.2.0` Latest status are unchanged.
+
+### User-facing documentation and publication
+
+- Rewrote `README.md` as a user guide centered on download choice, upgrade behavior, first use, features, GMS/network/individual/shared-quota limits, privacy, and common problems. It clearly distinguishes stable `v0.2.0` from the tested but still prerelease RC7 and no longer asks ordinary users to configure an API Key.
+- Rewrote all seven retained Release bodies in plain user language while preserving historical behavior and immutable APK verification values. Added `docs/BUILD.md` for developer-only setup, corrected the current Firebase/backend/Navigation Key boundary, and updated `SECURITY.md` for the Google/Firebase/VPS architecture without claiming a nonexistent private contact channel.
+- Recorded the user's RC7 result in `docs/releases/v0.2.1-rc.7.md` without expanding the evidence. Independent read-only reviews found no remaining documentation or Release-copy blocker; all relative Markdown links resolve, all retained asset facts match GitHub, tracked-source credential auditing passes, and `git diff --check` passes.
+- Committed the documentation as `3386929e5a0188f742fe44ece76b75a44974c92c`, pushed `codex/release-cleanup-user-docs`, and opened pull request 8 through the authenticated GitHub browser because the command-line credential lacks pull-request mutation scope. PR run `30597781818` passed verify plus API 26 and API 37 emulator jobs before merge.
+- Marked the PR ready only after review, then merged it as `ed6d5ec094823b08222622f7dc54cabb4f877940`. Independent `main` run `30598436083` passed the complete verify job and both API 26/API 37 emulator matrices at that exact commit.
+- Updated the titles and bodies of all seven retained GitHub Releases through the authenticated browser. A final API comparison confirmed every remote body equals its local Release-note source after newline normalization, every title matches the user-facing title, and all Release flags and attachments remain correct.
+
+### Safety and future boundary
+
+- No phone was connected, read, installed to, or changed. No SSH connection, VPS mutation, DNS change, Google/Firebase configuration change, credential rotation, tag deletion, history rewrite, stable-release publication, billable route request, or local APK build occurred.
+- No secret, token, raw IP, coordinate, work title, search term, route body, Google/Firebase credential, signing material, VPS credential, password, or SSH state was written to source, Git, documentation, browser forms, or this record.
+- `docs/RELEASE_NOTES_v0.2.1.md` intentionally describes the current RC7 asset because the release workflow reuses it for candidates. Before a future stable `v0.2.1` tag, its RC7 title, prerelease wording, filename, size, and SHA-256 must be replaced with the actual stable artifact details.
