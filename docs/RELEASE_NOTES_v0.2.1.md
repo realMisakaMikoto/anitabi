@@ -4,9 +4,9 @@ v0.2.1 将地图、道路导航和路线规划迁移到 Google 服务，并加�
 
 ## 公共交通支持范围
 
-**本版本不支持中国大陆、日本和印度的公共交通路线。原因是当前使用的 Google API 无法提供本应用在这些地区所需的公交数据，并非 Anitabi 主动屏蔽；短期内 Anitabi 也不计划另外接入第三方公交数据源。**
+**本版本不支持中国大陆、日本和印度的公共交通路线。原因是当前使用的 Google API 无法提供本应用在这些地区所需的公交数据，并非本项目主动屏蔽；本项目（巡礼手帖）短期内也不计划另外接入第三方公交数据源。**
 
-消费版 Google 地图与开发者 Routes API 的数据范围并不相同。Google 的[官方说明](https://developers.google.com/maps/faq#transit_directions_countries)明确排除日本的 Transit 合作方和印度铁路 IRCTC；中国大陆也无法通过本应用当前的 Google API 路径取得可用公交结果。即使 Google 地图能够显示当地公交，本应用也不一定能够取得相同结果。在上述地区请使用 Google 地图或当地交通应用查询公共交通。
+消费版 Google 地图与开发者 Routes API 的数据范围并不相同。Google 的[官方说明](https://developers.google.com/maps/faq#transit_directions_countries)明确列出的例外是日本的 Transit 合作方和印度铁路 IRCTC；结合本项目当前 Google API 路径的实际能力，中国大陆和印度整体也无法取得本应用所需的可用公交结果。即使 Google 地图能够显示当地公交，本应用也不一定能够取得相同结果。在上述地区请使用 Google 地图或当地交通应用查询公共交通。
 
 其他地区的公交结果仍取决于 Google Routes API 的实际数据和服务可用性；应用不会把全步行路线伪装成公交路线。
 
