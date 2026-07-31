@@ -1500,3 +1500,51 @@
 - Every task-created local helper file and every corresponding remote temporary helper was deleted. The user-owned untracked attachment directory was not modified or staged.
 - The backend upgrade is complete and now reports Google's Japanese empty result honestly, but application-internal Japanese transit cannot pass acceptance through Routes API because Google explicitly excludes Japanese transit partners. The remaining product choice is material: preserve an all-Google stack and hand Japanese transit segments to the consumer Google Maps application, or select a separate legally supported Japanese transit provider for in-app route details. No Android fallback, APK, RC8, stable release, Google project setting, API key, phone, or public Release was changed in this task.
 - No secret, token, raw IP, coordinate, exact/user-specific/probe-specific location or address, work title, search term, route body, response body, Google/Firebase credential, signing material, VPS credential, password, sensitive SSH value, credential, or configuration content was recorded in source or this audit entry.
+
+## 2026-07-31 - Task 60: truthful transit handling, recovery hardening, and production rate-limit update
+
+### Diagnosis and product boundary
+
+- Re-read the complete current 1,503-line `AGENT.md` in UTF-8 before starting this task. Rechecked the current official Google Maps Platform transit FAQ and kept two distinct findings explicit: the application had real correctness defects, while Routes API separately excludes Google Transit partners in Japan even though the consumer Google Maps application can display Japanese transit.
+- Confirmed the Android client could accept an all-walking fallback or an empty-step nontrivial response as transit, so a successful-looking itinerary did not necessarily prove that Google returned a public-transport leg. Also found cancellation, stale-callback, persistence-order, and local rate-limit interactions that could produce misleading state or make long pairwise plans fail.
+- No new Google route or matrix request was sent for this diagnosis. The bounded production evidence and billing count from Task 59 remain historical evidence and were not repeated.
+
+### Android and backend corrections
+
+- Nontrivial transit itineraries now require at least one genuine transit leg. Empty transit steps are rejected, and only an exact same-coordinate zero-duration connector may become a walking connector. An all-walking sequence can no longer be presented as public transport.
+- Made the Android HTTP call cancellable through response-body reading. Planning and point reordering now use generation cancellation, while Navigation service callbacks, cleanup, rollback, and successor starts are generation-gated so stale work cannot overwrite or stop a newer session.
+- The repository now persists navigation progress before publishing its memory cache, retains exact same-process progress, evicts stale route/progress state when saving an unresolved tour, and preserves completed progress when a recoverable route refresh fails.
+- The backend now treats only a strictly empty successful object with an omitted repeated `routes` field as `NO_ROUTE`; nonempty malformed responses are upstream failures. Only the local token bucket emits a trusted one-second `Retry-After`, and the client retries that specific local limit once before pacing subsequent requests. Quota, upstream, and unclassified rate limits are not silently retried.
+- Updated active documentation and the draft pull-request description to distinguish fixed application bugs from the Japanese Routes API product boundary. Updated emulator CI to verify the persisted recoverable state instead of assuming one exact screen after process restart.
+
+### Verification, deployment, and publication boundary
+
+- Full Android verification passed: 121 JVM tests in 25 suites with zero failures, errors, or skips; Debug Lint; Debug APK; Debug androidTest APK; tracked-source credential audit; Debug APK content audit; and `git diff --check`.
+- Backend verification passed: all 29 tests, TypeScript build, and the production dependency audit with zero vulnerabilities. Independent final review found no remaining actionable high- or medium-priority correctness issue in the task diff.
+- Committed the implementation as `0902e484c9d6e8745febea665c0a2c293839cf14` and the recovery-CI correction as `9f3750f273f41125144a2f45dae3d19e6b3c8818`, then pushed `codex/google-maps-transit-ux`. The first implementation run exposed only an over-narrow recovery-screen CI assertion; after correcting the assertion and adding a persisted-state check, GitHub Actions run `30622071853` passed backend, verify, API 26 emulator, and API 37 emulator jobs.
+- Deployed the exact tested backend tree from the implementation commit after source precondition checks and a consistent quota backup. Preserved both source and image rollback artifacts, rebuilt only the API container, and verified loopback/public health, HTTPS headers and certificate, non-root/read-only container constraints, backup health, strict log keys, unchanged unrelated restart counts, and unaffected personal sites. No billable Google route request was used for deployment verification.
+- Updated draft pull request 10 with the final fixes, test counts, deployment evidence, official Japanese-transit limitation, and explicit non-release boundary. The pull request remains draft. No RC8, stable release, tag, Release asset, phone installation, phone access, Google/Firebase project change, DNS change, Nginx change, SSH setting change, firewall change, password change, quota reset, or unrelated service change occurred.
+- Removed and verified deletion of all task-created local credential helpers and downloaded CI diagnostic directories. A final temporary-directory audit also found and removed two stale task-created RC6 evidence directories totaling approximately 72 MB. The user-owned attachment directory remained untracked and untouched; the local system drive had approximately 43 GiB free at the final check.
+- No secret, token, raw IP, coordinate, exact location or address, work title, search term, route body, response body, Google/Firebase credential, signing material, VPS credential, password, or sensitive SSH value was written to source, Git, documentation, browser forms, logs, or this record.
+
+### Remaining blocker
+
+- The correctness and recovery defects found in this round are fixed and verified, but application-internal Japanese public-transit acceptance is still impossible through the selected Routes API because Google's documented product boundary excludes transit partners in Japan. Completing the product requires a material user/product choice: hand Japanese transit segments to the consumer Google Maps application, or approve a separate legally sustainable Japanese transit provider for in-app details.
+- The same external product-choice blocker has now recurred across more than three consecutive goal turns. The goal is therefore intentionally set to blocked after this task rather than publishing a fake Japanese-transit acceptance or an RC/stable build with a known unmet completion criterion.
+
+## 2026-07-31 - Task 61: signed release build and pull-request submission
+
+### Preparation and scope
+
+- Re-read the complete current 1,533-line `AGENT.md` in UTF-8 before starting this new task. Interpreted the user's request as building a production-signed `release` APK from the existing v0.2.1 branch and submitting the existing pull request for review, not creating a tag, publishing a GitHub Release, merging the pull request, or installing the APK on a phone.
+- Audited the worktree and pull-request scope before staging. The branch and remote initially matched at `9f3750f273f41125144a2f45dae3d19e6b3c8818`; the only project change was Task 60's audit record, while the user-owned `.codex-remote-attachments/` directory remained untracked and outside the submission scope.
+- Confirmed `versionCode=7`, `versionName=0.2.1`, API 26 minimum, API 37 target, the ignored real Firebase configuration, the ignored Navigation SDK key, and the fixed external RSA-4096 signing material. No version bump was needed for this build.
+
+### Signed local release evidence
+
+- Decrypted the existing store and key passwords only inside one temporary PowerShell/Gradle process through Windows user-scoped DPAPI, passed all signing values only through that child process environment, and cleared those environment variables in a `finally` block. No password, API key, Firebase value, keystore content, or other secret was printed, copied into the repository, or written to this record.
+- Ran `testDebugUnitTest`, `lintRelease`, and `assembleRelease` while excluding only the local Crashlytics mapping upload. The signed build completed successfully. The JVM report contains 121 tests in 25 suites with zero failures, errors, or skips. Release Lint has zero errors and zero warnings; its four remaining entries are non-blocking Compose integer-state performance hints.
+- The tracked-source credential audit, Navigation SDK Release R8 reflection audit, and Release APK content audit all passed against the newly generated outputs.
+- The ignored local artifact is `app/build/outputs/apk/release/app-release.apk`, 49,058,377 bytes, SHA-256 `76ed1a64a4bb4bcac5618f9e15706a2f80e58f61971d7a3ddddb123520b90161`. Package inspection reports `cn.anitabi.navigator`, version code 7, version name 0.2.1, minimum SDK 26, and target SDK 37.
+- Independent `apksigner` verification reports APK Signature Scheme v2, one RSA-4096 signer, and certificate SHA-256 `9679c83769368c7150f629d9cba3c0e5d633fa7f1043ce251fdba6c7c64fb00a`, exactly matching the fixed public v0.2.0 signing identity. The APK remains an ignored local build product and is not committed to Git.
+- The build did not start an emulator, Docker, Firebase sign-in, Google route request, VPS request, SSH session, phone interaction, tag, public Release, or installation. Approximately 42 GiB of system-drive space remained available after the build.
