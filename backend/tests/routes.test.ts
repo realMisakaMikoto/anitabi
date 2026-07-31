@@ -338,7 +338,7 @@ test("successful response with an empty routes array is a no-route result", asyn
   );
 });
 
-test("successful malformed response without a routes array is unavailable", async () => {
+test("successful response with an omitted empty routes field is a no-route result", async () => {
   const client = new GoogleRoutesClient({
     projectId: "anitabi-test",
     oauth,
@@ -347,13 +347,13 @@ test("successful malformed response without a routes array is unavailable", asyn
 
   await assert.rejects(
     client.route({
-      mode: "WALK",
+      mode: "TRANSIT",
       locations: [
         { latitude: 35, longitude: 139 },
         { latitude: 35.1, longitude: 139.1 },
       ],
     }),
-    hasCode("UPSTREAM_UNAVAILABLE"),
+    hasCode("NO_ROUTE"),
   );
 });
 

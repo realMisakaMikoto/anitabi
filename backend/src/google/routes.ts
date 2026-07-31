@@ -124,6 +124,9 @@ export class GoogleRoutesClient implements RoutesProvider {
 
     const payload = await this.postJson(GOOGLE_ROUTE_URL, ROUTE_FIELD_MASK, body);
     const routes = getRecord(payload)["routes"];
+    // ProtoJSON omits empty repeated fields. Google therefore represents some
+    // successful no-route responses as an empty object instead of routes: [].
+    if (routes === undefined) throw new ApiError("NO_ROUTE");
     if (!Array.isArray(routes)) throw new ApiError("UPSTREAM_UNAVAILABLE");
     if (routes.length === 0) throw new ApiError("NO_ROUTE");
     return normalizeRoute(routes[0]);
