@@ -227,7 +227,13 @@ jobs:
           sleep 5
           timeout 30 adb shell uiautomator dump /sdcard/recovery-restart.xml || true
           adb pull /sdcard/recovery-restart.xml smoke-output/recovery-restart.xml || true
-          grep -q "搜索 Bangumi" smoke-output/recovery-restart.xml
+          if grep -q "Runtime Smoke Tour" smoke-output/recovery-restart.xml; then
+            grep -q "路线暂时无法刷新" smoke-output/recovery-restart.xml
+            grep -q "Runtime Start" smoke-output/recovery-restart.xml
+            grep -q "已完成" smoke-output/recovery-restart.xml
+          else
+            grep -q "搜索 Bangumi" smoke-output/recovery-restart.xml
+          fi
           adb exec-out screencap -p > smoke-output/recovery-restart.png
           adb shell am instrument -w \
             -e class 'cn.anitabi.navigator.navigation.NavigationRuntimeInstrumentedTest#verifyFailedProcessRecoveryState' \
