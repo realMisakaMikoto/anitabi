@@ -15,6 +15,16 @@ for required_file in "$mapping_file" "$seeds_file" "$usage_file" "$configuration
   fi
 done
 
+contains_exact_line() {
+  local expected="$1"
+  local file="$2"
+  awk -v expected="$expected" '
+    { sub(/\r$/, "") }
+    $0 == expected { found = 1; exit }
+    END { exit(found ? 0 : 1) }
+  ' "$file"
+}
+
 mapping_header="$class_name -> $class_name:"
 if ! grep -Fqx "$mapping_header" "$mapping_file"; then
   echo "Navigation map creator class name was not retained by R8" >&2
@@ -47,6 +57,106 @@ removed_constructor="$({
 } || true)"
 if [[ -n "$removed_constructor" ]]; then
   echo "Navigation map creator constructor was removed by R8" >&2
+  exit 1
+fi
+
+shader_program_classes=(
+  'com.google.android.libraries.geo.mapcore.internal.legacy.internal.vector.gl.ClientLineLiteShaderState$ClientInjectedStrokeLiteShader'
+  'com.google.android.libraries.geo.mapcore.internal.legacy.internal.vector.gl.ClientLineStampShaderState$ClientInjectedStrokeShader'
+  'com.google.android.libraries.geo.mapcore.internal.legacy.internal.vector.gl.RoadStrokePointSpriteShaderState$StrokeShaderProgram'
+  'com.google.android.libraries.geo.mapcore.internal.legacy.internal.vector.gl.RoadStrokeShaderState$RoadShaderProgram'
+  'com.google.android.libraries.geo.mapcore.internal.legacy.vector.gl.drawable.GmmConfigurableTextureStyleIdShaderState$GmmConfigurableTextureStyleIdShaderProgram'
+  'com.google.android.libraries.geo.mapcore.internal.legacy.vector.gl.drawable.GmmStyleIdShaderState$GmmStyleIdShaderProgram'
+  'com.google.android.libraries.geo.mapcore.internal.legacy.vector.gl.drawable.GmmStyleTextureShaderState$StyleTextureShaderProgram'
+  'com.google.android.libraries.geo.mapcore.internal.legacy.vector.gl.drawable.GmmTextureStyleIdShaderState$GmmTextureStyleIdShaderProgram'
+  'com.google.android.libraries.geo.mapcore.internal.legacy.vector.gl.drawable.PointGeometryShaderState$PointGeometryShaderProgram'
+  'com.google.android.libraries.geo.mapcore.renderer.DefaultShaderState$DefaultShaderProgram'
+  'com.google.android.libraries.geo.mapcore.renderer.FrameTimeOverlay$FrameTimeOverlayShaderProgram'
+  'com.google.android.libraries.geo.mapcore.renderer.TextureShaderState$TextureShaderProgram'
+)
+
+shader_class_list="$(printf '%s\n' "${shader_program_classes[@]}")"
+shader_mapping_failures="$(
+  awk -v class_list="$shader_class_list" '
+    BEGIN {
+      class_count = split(class_list, classes, "\n")
+      for (i = 1; i <= class_count; i++) {
+        expected[classes[i]] = 1
+      }
+    }
+    {
+      sub(/\r$/, "")
+    }
+    /^[^[:space:]#]/ {
+      current = ""
+      class_name = $0
+      sub(/ -> .*/, "", class_name)
+      if (class_name in expected && $0 == class_name " -> " class_name ":") {
+        retained[class_name] = 1
+        current = class_name
+      }
+      next
+    }
+    current != "" && /void <init>\(\).* -> <init>$/ {
+      constructor[current] = 1
+    }
+    END {
+      for (i = 1; i <= class_count; i++) {
+        class_name = classes[i]
+        if (!(class_name in retained)) {
+          print "class name not retained: " class_name
+        } else if (!(class_name in constructor)) {
+          print "zero-argument constructor absent: " class_name
+        }
+      }
+    }
+  ' "$mapping_file"
+)"
+if [[ -n "$shader_mapping_failures" ]]; then
+  echo "Navigation shader program R8 mapping audit failed:" >&2
+  echo "$shader_mapping_failures" >&2
+  exit 1
+fi
+
+for shader_class in "${shader_program_classes[@]}"; do
+  shader_constructor_name="${shader_class##*.}"
+  if ! contains_exact_line "$shader_class: $shader_constructor_name()" "$seeds_file"; then
+    echo "Navigation shader program constructor is not an R8 seed: $shader_class" >&2
+    exit 1
+  fi
+
+  if contains_exact_line "$shader_class" "$usage_file"; then
+    echo "Navigation shader program class was removed by R8: $shader_class" >&2
+    exit 1
+  fi
+
+  removed_shader_constructor="$({
+    awk -v header="$shader_class:" '
+      { sub(/\r$/, "") }
+      $0 == header { inside = 1; next }
+      inside && $0 !~ /^[[:space:]]/ { inside = 0 }
+      inside && $0 ~ /^[[:space:]]+(public[[:space:]]+|protected[[:space:]]+|private[[:space:]]+)?void <init>\(\)$/ { print }
+    ' "$usage_file"
+  } || true)"
+  if [[ -n "$removed_shader_constructor" ]]; then
+    echo "Navigation shader program constructor was removed by R8: $shader_class" >&2
+    exit 1
+  fi
+done
+
+shader_keep_rule="$({
+  awk '
+    { sub(/\r$/, "") }
+    $0 == "-keepclasseswithmembers class * extends com.google.android.libraries.geo.mapcore.renderer.ej {" {
+      inside = 1
+      next
+    }
+    inside && $0 == "}" { exit }
+    inside { print }
+  ' "$configuration_file"
+} || true)"
+if ! grep -Eq '^[[:space:]]*<init>\(\);[[:space:]]*$' <<<"$shader_keep_rule"; then
+  echo "Missing Navigation shader-program reflection rule" >&2
   exit 1
 fi
 

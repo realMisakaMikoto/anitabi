@@ -36,6 +36,8 @@ v0.2.1 将地图、道路导航和路线规划全面迁移到 Google，并通过
 
 `v0.2.1-rc.N` 是正式签名预发布候选，不是稳定版。RC2 修复异常 Anitabi 可选字段与多作品联合选择；RC3 修复 Navigation SDK 与 R8 类合并造成的正式版崩溃。RC3 随后在另一台真机暴露地图工厂未初始化崩溃。RC4 删除客户端位图标记工厂依赖并在地图操作失败时安全回退到列表，但 Xiaomi 15T Pro 复验确认真实地图仍未出现。RC5 尝试在创建 `NavigationView` 前调用 `MapsInitializer`；精确公开 APK 的模拟器兼容门禁通过，但 Xiaomi 15T Pro 首次打开和重试仍只进入列表回退。后续核对官方 Navigation SDK 参考及 7.8.0 字节码确认该 API 对 Navigation SDK 不适用，且 RC5 Release R8 产物删除了动态 `CreatorImpl` 的反射无参构造，因此 RC5 不得晋升稳定版。后续候选必须移除该错误提前调用、窄保留反射构造器，并同时修复地图视图尚未完成布局时执行边界相机更新的竞态；只有真实底图、点位和最小两点路线真机验收通过后，才能继续稳定版发布。
 
-RC6 移除不适用于 Navigation SDK 的外部 `MapsInitializer` 调用，窄保留并自动审计动态地图创建器的公开无参构造，按真实视图附着、生命周期和正尺寸布局顺序启动 `NavigationView`，并把相机边界失败与地图运行时失败分离。它还修复 Google Routes 合法响应省略 protobuf 零值时被误判为驾车服务不可用，以及秒数为零的公交出发时间缺少 `:00`、在到达 Google 前被后端参数校验拒绝的问题。RC6 仍须通过精确公开 APK 的 Xiaomi 底图、点位、步行、驾车与公交真机门禁，未通过前不得晋升稳定版。
+RC6 移除不适用于 Navigation SDK 的外部 `MapsInitializer` 调用，窄保留并自动审计动态地图创建器的公开无参构造，按真实视图附着、生命周期和正尺寸布局顺序启动 `NavigationView`，并把相机边界失败与地图运行时失败分离。它还修复 Google Routes 合法响应省略 protobuf 零值时被误判为驾车服务不可用，以及秒数为零的公交出发时间缺少 `:00`、在到达 Google 前被后端参数校验拒绝的问题。精确公开 RC6 在 Xiaomi 地图复验时因 R8 删除 Navigation SDK 渲染器反射创建的着色器无参构造而发生 `GL-Map` 致命崩溃，因此不得晋升稳定版；地图门禁失败后未发送路线请求。
+
+RC7 针对该确定性根因新增最小 R8 规则，保留 Navigation SDK 7.8.0 中 12 个相关着色器子类的无参构造，并把 12/12 类名、构造、构造器 seed、删除报告和最终规则检查固化到 Release 审计。它不混入独立的地图生命周期改造；只有正式签名公开 APK 在 Xiaomi 上真实显示底图与点位，并通过最小 WALK、DRIVE 和 TRANSIT 真机门禁后，才能继续稳定版发布。
 
 许可证：GPL-3.0-or-later，并附 `LICENSE` 中仅针对 Google Navigation/Firebase SDK 的窄范围链接例外。第三方服务与数据署名见 `NOTICE.md`。

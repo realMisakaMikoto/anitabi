@@ -11,3 +11,10 @@
 -keepclassmembers class com.google.android.gms.maps.internal.CreatorImpl {
     public <init>();
 }
+
+# The Navigation SDK map renderer creates shader programs with
+# Class.newInstance(). Its embedded rules allow mapcore members to be shrunk,
+# so retain the zero-argument constructors reached only through reflection.
+-keepclasseswithmembers class * extends com.google.android.libraries.geo.mapcore.renderer.ej {
+    <init>();
+}
