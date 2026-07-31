@@ -2,6 +2,8 @@ package cn.anitabi.navigator.data.network.backend
 
 import cn.anitabi.navigator.core.model.GeoPoint
 import cn.anitabi.navigator.core.model.RouteObjective
+import cn.anitabi.navigator.core.model.TransitRoutingPreference
+import cn.anitabi.navigator.core.model.TransitTravelMode
 import cn.anitabi.navigator.core.model.TravelMode
 import cn.anitabi.navigator.data.auth.IdTokenProvider
 import cn.anitabi.navigator.data.network.ApiException
@@ -45,10 +47,24 @@ class BackendApi(
         mode: TravelMode,
         locations: List<GeoPoint>,
         departureTime: String? = null,
+        arrivalTime: String? = null,
+        transitRoutingPreference: TransitRoutingPreference = TransitRoutingPreference.RECOMMENDED,
+        transitTravelModes: Set<TransitTravelMode> = emptySet(),
     ): BackendRouteResponse {
         require(locations.size in 2..12) { "Route requires 2 to 12 locations" }
         require(mode != TravelMode.TRANSIT || locations.size == 2) {
             "Transit routes require exactly two locations"
+        }
+        require(departureTime == null || arrivalTime == null) {
+            "A route cannot specify both departure and arrival time"
+        }
+        require(
+            mode == TravelMode.TRANSIT ||
+                (departureTime == null && arrivalTime == null &&
+                    transitRoutingPreference == TransitRoutingPreference.RECOMMENDED &&
+                    transitTravelModes.isEmpty()),
+        ) {
+            "Transit time and routing preferences require transit mode"
         }
         return post(
             path = "v1/route",
@@ -56,6 +72,14 @@ class BackendApi(
                 mode = mode.backendName(),
                 locations = locations.map(GeoPoint::toBackendCoordinate),
                 departureTime = departureTime,
+                arrivalTime = arrivalTime,
+                transitRoutingPreference = transitRoutingPreference
+                    .takeUnless { it == TransitRoutingPreference.RECOMMENDED }
+                    ?.name,
+                transitTravelModes = transitTravelModes
+                    .sortedBy(TransitTravelMode::ordinal)
+                    .map(TransitTravelMode::name)
+                    .takeIf(List<String>::isNotEmpty),
             ),
             serializer = BackendRouteRequest.serializer(),
             deserializer = BackendRouteResponse.serializer(),
@@ -106,7 +130,7 @@ class BackendApi(
             else -> when (status) {
                 400 -> ApiException.InvalidArgument()
                 401 -> ApiException.Unauthenticated()
-                404 -> ApiException.NoRoute()
+                404 -> ApiException.UpstreamUnavailable()
                 429 -> ApiException.RateLimited()
                 503 -> ApiException.BackendUnavailable()
                 else -> ApiException.Http(status)
@@ -148,6 +172,9 @@ data class BackendRouteRequest(
     val mode: String,
     val locations: List<BackendCoordinate>,
     val departureTime: String? = null,
+    val arrivalTime: String? = null,
+    val transitRoutingPreference: String? = null,
+    val transitTravelModes: List<String>? = null,
 )
 
 @Serializable
@@ -200,6 +227,8 @@ data class BackendTransitDetails(
     val arrivalStop: String? = null,
     val departureTime: String? = null,
     val arrivalTime: String? = null,
+    val departureTimeZone: String? = null,
+    val arrivalTimeZone: String? = null,
     val lineName: String? = null,
     val lineShortName: String? = null,
     val headsign: String? = null,

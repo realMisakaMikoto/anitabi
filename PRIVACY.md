@@ -10,7 +10,7 @@ Google 路线矩阵、路线、折线、步骤、预计时间和公交详情仅�
 
 ## 路线请求
 
-规划或刷新路线时，应用会将完成请求所需的坐标、出行模式、优化目标和出发时间经 HTTPS 发送到项目自建 API。Android 使用 Firebase Anonymous Auth 获取匿名 ID Token；不需要提供邮箱、姓名或密码。
+规划或刷新路线时，应用会将完成请求所需的坐标、出行模式、优化目标、出发或到达时间以及公交偏好经 HTTPS 发送到项目自建 API。Android 使用 Firebase Anonymous Auth 获取匿名 ID Token；不需要提供邮箱、姓名或密码。
 
 自建 API 验证匿名 Token 后，通过服务器端 Google 服务账号调用固定的 Google Routes 上游。服务账号私钥不会进入 APK。服务器不缓存 Google 矩阵、路线、折线、步骤或公交正文。
 

@@ -23,6 +23,7 @@ export type AppDependencies = Readonly<{
   rateLimiter: TokenBucketLimiter;
   logger: SafeLogger;
   allowInsecureForTests?: boolean;
+  nowMillis?: () => number;
 }>;
 
 export function buildApp(dependencies: AppDependencies): FastifyInstance {
@@ -89,6 +90,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
       if (request.body.mode === "TRANSIT" && request.body.locations.length !== 2) {
         throw new ApiError("INVALID_ARGUMENT");
       }
+      validateTransitTimeWindow(request.body, dependencies.nowMillis?.() ?? Date.now());
       dependencies.quota.reserve({ bucket: "route", units: 1, uid });
       return dependencies.routes.route(request.body);
     },
@@ -135,6 +137,22 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   });
 
   return app;
+}
+
+const DAY_MILLIS = 24 * 60 * 60 * 1_000;
+
+function validateTransitTimeWindow(request: RouteRequest, nowMillis: number): void {
+  if (request.mode !== "TRANSIT") return;
+  const value = request.departureTime ?? request.arrivalTime;
+  if (value === undefined) return;
+  const timeMillis = Date.parse(value);
+  if (
+    !Number.isFinite(timeMillis) ||
+    timeMillis < nowMillis - 7 * DAY_MILLIS ||
+    timeMillis > nowMillis + 100 * DAY_MILLIS
+  ) {
+    throw new ApiError("INVALID_ARGUMENT");
+  }
 }
 
 function normalizeError(error: unknown): ApiError {

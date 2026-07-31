@@ -1,8 +1,16 @@
 package cn.anitabi.navigator.ui.planner
 
 import cn.anitabi.navigator.core.model.TravelMode
+import cn.anitabi.navigator.core.model.TransitRoutingPreference
+import cn.anitabi.navigator.core.model.TransitTimeMode
+import cn.anitabi.navigator.core.model.TransitTravelMode
+import java.time.LocalDate
+import java.time.LocalTime
+import java.time.ZoneId
+import java.time.ZonedDateTime
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Test
 
 class PlannerFormattingTest {
@@ -38,5 +46,125 @@ class PlannerFormattingTest {
         assertEquals(notice, googleRouteBetaNotice(TravelMode.BIKE))
         assertNull(googleRouteBetaNotice(TravelMode.DRIVE))
         assertNull(googleRouteBetaNotice(TravelMode.TRANSIT))
+    }
+
+    @Test
+    fun `transit schedule labels follow Google Maps time semantics`() {
+        val today = LocalDate.of(2026, 7, 31)
+
+        assertEquals(
+            "现在出发",
+            transitScheduleLabel(TransitTimeMode.NOW, today, LocalTime.of(12, 36), today),
+        )
+        assertEquals(
+            "今天 12:36 出发",
+            transitScheduleLabel(TransitTimeMode.DEPART_AT, today, LocalTime.of(12, 36), today),
+        )
+        assertEquals(
+            "8月1日 09:00 前到达",
+            transitScheduleLabel(TransitTimeMode.ARRIVE_BY, today.plusDays(1), LocalTime.of(9, 0), today),
+        )
+    }
+
+    @Test
+    fun `transit preference labels are concise`() {
+        assertEquals("最佳路线", transitPreferenceLabel(TransitRoutingPreference.RECOMMENDED))
+        assertEquals("少步行", transitPreferenceLabel(TransitRoutingPreference.LESS_WALKING))
+        assertEquals("少换乘", transitPreferenceLabel(TransitRoutingPreference.FEWER_TRANSFERS))
+    }
+
+    @Test
+    fun `empty transit mode set displays all four Google travel modes`() {
+        assertEquals(allTransitTravelModes.toSet(), selectedTransitTravelModes(emptySet()))
+        assertEquals("全部方式", transitTravelModesLabel(emptySet()))
+        assertEquals(
+            "最佳路线 · 全部方式",
+            transitOptionsSummaryLabel(TransitRoutingPreference.RECOMMENDED, emptySet()),
+        )
+    }
+
+    @Test
+    fun `transit mode toggle normalizes all selected modes back to empty`() {
+        val withoutBus = toggledTransitTravelModes(emptySet(), TransitTravelMode.BUS)
+
+        assertEquals(
+            setOf(TransitTravelMode.SUBWAY, TransitTravelMode.TRAIN, TransitTravelMode.LIGHT_RAIL),
+            withoutBus,
+        )
+        assertEquals(emptySet<TransitTravelMode>(), toggledTransitTravelModes(withoutBus, TransitTravelMode.BUS))
+    }
+
+    @Test
+    fun `transit mode toggle keeps at least one selected`() {
+        val busOnly = setOf(TransitTravelMode.BUS)
+
+        assertEquals(busOnly, toggledTransitTravelModes(busOnly, TransitTravelMode.BUS))
+        assertEquals(
+            "公交、火车",
+            transitTravelModesLabel(setOf(TransitTravelMode.TRAIN, TransitTravelMode.BUS)),
+        )
+    }
+
+    @Test
+    fun `now transit anchor is captured when planning starts`() {
+        val now = ZonedDateTime.of(2026, 7, 31, 12, 36, 0, 0, ZoneId.of("Asia/Shanghai"))
+
+        assertEquals(
+            now,
+            resolveTransitAnchor(
+                mode = TransitTimeMode.NOW,
+                date = LocalDate.of(1970, 1, 1),
+                time = LocalTime.MIDNIGHT,
+                now = now,
+            ),
+        )
+    }
+
+    @Test
+    fun `scheduled transit anchor accepts recent history and rejects outside the Google window`() {
+        val now = ZonedDateTime.of(2026, 7, 31, 12, 36, 0, 0, ZoneId.of("Asia/Shanghai"))
+
+        assertEquals(
+            now.minusMinutes(36),
+            resolveTransitAnchor(TransitTimeMode.DEPART_AT, now.toLocalDate(), LocalTime.NOON, now),
+        )
+        assertThrows(InvalidTransitScheduleException::class.java) {
+            val tooOld = now.minusDays(7).minusMinutes(1)
+            resolveTransitAnchor(TransitTimeMode.DEPART_AT, tooOld.toLocalDate(), tooOld.toLocalTime(), now)
+        }
+        assertThrows(InvalidTransitScheduleException::class.java) {
+            resolveTransitAnchor(
+                TransitTimeMode.ARRIVE_BY,
+                now.toLocalDate().plusDays(101),
+                LocalTime.NOON,
+                now,
+            )
+        }
+    }
+
+    @Test
+    fun `one hundred day transit boundary is compared as an instant across daylight saving`() {
+        val zone = ZoneId.of("America/Los_Angeles")
+        val now = ZonedDateTime.of(2026, 3, 7, 12, 0, 0, 0, zone)
+        val boundary = now.toInstant().plusSeconds(100L * 24 * 60 * 60).atZone(zone)
+
+        assertEquals(
+            boundary,
+            resolveTransitAnchor(
+                TransitTimeMode.DEPART_AT,
+                boundary.toLocalDate(),
+                boundary.toLocalTime(),
+                now,
+            ),
+        )
+        assertThrows(InvalidTransitScheduleException::class.java) {
+            val tooLate = boundary.plusMinutes(1)
+            resolveTransitAnchor(
+                TransitTimeMode.ARRIVE_BY,
+                tooLate.toLocalDate(),
+                tooLate.toLocalTime(),
+                now,
+            )
+        }
     }
 }

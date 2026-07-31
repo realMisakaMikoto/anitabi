@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -16,6 +17,8 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.DirectionsWalk
+import androidx.compose.material.icons.rounded.DirectionsBus
 import androidx.compose.material.icons.rounded.Flag
 import androidx.compose.material.icons.rounded.MyLocation
 import androidx.compose.material3.Button
@@ -121,6 +124,7 @@ fun NavigationRoute(viewModel: NavigationViewModel, onBack: (String?) -> Unit) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(Color(0xFFFFFCF7))
+                    .navigationBarsPadding()
                     .padding(18.dp),
             ) {
                 val activeLeg = plan.legs.getOrNull(state.progress?.legIndex ?: 0)
@@ -166,15 +170,31 @@ fun NavigationRoute(viewModel: NavigationViewModel, onBack: (String?) -> Unit) {
                 )
                 if (plan.mode == TravelMode.TRANSIT) {
                     val transit = activeLeg?.transit
-                    Text(
-                        text = buildString {
-                            append("换乘段 ${(state.progress?.legIndex ?: 0) + 1}/${plan.legs.size}")
-                            transit?.line?.let { append(" · $it") }
-                            transit?.direction?.let { append(" · 开往 $it") }
-                        },
-                        fontWeight = FontWeight.Bold,
+                    val isWalkingConnector = activeLeg?.mode == TravelMode.WALK
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.padding(top = 10.dp),
-                    )
+                    ) {
+                        Icon(
+                            imageVector = if (isWalkingConnector) {
+                                Icons.AutoMirrored.Rounded.DirectionsWalk
+                            } else {
+                                Icons.Rounded.DirectionsBus
+                            },
+                            contentDescription = null,
+                            tint = Vermilion,
+                        )
+                        Text(
+                            text = buildString {
+                                append(if (isWalkingConnector) "步行接驳" else "公交行程")
+                                append(" ${(state.progress?.legIndex ?: 0) + 1}/${plan.legs.size}")
+                                transit?.line?.let { append(" · $it") }
+                                transit?.direction?.let { append(" · 开往 $it") }
+                            },
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(start = 8.dp),
+                        )
+                    }
                     if (transit?.departureStop != null || transit?.arrivalStop != null) {
                         Text(
                             listOfNotNull(transit.departureStop, transit.arrivalStop).joinToString(" → "),

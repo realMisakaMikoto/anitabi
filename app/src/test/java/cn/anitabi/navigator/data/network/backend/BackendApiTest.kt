@@ -2,6 +2,8 @@ package cn.anitabi.navigator.data.network.backend
 
 import cn.anitabi.navigator.core.model.GeoPoint
 import cn.anitabi.navigator.core.model.RouteObjective
+import cn.anitabi.navigator.core.model.TransitRoutingPreference
+import cn.anitabi.navigator.core.model.TransitTravelMode
 import cn.anitabi.navigator.core.model.TravelMode
 import cn.anitabi.navigator.data.auth.IdTokenProvider
 import cn.anitabi.navigator.data.network.ApiException
@@ -79,7 +81,69 @@ class BackendApiTest {
         val body = server.takeRequest().body.readUtf8()
         assertTrue(body.contains("\"mode\":\"TRANSIT\""))
         assertTrue(body.contains("\"departureTime\":\"2026-07-29T09:00:00+09:00\""))
+        assertTrue(!body.contains("transitTravelModes"))
         assertEquals(2, Regex("\"latitude\"").findAll(body).count())
+    }
+
+    @Test
+    fun `transit route sends arrival time and fewer transfers preference`() = runBlocking {
+        server.enqueue(
+            MockResponse().setBody(
+                """{"distanceMeters":1000,"durationSeconds":600,"legs":[{"distanceMeters":1000,"durationSeconds":600,"steps":[]}]}""",
+            ),
+        )
+
+        api.route(
+            mode = TravelMode.TRANSIT,
+            locations = listOf(GeoPoint(35.0, 139.0), GeoPoint(35.1, 139.1)),
+            arrivalTime = "2026-07-29T18:00:00+09:00",
+            transitRoutingPreference = TransitRoutingPreference.FEWER_TRANSFERS,
+            transitTravelModes = setOf(TransitTravelMode.TRAIN, TransitTravelMode.BUS),
+        )
+
+        val body = server.takeRequest().body.readUtf8()
+        assertTrue(body.contains("\"arrivalTime\":\"2026-07-29T18:00:00+09:00\""))
+        assertTrue(body.contains("\"transitRoutingPreference\":\"FEWER_TRANSFERS\""))
+        assertTrue(body.contains("\"transitTravelModes\":[\"BUS\",\"TRAIN\"]"))
+        assertTrue(!body.contains("departureTime"))
+    }
+
+    @Test
+    fun `bare HTTP 404 is a service failure rather than no transit route`() {
+        server.enqueue(MockResponse().setResponseCode(404).setBody("not a backend error envelope"))
+
+        val exception = runCatching {
+            runBlocking {
+                api.route(
+                    mode = TravelMode.TRANSIT,
+                    locations = listOf(GeoPoint(35.0, 139.0), GeoPoint(35.1, 139.1)),
+                    departureTime = "2026-07-29T09:00:00+09:00",
+                )
+            }
+        }.exceptionOrNull()
+
+        assertTrue(exception is ApiException.UpstreamUnavailable)
+    }
+
+    @Test
+    fun `stable NO_ROUTE envelope is the only 404 treated as no route`() {
+        server.enqueue(
+            MockResponse().setResponseCode(404).setBody(
+                """{"error":{"code":"NO_ROUTE","message":"No route is available."}}""",
+            ),
+        )
+
+        val exception = runCatching {
+            runBlocking {
+                api.route(
+                    mode = TravelMode.TRANSIT,
+                    locations = listOf(GeoPoint(35.0, 139.0), GeoPoint(35.1, 139.1)),
+                    departureTime = "2026-07-29T09:00:00+09:00",
+                )
+            }
+        }.exceptionOrNull()
+
+        assertTrue(exception is ApiException.NoRoute)
     }
 
     @Test

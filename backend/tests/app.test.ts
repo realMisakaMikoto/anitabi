@@ -61,6 +61,109 @@ test("POST endpoints require authentication, JSON, valid bounds, and transit pai
   }
 });
 
+test("route-only transit fields fail validation before quota and provider calls", async () => {
+  const fixture = createApp();
+  const locations = [
+    { latitude: 35, longitude: 139 },
+    { latitude: 35.1, longitude: 139.1 },
+  ];
+  const invalidPayloads = [
+    {
+      mode: "TRANSIT",
+      locations,
+      departureTime: "2026-07-24T00:00:00Z",
+      arrivalTime: "2026-07-30T02:00:00Z",
+    },
+    { mode: "WALK", locations, departureTime: "2026-07-30T01:00:00Z" },
+    { mode: "DRIVE", locations, arrivalTime: "2026-07-30T02:00:00Z" },
+    { mode: "BICYCLE", locations, transitRoutingPreference: "LESS_WALKING" },
+    { mode: "WALK", locations, transitTravelModes: ["BUS"] },
+    { mode: "TRANSIT", locations, transitRoutingPreference: "RECOMMENDED" },
+    { mode: "TRANSIT", locations, transitTravelModes: [] },
+    { mode: "TRANSIT", locations, transitTravelModes: ["BUS", "BUS"] },
+    { mode: "TRANSIT", locations, transitTravelModes: ["BUS", "SUBWAY", "TRAIN", "LIGHT_RAIL", "RAIL", "BUS"] },
+    { mode: "TRANSIT", locations, transitTravelModes: ["FERRY"] },
+  ];
+
+  try {
+    for (const payload of invalidPayloads) {
+      const response = await fixture.app.inject(authenticated({
+        method: "POST",
+        url: "/v1/route",
+        payload,
+      }));
+      assert.equal(response.statusCode, 400);
+      assert.equal(response.json().error.code, "INVALID_ARGUMENT");
+    }
+    assert.deepEqual(fixture.ledger.reservations, []);
+    assert.equal(fixture.routes.routeCalls, 0);
+  } finally {
+    await fixture.app.close();
+  }
+});
+
+test("route schema accepts supported transit preferences and travel-mode bounds", async () => {
+  const fixture = createApp();
+  const locations = [
+    { latitude: 35, longitude: 139 },
+    { latitude: 35.1, longitude: 139.1 },
+  ];
+  const validPayloads = [
+    {
+      mode: "TRANSIT",
+      locations,
+      departureTime: "2026-07-24T00:00:00Z",
+      transitRoutingPreference: "LESS_WALKING",
+      transitTravelModes: ["BUS"],
+    },
+    {
+      mode: "TRANSIT",
+      locations,
+      arrivalTime: "2026-11-08T00:00:00Z",
+      transitRoutingPreference: "FEWER_TRANSFERS",
+      transitTravelModes: ["BUS", "SUBWAY", "TRAIN", "LIGHT_RAIL", "RAIL"],
+    },
+  ];
+
+  try {
+    for (const payload of validPayloads) {
+      const response = await fixture.app.inject(authenticated({
+        method: "POST",
+        url: "/v1/route",
+        payload,
+      }));
+      assert.equal(response.statusCode, 200);
+    }
+    assert.equal(fixture.ledger.reservations.length, 2);
+    assert.equal(fixture.routes.routeCalls, 2);
+  } finally {
+    await fixture.app.close();
+  }
+});
+
+test("transit time outside the Google window fails before quota and provider calls", async () => {
+  const fixture = createApp();
+  const locations = [
+    { latitude: 35, longitude: 139 },
+    { latitude: 35.1, longitude: 139.1 },
+  ];
+  try {
+    for (const time of ["2026-07-23T23:59:59Z", "2026-11-08T00:00:01Z"]) {
+      const response = await fixture.app.inject(authenticated({
+        method: "POST",
+        url: "/v1/route",
+        payload: { mode: "TRANSIT", locations, departureTime: time },
+      }));
+      assert.equal(response.statusCode, 400);
+      assert.equal(response.json().error.code, "INVALID_ARGUMENT");
+    }
+    assert.deepEqual(fixture.ledger.reservations, []);
+    assert.equal(fixture.routes.routeCalls, 0);
+  } finally {
+    await fixture.app.close();
+  }
+});
+
 test("matrix reserves billable elements and navigation reserves destinations", async () => {
   const fixture = createApp();
   try {
@@ -199,6 +302,7 @@ function createApp(): {
       }),
       logger: { write: (event) => logs.push(event) },
       allowInsecureForTests: true,
+      nowMillis: () => Date.parse("2026-07-31T00:00:00Z"),
     }),
   };
 }

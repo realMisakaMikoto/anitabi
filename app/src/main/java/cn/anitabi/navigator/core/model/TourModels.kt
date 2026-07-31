@@ -24,6 +24,28 @@ enum class EndPolicy {
 }
 
 @Serializable
+enum class TransitTimeMode {
+    NOW,
+    DEPART_AT,
+    ARRIVE_BY,
+}
+
+@Serializable
+enum class TransitRoutingPreference {
+    RECOMMENDED,
+    LESS_WALKING,
+    FEWER_TRANSFERS,
+}
+
+@Serializable
+enum class TransitTravelMode {
+    BUS,
+    SUBWAY,
+    TRAIN,
+    LIGHT_RAIL,
+}
+
+@Serializable
 enum class NavigationState {
     PLANNED,
     NAVIGATING,
@@ -119,6 +141,11 @@ data class TourPlan(
     val estimatedDurationSeconds: Double,
     val attribution: List<String>,
     val departureTime: String? = null,
+    val arrivalTime: String? = null,
+    val transitTimeMode: TransitTimeMode = TransitTimeMode.DEPART_AT,
+    val transitAnchorTime: String? = null,
+    val transitRoutingPreference: TransitRoutingPreference = TransitRoutingPreference.RECOMMENDED,
+    val transitTravelModes: Set<TransitTravelMode> = emptySet(),
     val dwellMinutes: Int = 15,
     val initialStart: GeoPoint? = null,
     val state: NavigationState = NavigationState.PLANNED,

@@ -32,9 +32,11 @@
 
 ## Android 自动验证
 
-- [ ] `testDebugUnitTest`、`lintRelease`、`assembleRelease` 通过；当前 JVM 报告为 65 个测试、0 失败。
+- [ ] `testDebugUnitTest`、`lintRelease`、`assembleRelease` 通过；JVM 测试零失败、零错误、零跳过。
 - [ ] Room 使用真实 v0.2.0 schema/记录完成 1→2 迁移：保留导览、行程和进度，删除旧 Key/路线，失败记录可恢复，重复迁移幂等。
 - [ ] 大行程覆盖 200 点排序、10 点矩阵窗口、12 位置预览批次、25 目的地 SDK 批次、20 目的地生产配额批次、公交逐段、拖动受影响窗口和不可达点。
+- [ ] 公交覆盖现在出发、指定出发、指定到达、停留时间倒推、交通方式/少走路/少换乘偏好、跨时区显示、步行接驳与精确失败段提示。
+- [ ] Google 成功空路线只映射为无路线；HTTP 404、上游异常与格式异常不得误报为地区无公交；额度错误不得泄漏英文或保留虚假的引导状态。
 - [ ] API 26/API 37 均通过冷启动、完整权限导览、迁移、遥测设置、两次离线恢复、前台服务、息屏模拟位置到达、崩溃检查和证据上传。
 - [ ] tracked-source audit 与 APK audit 通过；APK 不含服务端 Google 私钥、VPS 凭据、签名密码、ORS Key、Transitous/ORS/OpenFreeMap/MapLibre 请求路径或 keystore。
 - [ ] `apksigner verify --verbose --print-certs` 通过，证书 SHA-256 与公开 v0.2.0 相同；APK SHA-256 随 Release 发布。

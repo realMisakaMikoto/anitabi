@@ -14,6 +14,7 @@ import cn.anitabi.navigator.core.model.RouteObjective
 import cn.anitabi.navigator.core.model.RouteStep
 import cn.anitabi.navigator.core.model.TourLeg
 import cn.anitabi.navigator.core.model.TourPlan
+import cn.anitabi.navigator.core.model.TransitTimeMode
 import cn.anitabi.navigator.core.model.TravelMode
 import cn.anitabi.navigator.data.network.ApiHttpClient
 import cn.anitabi.navigator.data.repository.TourRepository
@@ -109,6 +110,52 @@ class AnitabiDatabaseMigrationTest {
             assertNull(cursor.getString(0))
             assertEquals("{not-valid-json", cursor.getString(1))
             assertEquals(TourRepository.RECOVERY_ERROR_MESSAGE, cursor.getString(2))
+        }
+        database.close()
+    }
+
+    @Test
+    fun publicV020TransitTimeMigratesAsDepartAtAndRemainsIdempotent() = runBlocking {
+        val plan = v020Plan().copy(
+            id = "public-v0.2.0-transit-tour",
+            mode = TravelMode.TRANSIT,
+            departureTime = "2026-07-31T09:00:00+09:00",
+            legs = v020Plan().legs.map { it.copy(mode = TravelMode.TRANSIT) },
+        )
+        val legacyJson = json.encodeToString(TourPlan.serializer(), plan)
+        assertFalse(legacyJson.contains("transitTimeMode"))
+        assertFalse(legacyJson.contains("transitAnchorTime"))
+        helper.createDatabase(TEST_DATABASE, 1).apply {
+            execSQL(
+                "INSERT INTO tour_plans (id, planJson, progressJson, updatedAtEpochMillis) VALUES (?, ?, NULL, ?)",
+                arrayOf<Any?>(plan.id, legacyJson, 1000L),
+            )
+            close()
+        }
+        helper.runMigrationsAndValidate(TEST_DATABASE, 2, true, AnitabiDatabase.MIGRATION_1_2).close()
+
+        val database = openLatestDatabase()
+        val repository = TourRepository(database.tourPlanDao(), json, now = { 2000L })
+        val first = repository.get(plan.id)
+        val second = repository.get(plan.id)
+
+        assertNotNull(first)
+        assertEquals(first?.storedTour, second?.storedTour)
+        assertEquals(TransitTimeMode.DEPART_AT, first?.storedTour?.transitTimeMode)
+        assertEquals("2026-07-31T09:00:00+09:00", first?.storedTour?.transitAnchorTime)
+        assertNull(first?.storedTour?.departureTime)
+        database.openHelper.readableDatabase.query(
+            "SELECT storedTourJson, legacyPlanJson, legacyProgressJson, migrationError FROM tour_plans WHERE id = ?",
+            arrayOf(plan.id),
+        ).use { cursor ->
+            assertTrue(cursor.moveToFirst())
+            val storedJson = cursor.getString(0)
+            assertTrue(storedJson.contains("\"transitTimeMode\":\"DEPART_AT\""))
+            assertTrue(storedJson.contains("\"transitAnchorTime\":\"2026-07-31T09:00:00+09:00\""))
+            assertFalse(storedJson.contains("\"departureTime\""))
+            assertNull(cursor.getString(1))
+            assertNull(cursor.getString(2))
+            assertNull(cursor.getString(3))
         }
         database.close()
     }

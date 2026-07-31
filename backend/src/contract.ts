@@ -6,6 +6,8 @@ export type Coordinate = Readonly<{
 export type RoadMode = "DRIVE" | "BICYCLE" | "WALK";
 export type TravelMode = RoadMode | "TRANSIT";
 export type RouteObjective = "FASTEST" | "SHORTEST";
+export type TransitRoutingPreference = "LESS_WALKING" | "FEWER_TRANSFERS";
+export type TransitTravelMode = "BUS" | "SUBWAY" | "TRAIN" | "LIGHT_RAIL" | "RAIL";
 
 export type MatrixRequest = Readonly<{
   mode: RoadMode;
@@ -14,11 +16,22 @@ export type MatrixRequest = Readonly<{
   objective: RouteObjective;
 }>;
 
-export type RouteRequest = Readonly<{
-  mode: TravelMode;
-  locations: Coordinate[];
-  departureTime?: string;
-}>;
+type TransitTime =
+  | Readonly<{ departureTime: string; arrivalTime?: never }>
+  | Readonly<{ departureTime?: never; arrivalTime: string }>
+  | Readonly<{ departureTime?: never; arrivalTime?: never }>;
+
+export type RouteRequest =
+  | Readonly<{
+      mode: RoadMode;
+      locations: Coordinate[];
+    }>
+  | (Readonly<{
+      mode: "TRANSIT";
+      locations: Coordinate[];
+      transitRoutingPreference?: TransitRoutingPreference;
+      transitTravelModes?: TransitTravelMode[];
+    }> & TransitTime);
 
 export type NavigationReservationRequest = Readonly<{
   destinationCount: number;
@@ -41,6 +54,8 @@ export type NormalizedTransitDetails = Readonly<{
   arrivalStop?: string;
   departureTime?: string;
   arrivalTime?: string;
+  departureTimeZone?: string;
+  arrivalTimeZone?: string;
   lineName?: string;
   lineShortName?: string;
   headsign?: string;

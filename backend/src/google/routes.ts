@@ -33,6 +33,8 @@ const ROUTE_FIELD_MASK = [
   "routes.legs.steps.navigationInstruction.maneuver",
   "routes.legs.steps.travelMode",
   "routes.legs.steps.transitDetails.stopDetails",
+  "routes.legs.steps.transitDetails.localizedValues.departureTime.timeZone",
+  "routes.legs.steps.transitDetails.localizedValues.arrivalTime.timeZone",
   "routes.legs.steps.transitDetails.transitLine.name",
   "routes.legs.steps.transitDetails.transitLine.nameShort",
   "routes.legs.steps.transitDetails.transitLine.vehicle.name",
@@ -103,13 +105,25 @@ export class GoogleRoutesClient implements RoutesProvider {
       body["routingPreference"] = "TRAFFIC_UNAWARE";
       body["routeModifiers"] = fixedRouteModifiers();
     }
-    if (request.mode === "TRANSIT" && request.departureTime !== undefined) {
-      body["departureTime"] = request.departureTime;
+    if (request.mode === "TRANSIT") {
+      if (request.departureTime !== undefined) body["departureTime"] = request.departureTime;
+      if (request.arrivalTime !== undefined) body["arrivalTime"] = request.arrivalTime;
+      const transitPreferences: Record<string, unknown> = {};
+      if (request.transitRoutingPreference !== undefined) {
+        transitPreferences["routingPreference"] = request.transitRoutingPreference;
+      }
+      if (request.transitTravelModes !== undefined) {
+        transitPreferences["allowedTravelModes"] = request.transitTravelModes;
+      }
+      if (Object.keys(transitPreferences).length > 0) {
+        body["transitPreferences"] = transitPreferences;
+      }
     }
 
     const payload = await this.postJson(GOOGLE_ROUTE_URL, ROUTE_FIELD_MASK, body);
     const routes = getRecord(payload)["routes"];
-    if (!Array.isArray(routes) || routes.length === 0) throw new ApiError("NO_ROUTE");
+    if (!Array.isArray(routes)) throw new ApiError("UPSTREAM_UNAVAILABLE");
+    if (routes.length === 0) throw new ApiError("NO_ROUTE");
     return normalizeRoute(routes[0]);
   }
 
@@ -131,10 +145,7 @@ export class GoogleRoutesClient implements RoutesProvider {
     } catch (error) {
       throw new ApiError("UPSTREAM_UNAVAILABLE", { cause: error });
     }
-    if (!response.ok) {
-      const code = response.status === 404 ? "NO_ROUTE" : "UPSTREAM_UNAVAILABLE";
-      throw new ApiError(code);
-    }
+    if (!response.ok) throw new ApiError("UPSTREAM_UNAVAILABLE");
     try {
       return await response.json();
     } catch (error) {
@@ -235,11 +246,16 @@ function normalizeTransit(record: Record<string, unknown>): NormalizedTransitDet
   const arrivalStop = getOptionalRecord(stops?.["arrivalStop"]);
   const line = getOptionalRecord(record["transitLine"]);
   const vehicle = getOptionalRecord(line?.["vehicle"]);
+  const localizedValues = getOptionalRecord(record["localizedValues"]);
+  const localizedDepartureTime = getOptionalRecord(localizedValues?.["departureTime"]);
+  const localizedArrivalTime = getOptionalRecord(localizedValues?.["arrivalTime"]);
   const values = {
     departureStop: optionalString(departureStop?.["name"]),
     arrivalStop: optionalString(arrivalStop?.["name"]),
     departureTime: optionalString(stops?.["departureTime"]),
     arrivalTime: optionalString(stops?.["arrivalTime"]),
+    departureTimeZone: optionalString(localizedDepartureTime?.["timeZone"]),
+    arrivalTimeZone: optionalString(localizedArrivalTime?.["timeZone"]),
     lineName: optionalString(line?.["name"]),
     lineShortName: optionalString(line?.["nameShort"]),
     headsign: optionalString(record["headsign"]),

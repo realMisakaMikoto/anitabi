@@ -8,18 +8,22 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import cn.anitabi.navigator.core.model.GeoPoint
 import cn.anitabi.navigator.core.model.TourPlan
+import cn.anitabi.navigator.core.model.TravelMode
 import cn.anitabi.navigator.ui.map.NavigationMapView
 import cn.anitabi.navigator.ui.map.currentLocationMarkerOptions
 import cn.anitabi.navigator.ui.map.routePointMarkerOptions
 import cn.anitabi.navigator.ui.map.toGoogleLatLng
 import cn.anitabi.navigator.ui.map.withPositiveMapViewport
+import cn.anitabi.navigator.ui.theme.Moss
+import cn.anitabi.navigator.ui.theme.Vermilion
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.model.LatLngBounds
+import com.google.android.gms.maps.model.Dot
+import com.google.android.gms.maps.model.Gap
 import com.google.android.gms.maps.model.PolylineOptions
 
 @Composable
@@ -59,11 +63,14 @@ fun RoutePreviewMap(
                         coordinates
                     }
                 if (geometry.size >= 2) {
+                    val isWalkingConnector = plan.mode == TravelMode.TRANSIT && leg.mode == TravelMode.WALK
+                    val options = PolylineOptions()
+                        .addAll(geometry.map(GeoPoint::toGoogleLatLng))
+                        .color((if (isWalkingConnector) Moss else Vermilion).toArgb())
+                        .width(if (isWalkingConnector) 8f else 10f)
+                    if (isWalkingConnector) options.pattern(listOf(Dot(), Gap(14f)))
                     readyMap.addPolyline(
-                        PolylineOptions()
-                            .addAll(geometry.map(GeoPoint::toGoogleLatLng))
-                            .color(Color(0xFFC94736).toArgb())
-                            .width(10f),
+                        options,
                     )
                 }
             }

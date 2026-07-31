@@ -30,6 +30,7 @@ import cn.anitabi.navigator.core.navigation.NavigationEngine
 import cn.anitabi.navigator.core.navigation.NavigationUpdate
 import cn.anitabi.navigator.core.navigation.TransitRefreshPolicy
 import cn.anitabi.navigator.core.navigation.afterRouteRefresh
+import cn.anitabi.navigator.data.network.ApiException
 import java.time.OffsetDateTime
 import java.util.Locale
 import kotlinx.coroutines.CancellationException
@@ -141,6 +142,7 @@ class NavigationService : Service(), LocationListener, TextToSpeech.OnInitListen
                 ?: error("没有可恢复的巡礼路线")
             if (saved.progress?.state == NavigationState.COMPLETED) error("这条巡礼路线已经完成")
             var loadedPlan = saved.plan
+            plan = loadedPlan
             val destinations = loadedPlan.legs.mapNotNull { it.destinationPointId }.toSet()
             val startPointIds = loadedPlan.orderedPoints
                 .filter { it.id !in destinations && it.coordinate == loadedPlan.initialStart }
@@ -218,7 +220,7 @@ class NavigationService : Service(), LocationListener, TextToSpeech.OnInitListen
                 if (routeRefreshRequired) {
                     ROUTE_REFRESH_REQUIRED_MESSAGE
                 } else {
-                    exception.message ?: "无法开始连续导航"
+                    navigationFailureMessage(exception)
                 },
             )
         }
@@ -307,7 +309,7 @@ class NavigationService : Service(), LocationListener, TextToSpeech.OnInitListen
                         throw exception
                     } catch (exception: Exception) {
                         lastRoadSyncLegIndex = null
-                        failAndStop(exception.message ?: "Google 导航暂时无法开始")
+                        failAndStop(navigationFailureMessage(exception))
                     }
                 }
             }
@@ -439,11 +441,33 @@ class NavigationService : Service(), LocationListener, TextToSpeech.OnInitListen
     }
 
     private fun failAndStop(message: String) {
+        val currentPlan = plan
+        val progress = currentPlan?.let { loadedPlan ->
+            val activeProgress = engine?.progress
+                ?: NavigationRuntime.state.value.progress?.takeIf { it.tourId == loadedPlan.id }
+            resumableProgressAfterFailure(activeProgress)
+        }
         roadSyncJob?.cancel()
         roadNavigationSession?.close()
-        NavigationRuntime.update { it.copy(isRunning = false, isRerouting = false, errorMessage = message) }
-        stopForeground(STOP_FOREGROUND_REMOVE)
-        stopSelf()
+        NavigationRuntime.update {
+            it.copy(
+                progress = progress ?: it.progress,
+                instruction = "导航未开始，请返回路线预览后重试",
+                isRunning = false,
+                isRerouting = false,
+                errorMessage = message,
+            )
+        }
+        serviceScope.launch {
+            try {
+                if (currentPlan != null && progress != null) {
+                    container.tourRepository.save(currentPlan, progress)
+                }
+            } finally {
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                stopSelf()
+            }
+        }
     }
 
     private fun NavigationUpdate.spokenText(): String = when (progress.state) {
@@ -525,4 +549,29 @@ class NavigationService : Service(), LocationListener, TextToSpeech.OnInitListen
         private const val CHANNEL_ID = "continuous_navigation"
         private const val NOTIFICATION_ID = 1001
     }
+}
+
+internal fun resumableProgressAfterFailure(progress: NavigationProgress?): NavigationProgress? =
+    progress?.takeUnless { it.state == NavigationState.COMPLETED }?.copy(
+        state = NavigationState.PLANNED,
+        dwellingUntilEpochMillis = null,
+        offRouteSinceEpochMillis = null,
+    )
+
+internal fun navigationFailureMessage(throwable: Throwable): String = when (throwable) {
+    is ApiException.QuotaExhausted -> "路线额度已用尽，暂时无法开始；不会继续产生费用"
+    is ApiException.RateLimited -> "请求过于频繁，请稍后再试"
+    is ApiException.Unauthenticated -> "匿名连接失败，请检查网络后重试"
+    is ApiException.InvalidArgument -> "路线请求参数无效，请返回重新生成路线"
+    is ApiException.NoRoute, is ApiException.NotFound -> "Google 未找到可用路线，请返回重新生成"
+    is ApiException.UpstreamUnavailable -> "Google 路线服务暂时不可用，请稍后再试"
+    is ApiException.BackendUnavailable, is ApiException.Server ->
+        "路线服务暂时不可用；行程和导航进度仍保留在本机"
+    is ApiException.Network -> "无法连接路线服务，请检查网络后重试"
+    is ApiException.InvalidResponse -> "路线服务返回了无法识别的数据"
+    is ApiException.InvalidCredentials, is ApiException.Forbidden, is ApiException.Http ->
+        "路线请求失败，请稍后再试"
+    is MissingLocationPermissionException -> "需要定位权限才能开始导航"
+    is LocationUnavailableException -> "暂时无法取得当前位置，请检查系统定位开关"
+    else -> throwable.message ?: "无法开始连续导航"
 }
