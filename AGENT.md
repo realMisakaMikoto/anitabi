@@ -1311,3 +1311,26 @@
 - An initial regression wrapper timed out while its Gradle child continued, and a second invocation encountered the resulting Windows output-directory lock. Identified and stopped only the exact Gradle/Kotlin processes created by this task, verified none remained, and reran once with a single-use daemon successfully. No project file, cache, SDK, emulator, Docker data, or user file was deleted; approximately 45 GB of system-drive space remained free.
 - The implementation is still uncommitted on the local RC7 branch. Branch/main CI, merge, annotated `v0.2.1-rc.7` tag, signed Prerelease, exact-public-APK compatibility jobs, public artifact audit, Xiaomi overlay, visible basemap/marker test, and minimal WALK/DRIVE/TRANSIT physical requests remain pending and are not claimed here.
 - No secret, token, raw IP, coordinate, work title, search term, route body, Google credential, Firebase credential, signing material, VPS credential, password, or SSH state was recorded or changed. No VPS or SSH action occurred.
+
+## 2026-07-31 - Task 52: RC7 protected publication and user-test handoff
+
+### Preparation and publication gates
+
+- Re-read the complete 1,313-line `AGENT.md` in UTF-8 after the user changed the handoff boundary. The phone had been taken away, so this task performed no ADB command, installation, device read, UI action, permission change, mock-location change, network change, or other phone operation.
+- Committed the Task 51 repair as `d2704e018ded5b7b43d7c351be828a5b0dad72d5` on `codex/v0.2.1-rc.7-shader-r8`, pushed the branch, and opened draft pull request 7 through the authenticated GitHub browser because both the connector and command-line credential lacked pull-request mutation scope.
+- Pull-request Android CI run `30593248315` passed verify, API 26, and API 37. The PR was marked ready and merged only after all three jobs succeeded; GitHub created merge commit `0e8fb6dd91a10a3b7842d7a6ca447ef888d965be`.
+- Fast-forwarded local `main` to the merge commit and waited for independent `main` run `30594003074`; verify, API 26, and API 37 all succeeded at that exact SHA.
+- Verified a clean worktree, matching local/remote `main`, `versionCode=7`, `versionName=0.2.1`, and absence of an existing RC7 tag. Created annotated tag `v0.2.1-rc.7` at the green merge commit, verified its peeled commit, and pushed it without moving any prior tag.
+
+### Public artifact and compatibility evidence
+
+- Signed APK Release run `30594755413` passed protected configuration restoration, tag/version validation, tests, signed Release assembly, the expanded 12-class R8 reflection audit, APK content audit, signature verification, checksum creation, and GitHub Prerelease publication.
+- The public non-draft Prerelease is `https://github.com/realMisakaMikoto/anitabi/releases/tag/v0.2.1-rc.7`. Its APK is 48,703,245 bytes with SHA-256 `f4a1b53b20baddb16602488242cd71dace56b98a0a04cb5ee28ad214c08c3a1d`; the independently downloaded file, checksum asset, and GitHub asset digest agree.
+- Independent `aapt` inspection reports package `cn.anitabi.navigator`, version code 7, version name 0.2.1, minimum SDK 26, and target SDK 37. Independent `apksigner` verification reports APK Signature Scheme v2, one RSA-4096 signer, and the unchanged fixed production certificate used by public v0.2.0 through RC6.
+- Exact-public-APK compatibility run `30595041809` resolved and downloaded `v0.2.1-rc.7` rather than an older release, then passed install, package inspection, cold launch, crash-buffer, and evidence-upload checks on API 26 and API 37.
+
+### Handoff boundary
+
+- The public candidate and emulator gates are complete, but no physical result is inferred from them. The user will independently install/test this release; visible Google basemap and markers plus WALK, DRIVE, and TRANSIT remain unchecked until the user reports the actual phone result.
+- Stable `v0.2.1` remains unpublished. The active goal must stop at the physical-test boundary rather than treating a fallback screen, emulator launch, or public upload as proof of the three remaining user-visible issues.
+- No secret, token, raw IP, coordinate, work title, search term, route body, Google/Firebase credential, signing material, VPS credential, password, or SSH state was printed, recorded, or changed.
