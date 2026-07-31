@@ -37,7 +37,7 @@ const ROUTE_FIELD_MASK = [
   "routes.legs.steps.transitDetails.localizedValues.arrivalTime.timeZone",
   "routes.legs.steps.transitDetails.transitLine.name",
   "routes.legs.steps.transitDetails.transitLine.nameShort",
-  "routes.legs.steps.transitDetails.transitLine.vehicle.name",
+  "routes.legs.steps.transitDetails.transitLine.vehicle.name.text",
   "routes.legs.steps.transitDetails.transitLine.vehicle.type",
   "routes.legs.steps.transitDetails.headsign",
   "routes.legs.steps.transitDetails.stopCount",
@@ -95,12 +95,14 @@ export class GoogleRoutesClient implements RoutesProvider {
     const body: Record<string, unknown> = {
       origin: toGoogleWaypoint(origin),
       destination: toGoogleWaypoint(destination),
-      intermediates: intermediates.map(toGoogleWaypoint),
       travelMode: request.mode,
       computeAlternativeRoutes: false,
       languageCode: "zh-CN",
       units: "METRIC",
     };
+    if (request.mode !== "TRANSIT") {
+      body["intermediates"] = intermediates.map(toGoogleWaypoint);
+    }
     if (request.mode === "DRIVE") {
       body["routingPreference"] = "TRAFFIC_UNAWARE";
       body["routeModifiers"] = fixedRouteModifiers();
@@ -246,6 +248,7 @@ function normalizeTransit(record: Record<string, unknown>): NormalizedTransitDet
   const arrivalStop = getOptionalRecord(stops?.["arrivalStop"]);
   const line = getOptionalRecord(record["transitLine"]);
   const vehicle = getOptionalRecord(line?.["vehicle"]);
+  const vehicleName = getOptionalRecord(vehicle?.["name"]);
   const localizedValues = getOptionalRecord(record["localizedValues"]);
   const localizedDepartureTime = getOptionalRecord(localizedValues?.["departureTime"]);
   const localizedArrivalTime = getOptionalRecord(localizedValues?.["arrivalTime"]);
@@ -259,7 +262,7 @@ function normalizeTransit(record: Record<string, unknown>): NormalizedTransitDet
     lineName: optionalString(line?.["name"]),
     lineShortName: optionalString(line?.["nameShort"]),
     headsign: optionalString(record["headsign"]),
-    vehicleName: optionalString(vehicle?.["name"]),
+    vehicleName: optionalString(vehicleName?.["text"]),
     vehicleType: optionalString(vehicle?.["type"]),
     stopCount: optionalNonNegativeInteger(record["stopCount"]),
   };

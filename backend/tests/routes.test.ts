@@ -101,6 +101,12 @@ test("transit route uses exactly one origin/destination pair and strips the Goog
         ),
         true,
       );
+      assert.equal(
+        fieldMask.split(",").includes(
+          "routes.legs.steps.transitDetails.transitLine.vehicle.name.text",
+        ),
+        true,
+      );
       assert.equal(fieldMask.includes("localizedValues.departureTime.time.text"), false);
       assert.equal(fieldMask.includes("localizedValues.arrivalTime.time.text"), false);
       capturedBody = JSON.parse(init?.body as string) as Record<string, unknown>;
@@ -140,7 +146,7 @@ test("transit route uses exactly one origin/destination pair and strips the Goog
                       transitLine: {
                         name: "Yamanote Line",
                         nameShort: "JY",
-                        vehicle: { name: "Train", type: "HEAVY_RAIL" },
+                        vehicle: { name: { text: "Train" }, type: "HEAVY_RAIL" },
                         agencies: [{ name: "must-not-pass-through" }],
                       },
                       headsign: "Ueno",
@@ -168,7 +174,7 @@ test("transit route uses exactly one origin/destination pair and strips the Goog
   });
 
   assert.equal(capturedBody?.["travelMode"], "TRANSIT");
-  assert.deepEqual(capturedBody?.["intermediates"], []);
+  assert.equal("intermediates" in (capturedBody ?? {}), false);
   assert.equal(capturedBody?.["departureTime"], "2026-07-30T01:00:00Z");
   assert.equal(JSON.stringify(result).includes("must-not-pass-through"), false);
   assert.deepEqual(result.legs[0]?.steps[0]?.transit, {
