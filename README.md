@@ -1,89 +1,84 @@
-# 注意：本产品为基于 https://github.com/anitabi 打造的开源产品。如需要访问圣地巡礼网站，请访问 anitabi.cn
-# 巡礼手帖（Anitabi Navigator）
+# 巡礼手帖
 
-巡礼手帖是一款 Android 动漫圣地巡礼规划与连续导航应用。用户可以搜索 Bangumi 作品，从 Anitabi 选择任意数量的巡礼点，在手机本地生成访问顺序，再使用 Google 地图、路线与道路导航完成行程。
+> 这是使用 [Anitabi](https://anitabi.cn) 巡礼数据制作的第三方开源 Android 应用，与 Anitabi 官方没有隶属关系。
 
-> 当前开发版本为 v0.2.1（versionCode 7）。公开稳定版仍是 [v0.2.0](https://github.com/realMisakaMikoto/anitabi/releases/tag/v0.2.0)。v0.2.1 已通过 65 个 JVM 测试、Android 8/API 26 与 Android 17/API 37 的完整模拟器矩阵，以及生产 VPS、HTTPS、Firebase 鉴权、Google Routes 和硬额度账本验证。正式签名 RC 用于后续覆盖安装验收；在真机覆盖安装、Google Navigation 语音/偏航/锁屏和长行程换批完成前，不发布稳定 v0.2.1。
+把一部或多部动画的巡礼点放到同一张地图上，选出真正想去的地方，再生成步行、骑行、驾车或公交行程。
 
-## v0.2.1 功能
+## 下载与更新
 
-- Bangumi 搜索、Anitabi 巡礼点加载、多作品联合选择、地图/列表选点和可见区域批选。
-- 行程总点数不设固定上限；最近邻与有限轮次 2-opt 生成全局顺序，最多 10 点的矩阵窗口可再用 Held–Karp 精确优化。
-- Google 单次请求始终受限：矩阵窗口最多 10 个坐标/100 个元素，道路预览最多 12 个位置，Navigation SDK 每批最多 25 个目的地。
-- 驾车、骑行和步行使用 Google Navigation SDK 的地图、定位、道路导航、偏航处理和语音。
-- 公交通过 Google Routes API 按相邻两点逐段规划，展示线路、站点、换乘、时间和步行接驳；公交不启动 Google 原生导航。
-- `StoredTourV2` 和 Room 只保存用户拥有的点位、顺序、设置、完成状态和导航状态；Google 矩阵、路线、折线、步骤、预计时间与公交详情仅驻留内存。
-- 从公开 v0.2.0 覆盖升级时保留首次导览、作品选择、行程顺序、设置和进度，移除旧 ORS Key 与旧路线内容，并要求联网刷新路线。
-- Firebase Anonymous Auth 只用于访问自建路线 API。Analytics 与 Crashlytics 分别默认关闭、独立选择加入，并可随时撤回。
-- 无 GMS 设备仍可查看已经保存的点位、顺序与进度，但不提供地图或路线回退。
+- [下载 v0.2.1 RC7](https://github.com/realMisakaMikoto/anitabi/releases/tag/v0.2.1-rc.7)：当前测试版，已由用户在真机确认 Google 底图与巡礼点、步行、驾车和公交路线均可正常使用。
+- [下载 v0.2.0](https://github.com/realMisakaMikoto/anitabi/releases/tag/v0.2.0)：上一稳定版，仍使用个人 ORS Key 和旧地图/路线服务。
+- 支持 Android 8.0 及以上版本。
 
-## 架构、费用与额度
+从 v0.2.0 更新到 v0.2.1 RC7 时，请直接覆盖安装，不要先卸载应用或清除数据。应用会保留导览状态、作品与点位选择、行程顺序、设置和导航进度；旧 ORS Key 与旧路线缓存会被移除，新路线需要联网刷新。
 
-| 用途 | 实现 | 边界 |
-|---|---|---|
-| 地图与道路导航 | Google Navigation SDK for Android | APK 只包含受包名、签名和 Navigation SDK 限制的 Android 客户端 Key |
-| 矩阵、路线预览与公交 | Google Routes API，经自建 VPS | 服务账号只在 VPS；响应规范化后返回，不缓存 Google 路线内容 |
-| 客户端鉴权 | Firebase Anonymous Auth | 不要求邮箱、姓名或密码；VPS 验证 Firebase ID Token |
-| 可选遥测 | Firebase Analytics / Crashlytics | 两项默认关闭、分别同意；不记录坐标、动漫名、搜索词或路线正文 |
-| 动漫元数据 | [Bangumi API](https://bangumi.github.io/api/) | 发送可识别 User-Agent |
-| 巡礼点与图片 | [Anitabi API](https://github.com/anitabi/anitabi.cn-document/blob/main/api.md) | 仅访问官方 API/图片域名，低频用户触发；数据为 CC BY-NC-SA 4.0 |
+RC7 仍标记为预发布版本。稳定版 `v0.2.1` 尚未发布。
 
-Google 项目绑定了结算账户，但 VPS 以免费额度的 90% 为硬上限：矩阵每月 9,000 个计费元素、路线每月 9,000 次、导航每月 900 个目的地，并叠加每 UID 每日额度和突发限速。达到上限、账本异常、磁盘满或额度状态无法确认时会停止计费请求，不会自动清零或绕过限制。Google Cloud 预算告警不是硬停机开关，VPS SQLite 账本才是本项目的 fail-closed 熔断器。
+## 你可以做什么
 
-生产 API 为 `https://api.anitabi.afunnypersonlol0.site`。断网、VPS 故障或额度耗尽时，应用保留行程和进度并明确提示路线暂时无法刷新。
+- 通过 Bangumi 搜索动画，从 Anitabi 加载巡礼点与图片。
+- 同时选择多部动画，把它们的巡礼点合并到一张地图中。
+- 在地图或列表中逐点选择，也可以批量选择当前地图范围内的地点。
+- 总行程点数没有固定的产品上限；应用会自动排序和分批规划，实际可用数量仍受设备资源和服务额度影响。
+- 使用 Google 地图查看地点和路线。
+- 为步行、骑行和驾车生成道路路线，并使用 Google 道路导航。
+- 按相邻地点生成公交行程，查看线路、站点、换乘、时间和步行接驳。
+- 保存完成状态和导航进度；应用重启或路线暂时无法刷新时，已保存的行程不会消失。
 
-## 隐私与安全
+## 第一次使用
 
-- 应用禁止系统备份和设备迁移，不建立用户邮箱账号，也不持久化 Google 路线响应。
-- 规划所需的坐标、模式和出发时间经 HTTPS 发送到自建 VPS，再由 VPS 调用固定的 Google 上游。VPS 日志不包含 Token、原始 IP、坐标、动漫名、搜索词或正文。
-- VPS 只用 HMAC 后的 IP 做宽松辅助限速；主要配额按 Firebase 匿名 UID 计数。
-- Anitabi 数据与图片由 Android 直接低频访问官方域名，不经过 VPS。
-- APK 不包含 Google 服务账号私钥、VPS 凭据、签名密码、ORS Key 或 Transitous 请求路径。
-- Analytics 与 Crashlytics 的具体开关、清理和数据边界见 [隐私说明](PRIVACY.md)；安全报告方式见 [SECURITY.md](SECURITY.md)。
+1. 打开应用，阅读用途说明。
+2. 允许定位权限；Android 13 及以上版本还会请求通知权限，用于连续导航。
+3. 搜索一部或多部动画。
+4. 在地图或列表中选择要去的巡礼点。
+5. 选择出行方式、起点和终点规则，然后生成路线。
 
-## 本地构建（Windows）
+你不需要申请 API Key，也不需要注册邮箱账号、填写姓名或向项目付费。
 
-1. 安装 JDK 17、Android SDK Platform 37、Build-Tools 37.0.0 和 Platform-Tools。
-2. 在项目根目录创建不提交的 `local.properties`：
+## 使用前需要知道
 
-   ```properties
-   sdk.dir=C:\\Users\\your-name\\AppData\\Local\\Android\\Sdk
-   ANITABI_NAVIGATION_API_KEY=your-android-restricted-navigation-key
-   ```
+- 地图和新路线需要网络，以及设备上可用的 Google Play 服务。
+- 没有 Google Play 服务时，仍可查看已经保存的点位、顺序和进度，但没有备用地图或路线服务。
+- 步行和骑行路线会显示 Google 要求的测试版提示；请始终以现场道路、交通规则和安全状况为准。
+- 公交按相邻两点逐段规划，不会启动 Google 原生公交导航。站台信息只会显示 Google 实际提供的文字。
+- “行程点数不限”表示总行程没有固定产品上限；应用仍会自动分批，并受设备资源、Google 单次请求限制、个人每日额度和项目共享额度限制。
+- 个人或共享额度用完、网络中断或路线服务维护时，路线可能暂时无法刷新，但本地行程和进度会保留。
 
-3. 从你自己的 Firebase 项目下载 Android 配置到不提交的 `app/google-services.json`。应用包名必须为 `cn.anitabi.navigator`。不要使用 CI 的无效占位配置运行真实应用。
-4. 将 Navigation SDK Key 限制为该包名、实际调试/正式 SHA-1 证书和 Navigation SDK API。服务账号 JSON 绝不能进入 Android 工程。
-5. 运行：
+## 隐私
 
-   ```powershell
-   .\gradlew.bat testDebugUnitTest lintDebug assembleDebug
-   ```
+- 应用不要求邮箱、姓名或密码。Firebase 匿名身份只用于访问路线服务和计算共享额度。
+- 规划路线时，会发送坐标、出行方式、优化目标和出发时间等完成请求所需的信息。
+- Google 路线、折线、步骤、预计时间和公交详情只保存在当前运行内存中，不写入本地数据库。
+- 应用的行程持久化只保存你选择的作品、巡礼点、顺序、设置、完成状态和导航状态；本机还会保存导览与遥测同意设置、公共数据缓存和 Firebase 匿名鉴权状态。应用关闭 Android 系统备份与设备迁移。
+- Google Navigation SDK 会在设备上直接处理当前位置和导航交互；完整的数据流与保留规则见隐私政策。
+- Firebase Analytics 和 Crashlytics 默认关闭，必须分别主动同意才会启用，也可以随时撤回。
+- 项目日志不会记录 Token、原始 IP、坐标、动画名称、搜索词或路线正文。
 
-调试 APK 位于 `app\build\outputs\apk\debug\app-debug.apk`。首次启动会依次说明用途、请求定位/通知权限并展示服务与隐私披露；不再要求用户填写 ORS Key。
+完整说明见 [隐私政策](PRIVACY.md) 和 [安全策略](SECURITY.md)。
 
-## 固定签名与发布
+## 常见问题
 
-正式 APK 必须沿用 v0.2.0 的 RSA-4096 固定签名。私钥与密码只允许位于工作区外或 GitHub Actions 加密 Secrets；Gradle 会拒绝缺少完整签名参数或 Navigation SDK Key 的 release 构建。
+### 为什么显示路线服务暂时不可用？
 
-GitHub Actions 还需要：
+请先确认网络与 Google Play 服务正常。项目使用个人每日额度和共享免费额度，额度耗尽或服务维护时也会暂时停止新请求；可稍后重试，已经保存的行程不会被删除。
 
-- `ANITABI_KEYSTORE_BASE64`
-- `ANITABI_STORE_PASSWORD`
-- `ANITABI_KEY_ALIAS`
-- `ANITABI_KEY_PASSWORD`
-- `ANITABI_GOOGLE_SERVICES_JSON_BASE64`
-- `ANITABI_NAVIGATION_API_KEY`
+### 为什么作品或巡礼点加载失败？
 
-`v0.2.1-rc.N` 标签会生成正式签名、R8/resource-shrunk 的 GitHub Prerelease；`v0.2.1` 才生成稳定 Release。两者都会执行测试、Release Lint、源码/APK 密钥审计、签名验证和 SHA-256 生成。发布前逐项执行 [发布检查清单](docs/RELEASE_CHECKLIST.md)，证据见 [v0.2.1 RC 验收记录](docs/releases/v0.2.1-rc.1.md)。
+Bangumi 与 Anitabi 是独立公共服务。部分网络出口可能被其防护系统拒绝；应用不会高频重试或绕过封锁，可以稍后重试，或切换 Wi-Fi 与移动数据后再试。
 
-## 已知限制
+### 更新会丢失数据吗？
 
-- 新路线必须联网；断网时只能查看已保存的用户数据和进度。
-- 公交路线只能按相邻两点逐段计算，不提供 Google 原生公交导航；站台信息只显示 Google 上游实际提供的文字。
-- Navigation SDK 要求设备具备可用的 Google Play 服务；无 GMS 时没有 MapLibre/ORS 回退。
-- “无限点”只表示总行程不设产品上限，不表示绕过 Google 单次请求、每日或每月限制。
-- 真实 8–12 点 GNSS 现场路线、长时间 Xiaomi/OEM 后台存活、真实错过班次，以及 v0.2.0 到 v0.2.1 的正式签名真机覆盖安装仍需现场验收。
+从 v0.2.0 直接覆盖安装 v0.2.1 RC7 时会迁移本地数据。不要卸载、不要清除应用数据。旧路线内容会按隐私要求移除，并在联网后重新生成。
 
-## 许可证
+### 这个应用收费吗？
 
-项目自有代码采用 [GNU GPL v3 或更高版本，并附仅针对 Google Navigation/Firebase SDK 链接的窄范围例外](LICENSE)。该例外不改变第三方 SDK、服务或数据自身的条款，也不允许把项目自有代码改为闭源。完整第三方署名见 [NOTICE.md](NOTICE.md)。
+应用本身免费且开源。你不需要提供支付方式或购买 API Key。路线服务使用项目共享额度，因此不能保证任何时刻都可用。
+
+## 开源、构建与数据来源
+
+- 源码构建说明：[docs/BUILD.md](docs/BUILD.md)
+- 第三方服务、SDK 与数据署名：[NOTICE.md](NOTICE.md)
+- 安全问题报告：[SECURITY.md](SECURITY.md)
+- 许可证：[GPL-3.0-or-later，并附 Google Navigation/Firebase SDK 窄范围链接例外](LICENSE)
+
+Bangumi、Anitabi、Google 和 Firebase 均为独立服务，不由本项目运营或保证可用性。

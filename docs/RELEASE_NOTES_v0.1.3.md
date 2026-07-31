@@ -1,43 +1,25 @@
 # 巡礼手帖 v0.1.3
 
-这是 Transitous 公交启用纠正版，包含 v0.1.2 的全部网络边界加固与 Android 8 兼容修复。
+> 这是历史版本，仅供兼容与版本记录。偏好稳定版请安装 [v0.2.0](https://github.com/realMisakaMikoto/anitabi/releases/tag/v0.2.0)；愿意使用已通过真机验证的预发布候选，可选择 [v0.2.1 RC7](https://github.com/realMisakaMikoto/anitabi/releases/tag/v0.2.1-rc.7)。
 
-## 本次纠正
+## 这个版本带来了什么
 
-- Transitous 官方政策没有“必须取得明确批准后才能启用”的条件；此前将建议联系维护者误写成硬审批门槛，是项目实现与文档错误。
-- 已删除 `ANITABI_TRANSITOUS_APPROVED` 构建变量、`BuildConfig` 开关、API 拦截异常及 UI 禁用逻辑，公交规划现在可直接使用。
-- 项目此前已通过 Matrix 说明低频用途；这项沟通符合官方对潜在高负载用法的建议，但不再被当作授权流程。
+- 正式启用 Transitous 公交路线规划。
+- 可以查看线路、方向、站点、换乘、时间和步行接驳。
+- 公交路线按巡礼点之间的路段逐段请求，不会后台轮询或批量抓取。
+- 没有可用公交数据时，会显示清楚的覆盖提示，而不是崩溃。
 
-## 请求负载边界
+## 安装与使用
 
-- 只访问正式地址 `https://api.transitous.org/api/v6/plan`。
-- 发送 `AnitabiNavigator/0.1.3 (https://github.com/realMisakaMikoto)` User-Agent。
-- 公交最多 8 个巡礼点，按路段串行查询，不并发请求。
-- 仅在用户生成路线、手动重算或到站/取消事件触发时请求；不后台轮询、不批量下载、不爬取、无自动重试。
-- 已生成路线保存在本机，断网时继续使用旧路线；关于页与路线结果保留 Transitous 数据来源链接。
+- 支持 Android 8.0 及以上版本。
+- 驾车、骑行和步行仍需要用户自行申请并填写 ORS Key。
+- Transitous 是 best-effort 公共服务，在日本只覆盖部分地区。
 
-## 下载校验
+## 文件校验
 
 - APK：`anitabi-v0.1.3.apk`
 - 大小：43,087,229 字节
 - SHA-256：`c86d2b44db5c95f0518b5d876f3f9d7e7baac69ebc179472341fe12a97cd532b`
 - 签名证书 SHA-256：`9679c83769368c7150f629d9cba3c0e5d633fa7f1043ce251fdba6c7c64fb00a`
 
-Release 同时提供机器可读的 `anitabi-v0.1.3.apk.sha256`。正式 APK 继续使用与 v0.1.0、v0.1.1、v0.1.2 相同的固定签名证书。
-
-## 验证
-
-- 36 个 JVM 单元测试、SDK 37 编译、Lint、R8、APK 内容审计和签名校验通过。
-- 一次带 v0.1.3 User-Agent 的东京两点真实请求成功返回 9 条可选行程；未进行重复或并发探测。
-- debug APK 在 Android 8 与 Android 17 完成离线恢复、前台导航、息屏模拟 GPS 自动到达和进度持久化。
-- 公开签名 APK 在 Android 8 与 Android 17 完成下载、版本核对、安装、冷启动、前台进程和空崩溃缓冲检查。
-
-验证运行：[主分支 Android CI 30454672103](https://github.com/realMisakaMikoto/anitabi/actions/runs/30454672103)、[签名发布 30455370261](https://github.com/realMisakaMikoto/anitabi/actions/runs/30455370261)、[签名 APK 兼容性复验 30455908192](https://github.com/realMisakaMikoto/anitabi/actions/runs/30455908192)。
-
-## 已知限制
-
-- Transitous 为 best-effort 服务，在日本只覆盖部分地区；无行程时应用会提示“本区域暂无开放公交数据”。
-- 已被 Cloudflare 封禁的公网 IP 无法由 APK 修复；请更换网络或联系运营商。
-- 实体手机上的真实 GPS、中文 TTS 音频、锁屏、OEM 后台限制、弱网和跨午夜行为仍需真机验收。
-
-完整逐项证据见仓库中的 `docs/releases/v0.1.3.md`。
+Release 同时提供 `anitabi-v0.1.3.apk.sha256`。详细的历史测试记录见 [`docs/releases/v0.1.3.md`](https://github.com/realMisakaMikoto/anitabi/blob/main/docs/releases/v0.1.3.md)。
