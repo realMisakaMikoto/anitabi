@@ -1349,3 +1349,19 @@
 - This is the second consecutive goal turn since the user stated that the phone had been taken away and that they would test the public RC7 themselves. No source change, emulator run, backend probe, release rerun, or static audit can honestly substitute for those remaining physical observations.
 - The precise resume condition is either a user report from the exact public `v0.2.1-rc.7` APK covering map/markers plus WALK, DRIVE, and TRANSIT, or the authorized Xiaomi 15T Pro becoming physically available again for testing. No product, backend, workflow, release, SSH, VPS, credential, or stable-release change was made in this audit.
 - No secret, token, raw IP, coordinate, work title, search term, route body, Google/Firebase credential, signing material, VPS credential, password, or SSH state was printed, recorded, or changed.
+
+## 2026-07-31 - Task 54: third RC7 physical-boundary audit and blocked handoff
+
+### Third authoritative verification
+
+- Re-read the complete current 1,351-line `AGENT.md` in UTF-8 before starting this continuation. The phone remains physically unavailable under the user's self-test handoff, so this task performed no ADB command, installation, device read, UI action, permission change, mock-location change, network change, or other phone operation.
+- Confirmed the worktree was clean before this record and local `main`, its `origin/main` tracking ref, and the authoritative remote `main` all pointed to `65225b9ee0c5ff7d75d56339a47580c995f4c852`. The annotated `v0.2.1-rc.7` tag still peels to green merge commit `0e8fb6dd91a10a3b7842d7a6ca447ef888d965be`.
+- Confirmed the public non-draft Prerelease and its two assets remain available. The APK is still 48,703,245 bytes with GitHub digest SHA-256 `f4a1b53b20baddb16602488242cd71dace56b98a0a04cb5ee28ad214c08c3a1d`; Signed APK Release run `30594755413` and exact-public Release APK Compatibility run `30595041809` both remain completed successfully at the tagged merge commit.
+- Rechecked the RC7 acceptance record again. Every non-phone implementation, test, CI, signed-publication, artifact, API 26, and API 37 gate is checked. Only exact Xiaomi overlay, visibly rendered Google basemap/markers, and the minimum WALK, DRIVE, and TRANSIT physical checks remain unchecked. Stable `v0.2.1` remains unpublished.
+
+### Blocked handoff and resume condition
+
+- The same external condition has now repeated for three consecutive goal turns: Task 52 recorded that the user had taken the phone away and would test the public RC7, Task 53 found no physical result on the second audit, and this task again has neither the phone nor a user test report. All remaining acceptance evidence depends on that same physical boundary.
+- No source change, emulator run, backend probe, release rerun, or static inspection can honestly prove visible Google rendering or successful WALK, DRIVE, and TRANSIT behavior on the target phone. Further work without a physical result would create churn rather than advance the requested completion standard.
+- The goal is therefore blocked until either the user reports all four results from the exact public `v0.2.1-rc.7` APK or the authorized Xiaomi 15T Pro becomes physically available for testing. No product, backend, workflow, Release, SSH, VPS, credential, or stable-version change was made in this audit.
+- No secret, token, raw IP, coordinate, work title, search term, route body, Google/Firebase credential, signing material, VPS credential, password, or SSH state was printed, recorded, or changed.
