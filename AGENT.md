@@ -1420,3 +1420,10 @@
 - Withdrew only the TRANSIT acceptance from `docs/releases/v0.2.1-rc.7.md`; retained the user's confirmed Google map/point, WALK, and DRIVE results. The record explicitly preserves that the user first reported all modes normal and later supplied contradictory transit evidence rather than silently rewriting history.
 - Corrected `README.md` and `docs/RELEASE_NOTES_v0.2.1.md` so they no longer advertise RC7 transit as accepted. Added user-facing explanations for the 20-destination daily navigation limit, the untranslated quota message, the false “guiding” state, and the overbroad transit no-data message.
 - `git diff --check` passes apart from the repository's normal Windows line-ending notices. No application/backend source, APK, tag, Release asset, stable release, quota value, ledger, SSH setting, VPS service, Google/Firebase setting, or phone state changed in this diagnosis.
+
+### Published acceptance correction
+
+- Committed the correction as `bbee52398d2cbe5a97d48ecebeb0b7c5d88c5e02`, pushed `codex/rc7-acceptance-correction`, and opened pull request 9. The pull-request Android CI run `30602780456` passed the verify job and both API 26/API 37 emulator-smoke jobs before merge.
+- Marked the pull request ready only after all three checks passed, then merged it into `main` as `6f679fa4ccb0f5aceb2340d76ccbf8138a80ed56`. The merge changed documentation and this audit log only; the `main` push correctly did not start a duplicate Android CI run because all changed paths are covered by the workflow's `paths-ignore` list.
+- Updated the existing public `v0.2.1-rc.7` Prerelease body to the corrected local `docs/RELEASE_NOTES_v0.2.1.md`. A post-update API comparison confirmed an exact body match after newline normalization; the title, tag, Prerelease status, APK, checksum attachment, and their contents remain unchanged.
+- Stable `v0.2.1` remains unpublished and TRANSIT remains unchecked. No application/backend source, APK, tag, Release attachment, phone, production service, quota ledger, SSH setting, VPS service, Google/Firebase setting, credential, or secret was changed by the correction.
