@@ -6,6 +6,7 @@ import cn.anitabi.navigator.core.model.TransitRoutingPreference
 import cn.anitabi.navigator.core.model.TransitTravelMode
 import cn.anitabi.navigator.core.model.TravelMode
 import cn.anitabi.navigator.data.auth.IdTokenProvider
+import cn.anitabi.navigator.data.network.ApiException
 import cn.anitabi.navigator.data.network.ApiHttpClient
 import cn.anitabi.navigator.data.network.UserAgentInterceptor
 import cn.anitabi.navigator.data.network.backend.BackendApi
@@ -15,6 +16,7 @@ import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -123,5 +125,47 @@ class RoutingProvidersTest {
         val body = server.takeRequest().body.readUtf8()
         assertTrue(body.contains("\"arrivalTime\":\"2026-07-29T09:30:00+09:00\""))
         assertTrue(!body.contains("departureTime"))
+    }
+
+    @Test
+    fun `transit provider rejects positive route without transit step evidence`() {
+        server.enqueue(
+            MockResponse().setBody(
+                """{"distanceMeters":1200,"durationSeconds":600,"legs":[{"distanceMeters":1200,"durationSeconds":600,"steps":[]}]}""",
+            ),
+        )
+
+        val exception = assertThrows(ApiException.InvalidResponse::class.java) {
+            runBlocking {
+                BackendTransitJourneyProvider(api).journey(
+                    from = GeoPoint(35.0, 139.0),
+                    to = GeoPoint(35.01, 139.01),
+                    query = TransitJourneyQuery(departureTime = "2026-07-29T09:00:00+09:00"),
+                )
+            }
+        }
+
+        assertTrue(exception.cause?.message.orEmpty().contains("contains no steps"))
+    }
+
+    @Test
+    fun `transit provider preserves zero-distance route as a non-transit connector`() = runBlocking {
+        server.enqueue(
+            MockResponse().setBody(
+                """{"distanceMeters":0,"durationSeconds":0,"legs":[{"distanceMeters":0,"durationSeconds":0,"steps":[]}]}""",
+            ),
+        )
+        val coordinate = GeoPoint(35.0, 139.0)
+
+        val journey = BackendTransitJourneyProvider(api).journey(
+            from = coordinate,
+            to = coordinate,
+            query = TransitJourneyQuery(departureTime = "2026-07-29T09:00:00+09:00"),
+        )
+
+        assertEquals(TravelMode.WALK, journey.legs.single().mode)
+        assertEquals(0.0, journey.legs.single().distanceMeters, 0.0)
+        assertEquals(coordinate, journey.legs.single().from)
+        assertEquals(coordinate, journey.legs.single().to)
     }
 }

@@ -10,6 +10,11 @@ import cn.anitabi.navigator.data.network.ApiException
 import cn.anitabi.navigator.data.network.ApiHttpClient
 import cn.anitabi.navigator.data.network.UserAgentInterceptor
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withTimeout
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
@@ -162,6 +167,142 @@ class BackendApiTest {
 
         assertTrue(exception is ApiException.QuotaExhausted)
         assertTrue(!exception.message.orEmpty().contains("private upstream detail"))
+    }
+
+    @Test
+    fun `trusted backend rate limit retries once then paces later posts until the bucket resets`() = runBlocking {
+        val waits = mutableListOf<Long>()
+        var now = 0L
+        api = BackendApi(
+            httpClient = ApiHttpClient(UserAgentInterceptor("AnitabiNavigator", "0.2.1", "https://example.org")),
+            tokenProvider = IdTokenProvider { "firebase-test-token" },
+            baseUrl = server.url("/").toString(),
+            monotonicMillis = { now },
+            sleeper = { millis ->
+                waits += millis
+                now += millis
+            },
+        )
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(429)
+                .setHeader("Retry-After", "1")
+                .setBody("""{"error":{"code":"RATE_LIMITED"}}"""),
+        )
+        server.enqueue(
+            MockResponse().setBody(
+                """{"distanceMeters":1000,"durationSeconds":600,"legs":[]}""",
+            ),
+        )
+        server.enqueue(MockResponse().setBody("""{"reservedDestinations":1,"remainingToday":19}"""))
+        server.enqueue(MockResponse().setBody("""{"reservedDestinations":1,"remainingToday":18}"""))
+
+        api.route(
+            mode = TravelMode.WALK,
+            locations = listOf(GeoPoint(35.0, 139.0), GeoPoint(35.1, 139.1)),
+        )
+        api.reserveNavigation(1)
+        now += 10_000L
+        api.reserveNavigation(1)
+
+        assertEquals(listOf(1_000L, 1_000L), waits)
+        assertEquals(4, server.requestCount)
+    }
+
+    @Test
+    fun `quota and untrusted bare rate limits are never retried`() {
+        val cases = listOf(
+            MockResponse().setResponseCode(429).setHeader("Retry-After", "1")
+                .setBody("""{"error":{"code":"QUOTA_EXHAUSTED"}}"""),
+            MockResponse().setResponseCode(429).setHeader("Retry-After", "1")
+                .setBody("not a backend envelope"),
+        )
+        val exceptions = cases.map { response ->
+            server.enqueue(response)
+            runCatching {
+                runBlocking {
+                    api.route(
+                        mode = TravelMode.WALK,
+                        locations = listOf(GeoPoint(35.0, 139.0), GeoPoint(35.1, 139.1)),
+                    )
+                }
+            }.exceptionOrNull()
+        }
+
+        assertTrue(exceptions[0] is ApiException.QuotaExhausted)
+        assertTrue(exceptions[1] is ApiException.RateLimited)
+        assertEquals(2, server.requestCount)
+    }
+
+    @Test
+    fun `second trusted rate limit stops after one retry`() {
+        repeat(2) {
+            server.enqueue(
+                MockResponse().setResponseCode(429).setHeader("Retry-After", "1")
+                    .setBody("""{"error":{"code":"RATE_LIMITED"}}"""),
+            )
+        }
+
+        val exception = runCatching {
+            runBlocking {
+                api.route(
+                    mode = TravelMode.WALK,
+                    locations = listOf(GeoPoint(35.0, 139.0), GeoPoint(35.1, 139.1)),
+                )
+            }
+        }.exceptionOrNull()
+
+        assertTrue(exception is ApiException.RateLimited)
+        assertEquals(2, server.requestCount)
+    }
+
+    @Test
+    fun `cancelling a trusted rate-limit wait sends no retry`() = runBlocking {
+        val waiting = CompletableDeferred<Unit>()
+        api = BackendApi(
+            httpClient = ApiHttpClient(UserAgentInterceptor("AnitabiNavigator", "0.2.1", "https://example.org")),
+            tokenProvider = IdTokenProvider { "firebase-test-token" },
+            baseUrl = server.url("/").toString(),
+            sleeper = {
+                waiting.complete(Unit)
+                CompletableDeferred<Unit>().await()
+            },
+        )
+        server.enqueue(
+            MockResponse().setResponseCode(429).setHeader("Retry-After", "1")
+                .setBody("""{"error":{"code":"RATE_LIMITED"}}"""),
+        )
+
+        val requestJob = launch {
+            api.route(
+                mode = TravelMode.WALK,
+                locations = listOf(GeoPoint(35.0, 139.0), GeoPoint(35.1, 139.1)),
+            )
+        }
+        waiting.await()
+        requestJob.cancelAndJoin()
+
+        assertEquals(1, server.requestCount)
+    }
+
+    @Test
+    fun `cancelling while a response body is streaming cancels the HTTP call`() = runBlocking {
+        server.enqueue(
+            MockResponse()
+                .setBody("""{"distanceMeters":1000,"durationSeconds":600,"legs":[]}""")
+                .setBodyDelay(10, java.util.concurrent.TimeUnit.SECONDS),
+        )
+
+        val requestJob = launch {
+            api.route(
+                mode = TravelMode.WALK,
+                locations = listOf(GeoPoint(35.0, 139.0), GeoPoint(35.1, 139.1)),
+            )
+        }
+        while (server.requestCount == 0) delay(10)
+        withTimeout(2_000L) { requestJob.cancelAndJoin() }
+
+        assertEquals(1, server.requestCount)
     }
 
     @Test

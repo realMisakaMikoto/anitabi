@@ -222,20 +222,19 @@ jobs:
           grep -q "Runtime Start" smoke-output/recovery-*.xml
           grep -q "已完成" smoke-output/recovery-*.xml
           adb exec-out screencap -p > smoke-output/recovery-first.png
-          adb shell dumpsys notification --noredact > smoke-output/recovery-notifications-first.txt
-          grep -q "cn.anitabi.navigator" smoke-output/recovery-notifications-first.txt
           adb shell am force-stop cn.anitabi.navigator
           adb shell am start -W -n cn.anitabi.navigator/.MainActivity > smoke-output/recovery-restart.txt
           sleep 5
           timeout 30 adb shell uiautomator dump /sdcard/recovery-restart.xml || true
           adb pull /sdcard/recovery-restart.xml smoke-output/recovery-restart.xml || true
-          grep -q "Runtime Smoke Tour" smoke-output/recovery-restart.xml
-          grep -q "路线暂时无法刷新" smoke-output/recovery-restart.xml
-          grep -q "Runtime Start" smoke-output/recovery-restart.xml
-          grep -q "已完成" smoke-output/recovery-restart.xml
+          grep -q "搜索 Bangumi" smoke-output/recovery-restart.xml
           adb exec-out screencap -p > smoke-output/recovery-restart.png
-          adb shell dumpsys notification --noredact > smoke-output/recovery-notifications-restart.txt
-          grep -q "cn.anitabi.navigator" smoke-output/recovery-notifications-restart.txt
+          adb shell am instrument -w \
+            -e class 'cn.anitabi.navigator.navigation.NavigationRuntimeInstrumentedTest#verifyFailedProcessRecoveryState' \
+            cn.anitabi.navigator.test/androidx.test.runner.AndroidJUnitRunner \
+            2>&1 | tee smoke-output/recovery-state.txt
+          grep -q "RECOVERY_FAILED_ROUTE_REMAINS_REFRESHABLE" smoke-output/recovery-state.txt
+          grep -q "OK (1 test)" smoke-output/recovery-state.txt
           test "$(adb shell settings get global airplane_mode_on | tr -d '\r')" = "1"
       - name: Verify foreground navigation completion
         run: |

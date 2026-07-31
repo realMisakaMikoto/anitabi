@@ -58,7 +58,9 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     const token = authorization.slice("Bearer ".length);
     if (token.length === 0 || token.length > 8_192) throw new ApiError("UNAUTHENTICATED");
     const uid = await dependencies.auth.verify(token);
-    if (!dependencies.rateLimiter.consume(uid, request.ip)) throw new ApiError("RATE_LIMITED");
+    if (!dependencies.rateLimiter.consume(uid, request.ip)) {
+      throw new ApiError("RATE_LIMITED", { retryAfterSeconds: 1 });
+    }
     authenticatedUid.set(request, uid);
   });
 
@@ -116,6 +118,9 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
   app.setErrorHandler((error, request, reply) => {
     const apiError = normalizeError(error);
     requestErrorCode.set(request, apiError.code);
+    if (apiError.retryAfterSeconds !== undefined) {
+      reply.header("Retry-After", String(apiError.retryAfterSeconds));
+    }
     void reply.status(apiError.statusCode).send(errorBody(apiError));
   });
 

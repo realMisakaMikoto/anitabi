@@ -4,6 +4,7 @@ import cn.anitabi.navigator.core.model.TravelMode
 import cn.anitabi.navigator.core.model.TransitRoutingPreference
 import cn.anitabi.navigator.core.model.TransitTimeMode
 import cn.anitabi.navigator.core.model.TransitTravelMode
+import cn.anitabi.navigator.core.routing.TransitRideUnavailableException
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
@@ -11,6 +12,7 @@ import java.time.ZonedDateTime
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PlannerFormattingTest {
@@ -107,7 +109,7 @@ class PlannerFormattingTest {
 
     @Test
     fun `now transit anchor is captured when planning starts`() {
-        val now = ZonedDateTime.of(2026, 7, 31, 12, 36, 0, 0, ZoneId.of("Asia/Shanghai"))
+        val now = ZonedDateTime.of(2026, 7, 31, 12, 36, 47, 123_000_000, ZoneId.of("Asia/Shanghai"))
 
         assertEquals(
             now,
@@ -118,6 +120,25 @@ class PlannerFormattingTest {
                 now = now,
             ),
         )
+    }
+
+    @Test
+    fun `current transit planning time preserves seconds`() {
+        val instant = java.time.Instant.parse("2026-07-31T04:36:47.123Z")
+        val clock = java.time.Clock.fixed(instant, ZoneId.of("Asia/Shanghai"))
+
+        assertEquals(
+            ZonedDateTime.of(2026, 7, 31, 12, 36, 47, 123_000_000, ZoneId.of("Asia/Shanghai")),
+            currentTransitPlanningTime(clock),
+        )
+    }
+
+    @Test
+    fun `walking-only result explains the Routes API Japan limitation`() {
+        val message = plannerFailureMessage(TransitRideUnavailableException())
+
+        assertTrue(message.contains("未将全步行路线作为公交方案"))
+        assertTrue(message.contains("日本"))
     }
 
     @Test

@@ -1,9 +1,15 @@
 package cn.anitabi.navigator.navigation
 
+import cn.anitabi.navigator.core.model.Anime
+import cn.anitabi.navigator.core.model.EndPolicy
 import cn.anitabi.navigator.core.model.NavigationProgress
 import cn.anitabi.navigator.core.model.NavigationState
+import cn.anitabi.navigator.core.model.RouteObjective
+import cn.anitabi.navigator.core.model.TourPlan
+import cn.anitabi.navigator.core.model.TravelMode
 import cn.anitabi.navigator.data.network.ApiException
 import java.io.IOException
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -55,4 +61,74 @@ class NavigationFailureMessageTest {
 
         assertNull(resumableProgressAfterFailure(progress))
     }
+
+    @Test
+    fun `failure recovery never copies progress from another tour`() {
+        val oldProgress = NavigationProgress(
+            tourId = "old-tour",
+            legIndex = 3,
+            completedPointIds = setOf("old-stop"),
+            state = NavigationState.NAVIGATING,
+        )
+
+        assertNull(
+            resumableProgressForTourAfterFailure(
+                tourId = "new-tour",
+                engineProgress = oldProgress,
+                runtimeProgress = oldProgress,
+            ),
+        )
+    }
+
+    @Test
+    fun `failure state replaces the plan and clears stale progress from another tour`() {
+        val oldPlan = emptyPlan("old-tour")
+        val currentPlan = emptyPlan("new-tour")
+        val oldProgress = NavigationProgress(
+            tourId = oldPlan.id,
+            legIndex = 3,
+            state = NavigationState.NAVIGATING,
+        )
+
+        val result = navigationRuntimeAfterFailure(
+            previous = NavigationRuntimeState(plan = oldPlan, progress = oldProgress, isRunning = true),
+            currentPlan = currentPlan,
+            progress = null,
+            message = "failed",
+        )
+
+        assertEquals(currentPlan, result.plan)
+        assertNull(result.progress)
+        assertEquals("failed", result.errorMessage)
+        assertEquals(false, result.isRunning)
+    }
+
+    @Test
+    fun `superseded cleanup still persists rollback without stopping the new service`() = runBlocking {
+        var persisted = false
+        var stopped = false
+
+        completeNavigationCleanup(
+            expectedGeneration = 1L,
+            currentGeneration = { 2L },
+            persistRollback = { persisted = true },
+            stopService = { stopped = true },
+        )
+
+        assertEquals(true, persisted)
+        assertEquals(false, stopped)
+    }
+
+    private fun emptyPlan(id: String) = TourPlan(
+        id = id,
+        anime = Anime(subjectId = 1, name = "Test"),
+        selectedPoints = emptyList(),
+        orderedPoints = emptyList(),
+        legs = emptyList(),
+        mode = TravelMode.WALK,
+        objective = RouteObjective.FASTEST,
+        endPolicy = EndPolicy.OPEN,
+        estimatedDurationSeconds = 0.0,
+        attribution = emptyList(),
+    )
 }

@@ -144,11 +144,21 @@ class BackendTransitJourneyProvider(private val api: BackendApi) : TransitJourne
         )
         val routeSteps = response.legs.flatMap(BackendRouteLeg::steps)
         val legs = if (routeSteps.isEmpty()) {
+            if (
+                from != to ||
+                response.distanceMeters > 0.0 ||
+                response.durationSeconds > 0.0 ||
+                response.legs.any { it.distanceMeters > 0.0 || it.durationSeconds > 0.0 }
+            ) {
+                throw ApiException.InvalidResponse(
+                    IllegalStateException("Nontrivial transit route contains no steps"),
+                )
+            }
             listOf(
                 TourLeg(
                     from = from,
                     to = to,
-                    mode = TravelMode.TRANSIT,
+                    mode = TravelMode.WALK,
                     geometry = decodeGooglePolyline(response.encodedPolyline).ifEmpty { listOf(from, to) },
                     steps = emptyList(),
                     distanceMeters = response.distanceMeters,

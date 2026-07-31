@@ -209,6 +209,50 @@ class TourPlannerTest {
     }
 
     @Test
+    fun `walking-only fallback is not reported as a transit itinerary`() {
+        val road = FakeRoadProvider()
+        val planner = TourPlanner(road, AlwaysNoRouteTransitProvider())
+
+        val exception = assertThrows(TransitRideUnavailableException::class.java) {
+            runBlocking {
+                planner.planTransit(
+                    TransitPlanRequest(
+                        anime = anime,
+                        selectedPoints = listOf(point("near", 0.1), point("far", 0.2)),
+                        start = GeoPoint(0.0, 0.0),
+                        endPolicy = EndPolicy.OPEN,
+                        timeMode = TransitTimeMode.NOW,
+                        anchorTime = "2026-07-29T09:00:00+09:00",
+                    ),
+                )
+            }
+        }
+
+        assertTrue(exception.message.orEmpty().contains("no transit ride"))
+        assertEquals(listOf(TravelMode.WALK, TravelMode.WALK), road.directionModes)
+    }
+
+    @Test
+    fun `zero-valued walking fallback between different points is not transit evidence`() {
+        val planner = TourPlanner(ZeroValuedRoadProvider(), AlwaysNoRouteTransitProvider())
+
+        assertThrows(TransitRideUnavailableException::class.java) {
+            runBlocking {
+                planner.planTransit(
+                    TransitPlanRequest(
+                        anime = anime,
+                        selectedPoints = listOf(point("near", 0.1), point("far", 0.2)),
+                        start = GeoPoint(0.0, 0.0),
+                        endPolicy = EndPolicy.OPEN,
+                        timeMode = TransitTimeMode.NOW,
+                        anchorTime = "2026-07-29T09:00:00+09:00",
+                    ),
+                )
+            }
+        }
+    }
+
+    @Test
     fun `missing transit and walking route reports the exact segment`() {
         val planner = TourPlanner(NoRouteRoadProvider(), FailingTransitProvider(failingCall = 1))
 
@@ -547,6 +591,25 @@ private class NoRouteRoadProvider : RoadRoutingProvider {
     }
 }
 
+private class ZeroValuedRoadProvider : RoadRoutingProvider {
+    override suspend fun matrix(
+        mode: TravelMode,
+        points: List<GeoPoint>,
+        objective: RouteObjective,
+    ): TravelMatrix = error("Matrix is not used for transit fallback")
+
+    override suspend fun directions(mode: TravelMode, points: List<GeoPoint>): RoadRoute = RoadRoute(
+        points.zipWithNext().map { (from, to) ->
+            RoadRouteSegment(
+                geometry = listOf(from, to),
+                steps = emptyList(),
+                distanceMeters = 0.0,
+                durationSeconds = 0.0,
+            )
+        },
+    )
+}
+
 private class UnavailableTransitProvider : TransitJourneyProvider {
     override suspend fun journey(
         from: GeoPoint,
@@ -554,5 +617,15 @@ private class UnavailableTransitProvider : TransitJourneyProvider {
         query: TransitJourneyQuery,
     ): TransitJourney {
         throw ApiException.UpstreamUnavailable()
+    }
+}
+
+private class AlwaysNoRouteTransitProvider : TransitJourneyProvider {
+    override suspend fun journey(
+        from: GeoPoint,
+        to: GeoPoint,
+        query: TransitJourneyQuery,
+    ): TransitJourney {
+        throw ApiException.NoRoute()
     }
 }

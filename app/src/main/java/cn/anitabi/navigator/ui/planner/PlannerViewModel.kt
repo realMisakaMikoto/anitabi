@@ -16,6 +16,7 @@ import cn.anitabi.navigator.core.routing.NoRouteException
 import cn.anitabi.navigator.core.routing.RoadPlanRequest
 import cn.anitabi.navigator.core.routing.TourPlanner
 import cn.anitabi.navigator.core.routing.TransitPlanRequest
+import cn.anitabi.navigator.core.routing.TransitRideUnavailableException
 import cn.anitabi.navigator.core.routing.TransitSegmentUnavailableException
 import cn.anitabi.navigator.core.routing.formatTransitDepartureTime
 import cn.anitabi.navigator.data.network.ApiException
@@ -30,6 +31,7 @@ import java.time.LocalTime
 import java.time.ZonedDateTime
 import java.time.temporal.ChronoUnit
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -44,9 +46,12 @@ class PlannerViewModel(
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(PlannerUiState())
     val state: StateFlow<PlannerUiState> = mutableState.asStateFlow()
+    private var planningJob: Job? = null
+    private var planningGeneration = 0L
 
     fun configure(anime: Anime, points: List<PilgrimagePoint>) {
         require(points.size >= 2)
+        cancelPlanning()
         val now = ZonedDateTime.now(clock).withSecond(0).withNano(0)
         mutableState.value = PlannerUiState(
             anime = anime,
@@ -158,7 +163,9 @@ class PlannerViewModel(
                 totalTransitSegments = if (current.mode == TravelMode.TRANSIT) current.transitSegmentCount() else 0,
             )
         }
-        viewModelScope.launch {
+        val generation = ++planningGeneration
+        planningJob?.cancel()
+        planningJob = viewModelScope.launch {
             try {
                 val startPoint = current.startPointId?.let { id -> current.selectedPoints.single { it.id == id } }
                 val startCoordinate = if (current.useCurrentLocation) {
@@ -167,7 +174,7 @@ class PlannerViewModel(
                     requireNotNull(startPoint).coordinate
                 }
                 val plan = if (current.mode == TravelMode.TRANSIT) {
-                    val now = ZonedDateTime.now(clock).withSecond(0).withNano(0)
+                    val now = currentTransitPlanningTime(clock)
                     val anchor = resolveTransitAnchor(
                         mode = current.transitTimeMode,
                         date = current.transitDate,
@@ -189,8 +196,10 @@ class PlannerViewModel(
                             dwellMinutes = current.dwellMinutesInput.toIntOrNull() ?: 15,
                         ),
                     ) { completed, total ->
-                        mutableState.update {
-                            it.copy(plannedTransitSegments = completed, totalTransitSegments = total)
+                        if (generation == planningGeneration) {
+                            mutableState.update {
+                                it.copy(plannedTransitSegments = completed, totalTransitSegments = total)
+                            }
                         }
                     }
                 } else {
@@ -207,7 +216,9 @@ class PlannerViewModel(
                         ),
                     )
                 }
+                if (generation != planningGeneration) return@launch
                 repository.save(plan)
+                if (generation != planningGeneration) return@launch
                 mutableState.update {
                     it.copy(
                         plan = plan,
@@ -218,8 +229,24 @@ class PlannerViewModel(
                     )
                 }
             } catch (exception: Exception) {
-                handleFailure(exception)
+                if (generation == planningGeneration) handleFailure(exception)
+                else if (exception is CancellationException) throw exception
+            } finally {
+                if (generation == planningGeneration) planningJob = null
             }
+        }
+    }
+
+    fun cancelPlanning() {
+        planningGeneration += 1
+        planningJob?.cancel()
+        planningJob = null
+        mutableState.update {
+            if (!it.isLoading) it else it.copy(
+                isLoading = false,
+                plannedTransitSegments = 0,
+                totalTransitSegments = 0,
+            )
         }
     }
 
@@ -238,26 +265,35 @@ class PlannerViewModel(
         if (current.isLoading) return
         val plan = current.plan ?: return
         mutableState.update { it.copy(isLoading = true, errorMessage = null) }
-        viewModelScope.launch {
-            val planForRebuild = if (
-                plan.mode == TravelMode.TRANSIT && plan.transitTimeMode == TransitTimeMode.NOW
-            ) {
-                plan.copy(
-                    departureTime = formatTransitDepartureTime(
-                        ZonedDateTime.now(clock).toOffsetDateTime(),
-                    ),
-                )
-            } else {
-                plan
-            }
-            runCatching { planner.rebuild(planForRebuild, current.draftOrder) }
-                .onSuccess { updated ->
-                    repository.save(updated)
+        val generation = ++planningGeneration
+        planningJob?.cancel()
+        planningJob = viewModelScope.launch {
+            try {
+                val planForRebuild = if (
+                    plan.mode == TravelMode.TRANSIT && plan.transitTimeMode == TransitTimeMode.NOW
+                ) {
+                    plan.copy(
+                        departureTime = formatTransitDepartureTime(
+                            currentTransitPlanningTime(clock).toOffsetDateTime(),
+                        ),
+                    )
+                } else {
+                    plan
+                }
+                val updated = planner.rebuild(planForRebuild, current.draftOrder)
+                if (generation != planningGeneration) return@launch
+                repository.save(updated)
+                if (generation == planningGeneration) {
                     mutableState.update {
                         it.copy(plan = updated, draftOrder = updated.orderedPoints, orderChanged = false, isLoading = false)
                     }
                 }
-                .onFailure(::handleFailure)
+            } catch (exception: Exception) {
+                if (generation == planningGeneration) handleFailure(exception)
+                else if (exception is CancellationException) throw exception
+            } finally {
+                if (generation == planningGeneration) planningJob = null
+            }
         }
     }
 
@@ -316,6 +352,8 @@ internal fun plannerFailureMessage(throwable: Throwable): String = when (throwab
     is ApiException.Network -> "无法连接路线服务；当前网络出口可能被拦截，请切换网络后重试"
     is TransitSegmentUnavailableException ->
         "第 ${throwable.segmentNumber}/${throwable.segmentCount} 段在所选时间未找到公交或步行路线，请调整时间、顺序或出行方式"
+    is TransitRideUnavailableException ->
+        "Google 公交没有返回任何乘车线路，未将全步行路线作为公交方案；若地点在日本，这是 Routes API 的官方覆盖限制"
     is InvalidTransitScheduleException -> throwable.message ?: "请选择当前或未来 100 天内的时间"
     is NoRouteException -> "所选地点之间存在不可达路段"
     is MissingLocationPermissionException -> "需要定位权限才能从当前位置出发"
@@ -341,6 +379,8 @@ internal fun resolveTransitAnchor(
 }
 
 class InvalidTransitScheduleException(message: String) : IllegalArgumentException(message)
+
+internal fun currentTransitPlanningTime(clock: Clock): ZonedDateTime = ZonedDateTime.now(clock)
 
 internal val allTransitTravelModes = listOf(
     TransitTravelMode.BUS,

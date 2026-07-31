@@ -357,6 +357,25 @@ test("successful response with an omitted empty routes field is a no-route resul
   );
 });
 
+test("non-empty success response without routes is unavailable", async () => {
+  const client = new GoogleRoutesClient({
+    projectId: "anitabi-test",
+    oauth,
+    fetch: async () => Response.json({ unexpected: true }),
+  });
+
+  await assert.rejects(
+    client.route({
+      mode: "TRANSIT",
+      locations: [
+        { latitude: 35, longitude: 139 },
+        { latitude: 35.1, longitude: 139.1 },
+      ],
+    }),
+    hasCode("UPSTREAM_UNAVAILABLE"),
+  );
+});
+
 function hasCode(code: string): (error: unknown) => boolean {
   return (error) => typeof error === "object" && error !== null && "code" in error && error.code === code;
 }

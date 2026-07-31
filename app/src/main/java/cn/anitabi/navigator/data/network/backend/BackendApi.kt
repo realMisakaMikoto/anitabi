@@ -12,6 +12,9 @@ import kotlinx.serialization.DeserializationStrategy
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.SerializationStrategy
 import kotlinx.serialization.json.Json
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -21,7 +24,13 @@ class BackendApi(
     private val tokenProvider: IdTokenProvider,
     private val json: Json = ApiHttpClient.defaultJson,
     private val baseUrl: String = BASE_URL,
+    private val monotonicMillis: () -> Long = { System.nanoTime() / 1_000_000L },
+    private val sleeper: suspend (Long) -> Unit = { delay(it) },
 ) {
+    private val postMutex = Mutex()
+    private var pacedAfterRateLimit = false
+    private var nextPostAtMillis = 0L
+    private var lastPostStartedAtMillis = 0L
     suspend fun matrix(
         mode: TravelMode,
         coordinates: List<GeoPoint>,
@@ -108,14 +117,61 @@ class BackendApi(
             .header("Authorization", "Bearer $token")
             .post(json.encodeToString(serializer, body).toRequestBody(JSON_MEDIA_TYPE))
             .build()
-        return httpClient.execute(
-            request = request,
-            deserializer = deserializer,
-            errorMapper = ::mapBackendError,
-        )
+        return postMutex.withLock {
+            waitForPostSlot()
+            markPostStarted()
+            try {
+                executeOnce(request, deserializer).also { scheduleNextPostIfNeeded() }
+            } catch (exception: ApiException.RateLimited) {
+                val retryAfterMillis = exception.retryAfterMillis ?: throw exception
+                pacedAfterRateLimit = true
+                nextPostAtMillis = maxOf(nextPostAtMillis, monotonicMillis() + retryAfterMillis)
+                waitForPostSlot()
+                markPostStarted()
+                try {
+                    executeOnce(request, deserializer)
+                } finally {
+                    scheduleNextPostIfNeeded()
+                }
+            } catch (exception: Exception) {
+                scheduleNextPostIfNeeded()
+                throw exception
+            }
+        }
     }
 
-    private fun mapBackendError(status: Int, body: String): ApiException {
+    private suspend fun waitForPostSlot() {
+        while (true) {
+            val now = monotonicMillis()
+            if (pacedAfterRateLimit && now - lastPostStartedAtMillis >= PACE_RESET_MILLIS) {
+                pacedAfterRateLimit = false
+                nextPostAtMillis = 0L
+                return
+            }
+            val waitMillis = (nextPostAtMillis - now).coerceAtLeast(0L)
+            if (waitMillis == 0L) return
+            sleeper(waitMillis)
+        }
+    }
+
+    private fun markPostStarted() {
+        lastPostStartedAtMillis = monotonicMillis()
+    }
+
+    private fun scheduleNextPostIfNeeded() {
+        if (pacedAfterRateLimit) nextPostAtMillis = lastPostStartedAtMillis + POST_PACE_MILLIS
+    }
+
+    private suspend fun <ResponseBody> executeOnce(
+        request: Request,
+        deserializer: DeserializationStrategy<ResponseBody>,
+    ): ResponseBody = httpClient.execute(
+        request = request,
+        deserializer = deserializer,
+        errorMapper = ::mapBackendError,
+    )
+
+    private fun mapBackendError(status: Int, body: String, retryAfter: String?): ApiException {
         val code = runCatching {
             json.decodeFromString(BackendErrorEnvelope.serializer(), body).error.code
         }.getOrNull()
@@ -124,7 +180,11 @@ class BackendApi(
             "INVALID_ARGUMENT" -> ApiException.InvalidArgument()
             "NO_ROUTE" -> ApiException.NoRoute()
             "QUOTA_EXHAUSTED" -> ApiException.QuotaExhausted()
-            "RATE_LIMITED" -> ApiException.RateLimited()
+            "RATE_LIMITED" -> if (status == 429) {
+                ApiException.RateLimited(retryAfter.retryAfterMillis())
+            } else {
+                ApiException.InvalidResponse(IllegalStateException("RATE_LIMITED requires HTTP 429"))
+            }
             "UPSTREAM_UNAVAILABLE" -> ApiException.UpstreamUnavailable()
             "BACKEND_UNAVAILABLE" -> ApiException.BackendUnavailable()
             else -> when (status) {
@@ -140,9 +200,16 @@ class BackendApi(
 
     companion object {
         internal const val BASE_URL = "https://api.anitabi.afunnypersonlol0.site"
+        private const val POST_PACE_MILLIS = 1_000L
+        private const val PACE_RESET_MILLIS = 10_000L
         private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
     }
 }
+
+private fun String?.retryAfterMillis(): Long? = this
+    ?.toLongOrNull()
+    ?.takeIf { it in 1..60 }
+    ?.times(1_000L)
 
 private fun TravelMode.backendName(): String = when (this) {
     TravelMode.DRIVE -> "DRIVE"

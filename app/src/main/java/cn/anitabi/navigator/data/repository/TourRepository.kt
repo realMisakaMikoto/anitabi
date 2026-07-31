@@ -14,10 +14,26 @@ class TourRepository(
     private val now: () -> Long = System::currentTimeMillis,
 ) {
     private val resolvedRoutes = ConcurrentHashMap<String, TourPlan>()
+    private val resolvedProgress = ConcurrentHashMap<String, NavigationProgress>()
 
     suspend fun save(plan: TourPlan, progress: NavigationProgress? = null) {
-        val stored = StoredTourV2.from(plan, progress)
+        persist(plan, progress)
+        if (progress == null) {
+            resolvedProgress.remove(plan.id)
+        } else {
+            resolvedProgress[plan.id] = progress
+        }
         resolvedRoutes[plan.id] = plan
+    }
+
+    suspend fun saveUnresolved(plan: TourPlan, progress: NavigationProgress? = null) {
+        persist(plan, progress)
+        resolvedRoutes.remove(plan.id)
+        resolvedProgress.remove(plan.id)
+    }
+
+    private suspend fun persist(plan: TourPlan, progress: NavigationProgress?) {
+        val stored = StoredTourV2.from(plan, progress)
         dao.upsert(
             TourPlanEntity(
                 id = plan.id,
@@ -45,7 +61,11 @@ class TourRepository(
         return SavedTour(
             storedTour = stored,
             plan = resolved ?: stored.toUnresolvedPlan(),
-            progress = stored.toNavigationProgress(),
+            progress = if (resolved == null) {
+                stored.toNavigationProgress()
+            } else {
+                resolvedProgress[id] ?: stored.toNavigationProgress()
+            },
             routeNeedsRefresh = resolved == null,
         )
     }

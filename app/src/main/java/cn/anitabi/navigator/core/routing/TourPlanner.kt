@@ -305,7 +305,7 @@ class TourPlanner(
         if (destinations.isEmpty()) {
             return BuiltTransitItinerary(emptyList(), normalizedAnchor, normalizedAnchor)
         }
-        return if (timeMode == TransitTimeMode.ARRIVE_BY) {
+        val itinerary = if (timeMode == TransitTimeMode.ARRIVE_BY) {
             buildArriveByTransitItinerary(
                 start = start,
                 destinations = destinations,
@@ -328,6 +328,15 @@ class TourPlanner(
                 onProgress = onProgress,
             )
         }
+        if (
+            itinerary.legs.any {
+                it.from != it.to || it.distanceMeters > 0.0 || it.durationSeconds > 0.0
+            } &&
+            itinerary.legs.none { it.mode == TravelMode.TRANSIT }
+        ) {
+            throw TransitRideUnavailableException()
+        }
+        return itinerary
     }
 
     private suspend fun buildDepartAtTransitItinerary(
@@ -670,3 +679,5 @@ class TransitSegmentUnavailableException(
     val segmentCount: Int,
     cause: Throwable? = null,
 ) : Exception("Transit segment $segmentNumber of $segmentCount has no transit or walking route", cause)
+
+class TransitRideUnavailableException : Exception("Transit itinerary contains no transit ride")
