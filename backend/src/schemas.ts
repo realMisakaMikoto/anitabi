@@ -38,7 +38,41 @@ export const routeBodySchema = {
       items: coordinateSchema,
     },
     departureTime: { type: "string", format: "date-time" },
+    arrivalTime: { type: "string", format: "date-time" },
+    transitRoutingPreference: {
+      type: "string",
+      enum: ["LESS_WALKING", "FEWER_TRANSFERS"],
+    },
+    transitTravelModes: {
+      type: "array",
+      minItems: 1,
+      maxItems: 5,
+      uniqueItems: true,
+      items: {
+        type: "string",
+        enum: ["BUS", "SUBWAY", "TRAIN", "LIGHT_RAIL", "RAIL"],
+      },
+    },
   },
+  allOf: [
+    { not: { required: ["departureTime", "arrivalTime"] } },
+    {
+      if: {
+        properties: { mode: { const: "TRANSIT" } },
+        required: ["mode"],
+      },
+      else: {
+        not: {
+          anyOf: [
+            { required: ["departureTime"] },
+            { required: ["arrivalTime"] },
+            { required: ["transitRoutingPreference"] },
+            { required: ["transitTravelModes"] },
+          ],
+        },
+      },
+    },
+  ],
 } as const;
 
 export const navigationReservationBodySchema = {

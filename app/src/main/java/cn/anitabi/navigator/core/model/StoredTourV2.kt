@@ -16,7 +16,12 @@ data class StoredTourV2(
     val objective: RouteObjective,
     val endPolicy: EndPolicy,
     val fixedEndPointId: String? = null,
+    /** v0.2.0 compatibility only. New writes use transitAnchorTime. */
     val departureTime: String? = null,
+    val transitTimeMode: TransitTimeMode? = null,
+    val transitAnchorTime: String? = null,
+    val transitRoutingPreference: TransitRoutingPreference = TransitRoutingPreference.RECOMMENDED,
+    val transitTravelModes: Set<TransitTravelMode> = emptySet(),
     val dwellMinutes: Int = 15,
     val completedPointIds: Set<String> = emptySet(),
     val activePointId: String? = null,
@@ -33,6 +38,17 @@ data class StoredTourV2(
         val pointsById = selectedPoints.associateBy(PilgrimagePoint::id)
         val ordered = manualOrderPointIds.mapNotNull(pointsById::get) +
             selectedPoints.filterNot { it.id in manualOrderPointIds.toSet() }
+        val legacyAnchorTime = transitAnchorTime ?: departureTime
+        val restoredTimeMode = transitTimeMode ?: if (mode == TravelMode.TRANSIT && legacyAnchorTime != null) {
+            TransitTimeMode.DEPART_AT
+        } else {
+            TransitTimeMode.NOW
+        }
+        val restoredAnchorTime = when (restoredTimeMode) {
+            TransitTimeMode.NOW -> null
+            TransitTimeMode.DEPART_AT -> legacyAnchorTime
+            TransitTimeMode.ARRIVE_BY -> transitAnchorTime
+        }
         return TourPlan(
             id = id,
             anime = displayAnime,
@@ -44,7 +60,12 @@ data class StoredTourV2(
             endPolicy = endPolicy,
             estimatedDurationSeconds = 0.0,
             attribution = emptyList(),
-            departureTime = departureTime,
+            departureTime = null,
+            arrivalTime = null,
+            transitTimeMode = restoredTimeMode,
+            transitAnchorTime = restoredAnchorTime,
+            transitRoutingPreference = transitRoutingPreference,
+            transitTravelModes = transitTravelModes,
             dwellMinutes = dwellMinutes,
             initialStart = start,
             state = navigationState,
@@ -79,7 +100,19 @@ data class StoredTourV2(
             endPolicy = plan.endPolicy,
             fixedEndPointId = plan.orderedPoints.lastOrNull()?.id
                 ?.takeIf { plan.endPolicy == EndPolicy.FIXED },
-            departureTime = plan.departureTime,
+            departureTime = null,
+            transitTimeMode = plan.transitTimeMode,
+            transitAnchorTime = when {
+                plan.mode != TravelMode.TRANSIT -> null
+                plan.transitTimeMode == TransitTimeMode.NOW -> null
+                plan.transitTimeMode == TransitTimeMode.DEPART_AT ->
+                    plan.transitAnchorTime ?: plan.departureTime
+                else -> requireNotNull(plan.transitAnchorTime) {
+                    "Arrive-by transit plans require the user-selected arrival time"
+                }
+            },
+            transitRoutingPreference = plan.transitRoutingPreference,
+            transitTravelModes = plan.transitTravelModes,
             dwellMinutes = plan.dwellMinutes,
             completedPointIds = progress?.completedPointIds.orEmpty(),
             activePointId = progress?.let { current ->

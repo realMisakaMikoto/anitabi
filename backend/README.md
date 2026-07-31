@@ -5,7 +5,7 @@ The v0.2.1 backend is a single Node.js 24 LTS / Fastify process backed by SQLite
 ## Endpoints
 
 - `POST /v1/matrix`: 2-10 coordinates. A 10-coordinate square matrix reserves 100 Matrix Essentials elements.
-- `POST /v1/route`: 2-12 road locations or exactly two transit locations. Each accepted call reserves one Compute Routes request.
+- `POST /v1/route`: 2-12 road locations or exactly two transit locations. Transit accepts either `departureTime` or `arrivalTime`, the allowlisted `LESS_WALKING` / `FEWER_TRANSFERS` preference, and `transitTravelModes` with 1-5 unique values from `BUS`, `SUBWAY`, `TRAIN`, `LIGHT_RAIL`, and `RAIL`. Each accepted call reserves one Compute Routes request.
 - `POST /v1/navigation/reserve`: reserves 1-25 Navigation SDK destinations before the Android SDK is called.
 - `GET /v1/health`: returns only service and database health.
 

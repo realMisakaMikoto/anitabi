@@ -2,8 +2,11 @@ package cn.anitabi.navigator.core.routing
 
 import cn.anitabi.navigator.core.model.GeoPoint
 import cn.anitabi.navigator.core.model.RouteObjective
+import cn.anitabi.navigator.core.model.TransitRoutingPreference
+import cn.anitabi.navigator.core.model.TransitTravelMode
 import cn.anitabi.navigator.core.model.TravelMode
 import cn.anitabi.navigator.data.auth.IdTokenProvider
+import cn.anitabi.navigator.data.network.ApiException
 import cn.anitabi.navigator.data.network.ApiHttpClient
 import cn.anitabi.navigator.data.network.UserAgentInterceptor
 import cn.anitabi.navigator.data.network.backend.BackendApi
@@ -13,6 +16,7 @@ import okhttp3.mockwebserver.MockWebServer
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -65,26 +69,103 @@ class RoutingProvidersTest {
     fun `transit provider keeps Google line stop times and uses no invented platform`() = runBlocking {
         server.enqueue(
             MockResponse().setBody(
-                """{"distanceMeters":5000,"durationSeconds":900,"legs":[{"distanceMeters":5000,"durationSeconds":900,"steps":[{"travelMode":"WALK","distanceMeters":200,"durationSeconds":180,"encodedPolyline":"_p~iF~ps|U_ulLnnqC"},{"travelMode":"TRANSIT","distanceMeters":4800,"durationSeconds":720,"encodedPolyline":"_ulLnnqC_mqNvxq`@","transit":{"departureStop":"Tokyo","arrivalStop":"Ueno","departureTime":"2026-07-29T09:03:00+09:00","arrivalTime":"2026-07-29T09:15:00+09:00","lineShortName":"JY","headsign":"Ueno","vehicleType":"HEAVY_RAIL","stopCount":3}}]}]}""",
+                """{"distanceMeters":5200,"durationSeconds":1020,"legs":[{"distanceMeters":5200,"durationSeconds":1020,"steps":[{"travelMode":"WALK","distanceMeters":200,"durationSeconds":180,"encodedPolyline":"_p~iF~ps|U_ulLnnqC"},{"travelMode":"TRANSIT","distanceMeters":4800,"durationSeconds":720,"encodedPolyline":"_ulLnnqC_mqNvxq`@","transit":{"departureStop":"Tokyo","arrivalStop":"Ueno","departureTime":"2026-07-29T00:03:00Z","arrivalTime":"2026-07-29T00:15:00Z","departureTimeZone":"Asia/Tokyo","arrivalTimeZone":"Asia/Tokyo","lineShortName":"JY","headsign":"Ueno","vehicleType":"HEAVY_RAIL","stopCount":3}},{"travelMode":"WALK","distanceMeters":200,"durationSeconds":120}]}]}""",
             ),
         )
         val journey = BackendTransitJourneyProvider(api).journey(
             from = GeoPoint(38.5, -120.2),
             to = GeoPoint(43.252, -126.453),
-            departureTime = "2026-07-29T09:00:00+09:00",
+            query = TransitJourneyQuery(
+                departureTime = "2026-07-29T08:50:00+09:00",
+                routingPreference = TransitRoutingPreference.LESS_WALKING,
+                transitTravelModes = setOf(TransitTravelMode.BUS, TransitTravelMode.TRAIN),
+            ),
         )
 
-        assertEquals(2, journey.legs.size)
-        assertEquals("2026-07-29T09:15:00+09:00", journey.arrivalTime)
-        val transit = journey.legs.last().transit!!
+        assertEquals(3, journey.legs.size)
+        assertEquals("2026-07-29T00:00:00Z", journey.departureTime)
+        assertEquals("2026-07-29T00:17:00Z", journey.arrivalTime)
+        assertEquals(TravelMode.WALK, journey.legs.first().mode)
+        val body = server.takeRequest().body.readUtf8()
+        assertTrue(body.contains("\"transitRoutingPreference\":\"LESS_WALKING\""))
+        assertTrue(body.contains("\"transitTravelModes\":[\"BUS\",\"TRAIN\"]"))
+        val transit = journey.legs[1].transit!!
         assertEquals("JY", transit.line)
         assertEquals("Ueno", transit.direction)
         assertEquals("HEAVY_RAIL", transit.vehicleMode)
         assertEquals("Tokyo", transit.departureStop)
         assertEquals("Ueno", transit.arrivalStop)
+        assertEquals("2026-07-29T00:03:00Z", transit.departureTime)
+        assertEquals("2026-07-29T00:15:00Z", transit.arrivalTime)
+        assertEquals("Asia/Tokyo", transit.departureTimeZone)
+        assertEquals("Asia/Tokyo", transit.arrivalTimeZone)
         assertEquals(3, transit.stopCount)
         assertNull(transit.departurePlatform)
         assertTrue(transit.intermediateStops.isEmpty())
         assertTrue(journey.legs.all { it.source == GOOGLE_ROUTES_SOURCE })
+    }
+
+    @Test
+    fun `arrive-by journey includes the trailing walk in its actual arrival`() = runBlocking {
+        server.enqueue(
+            MockResponse().setBody(
+                """{"distanceMeters":5200,"durationSeconds":1020,"legs":[{"distanceMeters":5200,"durationSeconds":1020,"steps":[{"travelMode":"WALK","distanceMeters":200,"durationSeconds":180},{"travelMode":"TRANSIT","distanceMeters":4800,"durationSeconds":720,"transit":{"departureStop":"A","arrivalStop":"B","departureTime":"2026-07-29T09:03:00+09:00","arrivalTime":"2026-07-29T09:15:00+09:00","lineShortName":"T","vehicleType":"TRAIN","stopCount":3}},{"travelMode":"WALK","distanceMeters":200,"durationSeconds":120}]}]}""",
+            ),
+        )
+
+        val journey = BackendTransitJourneyProvider(api).journey(
+            from = GeoPoint(38.5, -120.2),
+            to = GeoPoint(43.252, -126.453),
+            query = TransitJourneyQuery(arrivalTime = "2026-07-29T09:30:00+09:00"),
+        )
+
+        assertEquals("2026-07-29T09:00:00+09:00", journey.departureTime)
+        assertEquals("2026-07-29T09:17:00+09:00", journey.arrivalTime)
+        assertEquals(TravelMode.WALK, journey.legs.last().mode)
+        val body = server.takeRequest().body.readUtf8()
+        assertTrue(body.contains("\"arrivalTime\":\"2026-07-29T09:30:00+09:00\""))
+        assertTrue(!body.contains("departureTime"))
+    }
+
+    @Test
+    fun `transit provider rejects positive route without transit step evidence`() {
+        server.enqueue(
+            MockResponse().setBody(
+                """{"distanceMeters":1200,"durationSeconds":600,"legs":[{"distanceMeters":1200,"durationSeconds":600,"steps":[]}]}""",
+            ),
+        )
+
+        val exception = assertThrows(ApiException.InvalidResponse::class.java) {
+            runBlocking {
+                BackendTransitJourneyProvider(api).journey(
+                    from = GeoPoint(35.0, 139.0),
+                    to = GeoPoint(35.01, 139.01),
+                    query = TransitJourneyQuery(departureTime = "2026-07-29T09:00:00+09:00"),
+                )
+            }
+        }
+
+        assertTrue(exception.cause?.message.orEmpty().contains("contains no steps"))
+    }
+
+    @Test
+    fun `transit provider preserves zero-distance route as a non-transit connector`() = runBlocking {
+        server.enqueue(
+            MockResponse().setBody(
+                """{"distanceMeters":0,"durationSeconds":0,"legs":[{"distanceMeters":0,"durationSeconds":0,"steps":[]}]}""",
+            ),
+        )
+        val coordinate = GeoPoint(35.0, 139.0)
+
+        val journey = BackendTransitJourneyProvider(api).journey(
+            from = coordinate,
+            to = coordinate,
+            query = TransitJourneyQuery(departureTime = "2026-07-29T09:00:00+09:00"),
+        )
+
+        assertEquals(TravelMode.WALK, journey.legs.single().mode)
+        assertEquals(0.0, journey.legs.single().distanceMeters, 0.0)
+        assertEquals(coordinate, journey.legs.single().from)
+        assertEquals(coordinate, journey.legs.single().to)
     }
 }

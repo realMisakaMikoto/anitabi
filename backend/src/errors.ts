@@ -32,11 +32,13 @@ const SAFE_MESSAGES: Record<ApiErrorCode, string> = {
 
 export class ApiError extends Error {
   readonly statusCode: number;
+  readonly retryAfterSeconds: number | undefined;
 
-  constructor(readonly code: ApiErrorCode, options?: { cause?: unknown }) {
+  constructor(readonly code: ApiErrorCode, options?: { cause?: unknown; retryAfterSeconds?: number }) {
     super(SAFE_MESSAGES[code], options);
     this.name = "ApiError";
     this.statusCode = STATUS_BY_CODE[code];
+    this.retryAfterSeconds = options?.retryAfterSeconds;
   }
 }
 

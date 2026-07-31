@@ -5,6 +5,8 @@ import cn.anitabi.navigator.core.model.RouteObjective
 import cn.anitabi.navigator.core.model.RouteStep
 import cn.anitabi.navigator.core.model.TourLeg
 import cn.anitabi.navigator.core.model.TransitLegDetails
+import cn.anitabi.navigator.core.model.TransitRoutingPreference
+import cn.anitabi.navigator.core.model.TransitTravelMode
 import cn.anitabi.navigator.core.model.TravelMode
 import cn.anitabi.navigator.data.network.ApiException
 import cn.anitabi.navigator.data.network.backend.BackendApi
@@ -104,11 +106,25 @@ private fun roadInstruction(travelMode: String): String = when (travelMode) {
 }
 
 interface TransitJourneyProvider {
-    suspend fun journey(from: GeoPoint, to: GeoPoint, departureTime: String): TransitJourney
+    suspend fun journey(from: GeoPoint, to: GeoPoint, query: TransitJourneyQuery): TransitJourney
+}
+
+data class TransitJourneyQuery(
+    val departureTime: String? = null,
+    val arrivalTime: String? = null,
+    val routingPreference: TransitRoutingPreference = TransitRoutingPreference.RECOMMENDED,
+    val transitTravelModes: Set<TransitTravelMode> = emptySet(),
+) {
+    init {
+        require((departureTime == null) xor (arrivalTime == null)) {
+            "Transit journey requires exactly one time anchor"
+        }
+    }
 }
 
 data class TransitJourney(
     val legs: List<TourLeg>,
+    val departureTime: String,
     val arrivalTime: String,
 )
 
@@ -116,20 +132,33 @@ class BackendTransitJourneyProvider(private val api: BackendApi) : TransitJourne
     override suspend fun journey(
         from: GeoPoint,
         to: GeoPoint,
-        departureTime: String,
+        query: TransitJourneyQuery,
     ): TransitJourney {
-        val response = try {
-            api.route(TravelMode.TRANSIT, listOf(from, to), departureTime)
-        } catch (exception: ApiException.NoRoute) {
-            throw NoTransitDataException("No public transit itinerary covers this area and time")
-        }
+        val response = api.route(
+            mode = TravelMode.TRANSIT,
+            locations = listOf(from, to),
+            departureTime = query.departureTime,
+            arrivalTime = query.arrivalTime,
+            transitRoutingPreference = query.routingPreference,
+            transitTravelModes = query.transitTravelModes,
+        )
         val routeSteps = response.legs.flatMap(BackendRouteLeg::steps)
         val legs = if (routeSteps.isEmpty()) {
+            if (
+                from != to ||
+                response.distanceMeters > 0.0 ||
+                response.durationSeconds > 0.0 ||
+                response.legs.any { it.distanceMeters > 0.0 || it.durationSeconds > 0.0 }
+            ) {
+                throw ApiException.InvalidResponse(
+                    IllegalStateException("Nontrivial transit route contains no steps"),
+                )
+            }
             listOf(
                 TourLeg(
                     from = from,
                     to = to,
-                    mode = TravelMode.TRANSIT,
+                    mode = TravelMode.WALK,
                     geometry = decodeGooglePolyline(response.encodedPolyline).ifEmpty { listOf(from, to) },
                     steps = emptyList(),
                     distanceMeters = response.distanceMeters,
@@ -140,12 +169,50 @@ class BackendTransitJourneyProvider(private val api: BackendApi) : TransitJourne
         } else {
             routeSteps.toTransitLegs(from, to)
         }
-        val arrivalTime = routeSteps.mapNotNull { it.transit?.arrivalTime }.lastOrNull()
-            ?: OffsetDateTime.parse(departureTime)
-                .plusSeconds(response.durationSeconds.roundToLong())
-                .toString()
-        return TransitJourney(legs = legs, arrivalTime = arrivalTime)
+        val (departureTime, arrivalTime) = resolveJourneyTimes(
+            steps = routeSteps,
+            query = query,
+            durationSeconds = response.durationSeconds.roundToLong(),
+        )
+        return TransitJourney(
+            legs = legs,
+            departureTime = formatTransitDepartureTime(departureTime),
+            arrivalTime = formatTransitDepartureTime(arrivalTime),
+        )
     }
+}
+
+private fun resolveJourneyTimes(
+    steps: List<BackendRouteStep>,
+    query: TransitJourneyQuery,
+    durationSeconds: Long,
+): Pair<OffsetDateTime, OffsetDateTime> {
+    val firstTransitIndex = steps.indexOfFirst { it.transit?.departureTime != null }
+    val lastTransitIndex = steps.indexOfLast { it.transit?.arrivalTime != null }
+    val derivedDeparture = firstTransitIndex.takeIf { it >= 0 }?.let { index ->
+        parseOffsetDateTime(steps[index].transit?.departureTime)?.minusSeconds(
+            steps.take(index).sumOf { it.durationSeconds }.roundToLong(),
+        )
+    }
+    val derivedArrival = lastTransitIndex.takeIf { it >= 0 }?.let { index ->
+        parseOffsetDateTime(steps[index].transit?.arrivalTime)?.plusSeconds(
+            steps.drop(index + 1).sumOf { it.durationSeconds }.roundToLong(),
+        )
+    }
+    val requestedDeparture = parseOffsetDateTime(query.departureTime)
+    val requestedArrival = parseOffsetDateTime(query.arrivalTime)
+    val departure = derivedDeparture
+        ?: requestedDeparture
+        ?: requireNotNull(requestedArrival).minusSeconds(durationSeconds)
+    val arrival = derivedArrival
+        ?.takeUnless { it.isBefore(departure) }
+        ?: requestedArrival
+        ?: departure.plusSeconds(durationSeconds)
+    return departure to arrival
+}
+
+private fun parseOffsetDateTime(value: String?): OffsetDateTime? = value?.let { raw ->
+    runCatching { OffsetDateTime.parse(raw) }.getOrNull()
 }
 
 private fun List<BackendRouteStep>.toTransitLegs(
@@ -170,7 +237,7 @@ private fun List<BackendRouteStep>.toTransitLegs(
         TourLeg(
             from = from,
             to = to,
-            mode = TravelMode.TRANSIT,
+            mode = step.travelMode.toTravelMode(),
             geometry = decoded.ifEmpty { listOf(from, to).withoutConsecutiveDuplicates() },
             steps = listOf(RouteStep(instruction, step.distanceMeters, step.durationSeconds, from)),
             distanceMeters = step.distanceMeters,
@@ -186,10 +253,20 @@ private fun List<BackendRouteStep>.toTransitLegs(
                     stopCount = it.stopCount,
                     departureTime = it.departureTime,
                     arrivalTime = it.arrivalTime,
+                    departureTimeZone = it.departureTimeZone,
+                    arrivalTimeZone = it.arrivalTimeZone,
                 )
             },
         )
     }
+}
+
+private fun String.toTravelMode(): TravelMode = when (this) {
+    "DRIVE" -> TravelMode.DRIVE
+    "BICYCLE" -> TravelMode.BIKE
+    "WALK" -> TravelMode.WALK
+    "TRANSIT" -> TravelMode.TRANSIT
+    else -> throw ApiException.InvalidResponse(IllegalStateException("Unknown travel mode"))
 }
 
 private fun decodeGooglePolyline(encoded: String?): List<GeoPoint> = encoded
@@ -207,5 +284,3 @@ private fun List<GeoPoint>.withoutConsecutiveDuplicates(): List<GeoPoint> = buil
 }
 
 const val GOOGLE_ROUTES_SOURCE = "Google Routes API"
-
-class NoTransitDataException(message: String) : Exception(message)

@@ -61,6 +61,112 @@ test("POST endpoints require authentication, JSON, valid bounds, and transit pai
   }
 });
 
+test("route-only transit fields fail validation before quota and provider calls", async () => {
+  const fixture = createApp();
+  const locations = [
+    { latitude: 35, longitude: 139 },
+    { latitude: 35.1, longitude: 139.1 },
+  ];
+  const invalidPayloads = [
+    {
+      mode: "TRANSIT",
+      locations,
+      departureTime: "2026-07-24T00:00:00Z",
+      arrivalTime: "2026-07-30T02:00:00Z",
+    },
+    { mode: "WALK", locations, departureTime: "2026-07-30T01:00:00Z" },
+    { mode: "DRIVE", locations, arrivalTime: "2026-07-30T02:00:00Z" },
+    { mode: "BICYCLE", locations, transitRoutingPreference: "LESS_WALKING" },
+    { mode: "WALK", locations, transitTravelModes: ["BUS"] },
+    { mode: "TRANSIT", locations, transitRoutingPreference: "RECOMMENDED" },
+    { mode: "TRANSIT", locations, transitTravelModes: [] },
+    { mode: "TRANSIT", locations, transitTravelModes: ["BUS", "BUS"] },
+    { mode: "TRANSIT", locations, transitTravelModes: ["BUS", "SUBWAY", "TRAIN", "LIGHT_RAIL", "RAIL", "BUS"] },
+    { mode: "TRANSIT", locations, transitTravelModes: ["FERRY"] },
+  ];
+
+  try {
+    for (const payload of invalidPayloads) {
+      const response = await fixture.app.inject(authenticated({
+        method: "POST",
+        url: "/v1/route",
+        payload,
+      }));
+      assert.equal(response.statusCode, 400);
+      assert.equal(response.json().error.code, "INVALID_ARGUMENT");
+    }
+    assert.deepEqual(fixture.ledger.reservations, []);
+    assert.equal(fixture.routes.routeCalls, 0);
+  } finally {
+    await fixture.app.close();
+  }
+});
+
+test("route schema accepts supported transit preferences and travel-mode bounds", async () => {
+  const fixture = createApp();
+  const locations = [
+    { latitude: 35, longitude: 139 },
+    { latitude: 35.1, longitude: 139.1 },
+  ];
+  const validPayloads = [
+    {
+      mode: "TRANSIT",
+      locations,
+      departureTime: "2026-07-24T00:00:00Z",
+      transitRoutingPreference: "LESS_WALKING",
+      transitTravelModes: ["BUS"],
+    },
+    {
+      mode: "TRANSIT",
+      locations,
+      arrivalTime: "2026-11-08T00:00:00Z",
+      transitRoutingPreference: "FEWER_TRANSFERS",
+      transitTravelModes: ["BUS", "SUBWAY", "TRAIN", "LIGHT_RAIL", "RAIL"],
+    },
+  ];
+
+  try {
+    for (const payload of validPayloads) {
+      const response = await fixture.app.inject(authenticated({
+        method: "POST",
+        url: "/v1/route",
+        payload,
+      }));
+      assert.equal(response.statusCode, 200);
+    }
+    assert.deepEqual(fixture.ledger.reservations, [
+      { bucket: "route", units: 1, uid: "anonymous-uid" },
+      { bucket: "route", units: 1, uid: "anonymous-uid" },
+    ]);
+    assert.equal(fixture.routes.routeCalls, 2);
+  } finally {
+    await fixture.app.close();
+  }
+});
+
+test("transit time outside the Google window fails before quota and provider calls", async () => {
+  const fixture = createApp();
+  const locations = [
+    { latitude: 35, longitude: 139 },
+    { latitude: 35.1, longitude: 139.1 },
+  ];
+  try {
+    for (const time of ["2026-07-23T23:59:59Z", "2026-11-08T00:00:01Z"]) {
+      const response = await fixture.app.inject(authenticated({
+        method: "POST",
+        url: "/v1/route",
+        payload: { mode: "TRANSIT", locations, departureTime: time },
+      }));
+      assert.equal(response.statusCode, 400);
+      assert.equal(response.json().error.code, "INVALID_ARGUMENT");
+    }
+    assert.deepEqual(fixture.ledger.reservations, []);
+    assert.equal(fixture.routes.routeCalls, 0);
+  } finally {
+    await fixture.app.close();
+  }
+});
+
 test("matrix reserves billable elements and navigation reserves destinations", async () => {
   const fixture = createApp();
   try {
@@ -143,6 +249,116 @@ test("quota uncertainty fails closed before the Google provider is called", asyn
   }
 });
 
+test("local rate limiting provides retry timing before quota or Google calls", async () => {
+  let now = 0;
+  const fixture = createApp(new TokenBucketLimiter({
+    uidCapacity: 10,
+    uidRefillPerSecond: 1,
+    ipCapacity: 100,
+    ipRefillPerSecond: 100,
+    ipHmacKey: new Uint8Array(32).fill(4),
+    now: () => now,
+  }));
+  const request = authenticated({
+    method: "POST",
+    url: "/v1/route",
+    payload: {
+      mode: "WALK",
+      locations: [
+        { latitude: 35, longitude: 139 },
+        { latitude: 35.1, longitude: 139.1 },
+      ],
+    },
+  });
+  try {
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      assert.equal((await fixture.app.inject(request)).statusCode, 200);
+    }
+    const limited = await fixture.app.inject(request);
+    assert.equal(limited.statusCode, 429);
+    assert.equal(limited.json().error.code, "RATE_LIMITED");
+    assert.equal(limited.headers["retry-after"], "1");
+    assert.equal(fixture.ledger.reservations.length, 10);
+    assert.equal(fixture.routes.routeCalls, 10);
+
+    now += 999;
+    assert.equal((await fixture.app.inject(request)).statusCode, 429);
+    assert.equal(fixture.ledger.reservations.length, 10);
+    now += 1;
+    assert.equal((await fixture.app.inject(request)).statusCode, 200);
+    assert.equal(fixture.ledger.reservations.length, 11);
+    assert.equal(fixture.routes.routeCalls, 11);
+  } finally {
+    await fixture.app.close();
+  }
+});
+
+test("downstream rate errors never advertise a safe local retry", async () => {
+  const fixture = createApp();
+  fixture.routes.routeError = new ApiError("RATE_LIMITED");
+  try {
+    const response = await fixture.app.inject(authenticated({
+      method: "POST",
+      url: "/v1/route",
+      payload: {
+        mode: "WALK",
+        locations: [
+          { latitude: 35, longitude: 139 },
+          { latitude: 35.1, longitude: 139.1 },
+        ],
+      },
+    }));
+    assert.equal(response.statusCode, 429);
+    assert.equal(response.headers["retry-after"], undefined);
+    assert.equal(fixture.ledger.reservations.length, 1);
+    assert.equal(fixture.routes.routeCalls, 1);
+  } finally {
+    await fixture.app.close();
+  }
+});
+
+test("route provider failures keep one reservation and redact transit request data", async () => {
+  const cases = [
+    { code: "NO_ROUTE" as const, status: 404 },
+    { code: "UPSTREAM_UNAVAILABLE" as const, status: 503 },
+  ];
+  for (const failure of cases) {
+    const fixture = createApp();
+    const departureTime = "2026-07-31T01:23:45Z";
+    const upstreamBody = "private-upstream-response";
+    fixture.routes.routeError = new ApiError(failure.code, { cause: new Error(upstreamBody) });
+    try {
+      const response = await fixture.app.inject(authenticated({
+        method: "POST",
+        url: "/v1/route",
+        payload: {
+          mode: "TRANSIT",
+          locations: [
+            { latitude: 35, longitude: 139 },
+            { latitude: 35.1, longitude: 139.1 },
+          ],
+          departureTime,
+          transitRoutingPreference: "LESS_WALKING",
+          transitTravelModes: ["BUS"],
+        },
+      }));
+      assert.equal(response.statusCode, failure.status);
+      assert.equal(response.json().error.code, failure.code);
+      assert.deepEqual(fixture.ledger.reservations, [
+        { bucket: "route", units: 1, uid: "anonymous-uid" },
+      ]);
+      assert.equal(fixture.routes.routeCalls, 1);
+      const logs = JSON.stringify(fixture.logs);
+      assert.equal(logs.includes(departureTime), false);
+      assert.equal(logs.includes("LESS_WALKING"), false);
+      assert.equal(logs.includes("BUS"), false);
+      assert.equal(logs.includes(upstreamBody), false);
+    } finally {
+      await fixture.app.close();
+    }
+  }
+});
+
 function authenticated(options: {
   method: "POST";
   url: string;
@@ -165,7 +381,13 @@ function validMatrix(): MatrixRequest {
   };
 }
 
-function createApp(): {
+function createApp(rateLimiter = new TokenBucketLimiter({
+  uidCapacity: 100,
+  uidRefillPerSecond: 100,
+  ipCapacity: 100,
+  ipRefillPerSecond: 100,
+  ipHmacKey: new Uint8Array(32).fill(3),
+})): {
   app: ReturnType<typeof buildApp>;
   ledger: FakeLedger;
   routes: FakeRoutes;
@@ -190,15 +412,10 @@ function createApp(): {
       auth,
       routes,
       quota: ledger,
-      rateLimiter: new TokenBucketLimiter({
-        uidCapacity: 100,
-        uidRefillPerSecond: 100,
-        ipCapacity: 100,
-        ipRefillPerSecond: 100,
-        ipHmacKey: new Uint8Array(32).fill(3),
-      }),
+      rateLimiter,
       logger: { write: (event) => logs.push(event) },
       allowInsecureForTests: true,
+      nowMillis: () => Date.parse("2026-07-31T00:00:00Z"),
     }),
   };
 }
@@ -222,6 +439,7 @@ class FakeLedger implements QuotaLedger {
 
 class FakeRoutes implements RoutesProvider {
   routeCalls = 0;
+  routeError?: ApiError;
 
   async matrix(_request: MatrixRequest) {
     return { elements: [] };
@@ -229,6 +447,7 @@ class FakeRoutes implements RoutesProvider {
 
   async route(_request: RouteRequest) {
     this.routeCalls += 1;
+    if (this.routeError !== undefined) throw this.routeError;
     return { distanceMeters: 1, durationSeconds: 1, legs: [] };
   }
 }

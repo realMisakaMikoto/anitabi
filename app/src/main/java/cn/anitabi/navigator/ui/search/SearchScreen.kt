@@ -87,17 +87,19 @@ fun SearchRoute(
     val navigationPlanId = navigationState.plan?.id
     val hasRecoverableNavigation = navigationPlanId != null &&
         navigationState.errorMessage != null &&
-        navigationState.progress?.state?.let { state ->
-            state != NavigationState.PLANNED && state != NavigationState.COMPLETED
-        } == true
+        navigationState.progress?.state?.let { state -> state != NavigationState.COMPLETED } == true
     val showNavigation = state.navigationOpen ||
         ((navigationState.isRunning || hasRecoverableNavigation) &&
             navigationPlanId != state.hiddenNavigationTourId)
+    val closePlanner = {
+        plannerViewModel.cancelPlanning()
+        viewModel.closePlanner()
+    }
     BackHandler(
-        enabled = !showNavigation && (state.aboutOpen || state.selectionOpen),
+        enabled = !showNavigation && (state.aboutOpen || state.plannerOpen || state.selectionOpen),
         onBack = when {
             state.aboutOpen -> viewModel::closeAbout
-            state.plannerOpen -> viewModel::closePlanner
+            state.plannerOpen -> closePlanner
             else -> viewModel::backToResults
         },
     )
@@ -112,7 +114,7 @@ fun SearchRoute(
     } else if (state.plannerOpen) {
         PlannerRoute(
             viewModel = plannerViewModel,
-            onBack = viewModel::closePlanner,
+            onBack = closePlanner,
             onStartNavigation = { plan ->
                 navigationViewModel.start(plan)
                 viewModel.openNavigation()

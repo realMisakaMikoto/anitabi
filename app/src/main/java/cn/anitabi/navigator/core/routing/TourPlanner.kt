@@ -8,13 +8,19 @@ import cn.anitabi.navigator.core.model.PilgrimagePoint
 import cn.anitabi.navigator.core.model.RouteObjective
 import cn.anitabi.navigator.core.model.TourLeg
 import cn.anitabi.navigator.core.model.TourPlan
+import cn.anitabi.navigator.core.model.TransitRoutingPreference
+import cn.anitabi.navigator.core.model.TransitTimeMode
+import cn.anitabi.navigator.core.model.TransitTravelMode
 import cn.anitabi.navigator.core.model.TravelMode
+import cn.anitabi.navigator.data.network.ApiException
+import java.time.Duration
 import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeFormatterBuilder
 import java.time.temporal.ChronoField
 import java.util.Locale
 import java.util.UUID
+import kotlin.math.roundToLong
 
 class TourPlanner(
     private val roadProvider: RoadRoutingProvider,
@@ -69,7 +75,10 @@ class TourPlanner(
         )
     }
 
-    suspend fun planTransit(request: TransitPlanRequest): TourPlan {
+    suspend fun planTransit(
+        request: TransitPlanRequest,
+        onProgress: (completedSegments: Int, segmentCount: Int) -> Unit = { _, _ -> },
+    ): TourPlan {
         require(request.selectedPoints.size >= 2) { "Select at least 2 pilgrimage points" }
         require(request.dwellMinutes >= 0) { "Dwell time cannot be negative" }
         val startPoint = request.startPointId?.let { id ->
@@ -83,26 +92,40 @@ class TourPlanner(
             endPolicy = request.endPolicy,
             fixedEndPointId = request.fixedEndPointId,
         )
-        val legs = buildTransitLegs(
+        val itinerary = buildTransitItinerary(
             start = request.start,
             orderedStops = orderedStops,
-            departureTime = request.departureTime,
+            timeMode = request.timeMode,
+            anchorTime = request.anchorTime,
+            routingPreference = request.routingPreference,
+            transitTravelModes = request.transitTravelModes,
             dwellMinutes = request.dwellMinutes,
             returnToStart = request.endPolicy == EndPolicy.RETURN_TO_START,
+            onProgress = onProgress,
         )
         return TourPlan(
             id = UUID.randomUUID().toString(),
             anime = request.anime,
             selectedPoints = request.selectedPoints,
             orderedPoints = listOfNotNull(startPoint) + orderedStops,
-            legs = legs,
+            legs = itinerary.legs,
             mode = TravelMode.TRANSIT,
             objective = RouteObjective.FASTEST,
             endPolicy = request.endPolicy,
-            estimatedDurationSeconds = legs.sumOf(TourLeg::durationSeconds) +
-                request.dwellMinutes * 60.0 * orderedStops.size,
+            estimatedDurationSeconds = itinerary.estimatedDurationSeconds(
+                finalDwellMinutes = if (request.endPolicy == EndPolicy.RETURN_TO_START) 0 else request.dwellMinutes,
+            ),
             attribution = listOf(GOOGLE_ROUTES_SOURCE, "Google"),
-            departureTime = request.departureTime,
+            departureTime = itinerary.departureTime,
+            arrivalTime = itinerary.arrivalTime,
+            transitTimeMode = request.timeMode,
+            transitAnchorTime = if (request.timeMode == TransitTimeMode.NOW) {
+                null
+            } else {
+                formatTransitDepartureTime(OffsetDateTime.parse(request.anchorTime))
+            },
+            transitRoutingPreference = request.routingPreference,
+            transitTravelModes = request.transitTravelModes,
             dwellMinutes = request.dwellMinutes,
             initialStart = request.start,
             state = NavigationState.PLANNED,
@@ -118,17 +141,27 @@ class TourPlanner(
         val remaining = plan.orderedPoints.filterNot { it.id in completedPointIds }
         val originalStart = plan.initialStart ?: plan.legs.firstOrNull()?.from ?: currentLocation
         if (remaining.isEmpty()) {
-            val returnLegs = if (plan.endPolicy != EndPolicy.RETURN_TO_START) {
-                emptyList()
+            val returnItinerary = if (plan.endPolicy != EndPolicy.RETURN_TO_START) {
+                null
             } else if (plan.mode == TravelMode.TRANSIT) {
-                buildTransitLegs(
+                buildTransitItinerary(
                     start = currentLocation,
                     orderedStops = emptyList(),
-                    departureTime = currentTime,
+                    timeMode = TransitTimeMode.NOW,
+                    anchorTime = currentTime,
+                    routingPreference = plan.transitRoutingPreference,
+                    transitTravelModes = plan.transitTravelModes,
                     dwellMinutes = plan.dwellMinutes,
                     returnToStart = true,
                     returnDestination = originalStart,
                 )
+            } else {
+                null
+            }
+            val returnLegs = if (plan.endPolicy != EndPolicy.RETURN_TO_START) {
+                emptyList()
+            } else if (plan.mode == TravelMode.TRANSIT) {
+                requireNotNull(returnItinerary).legs
             } else {
                 val coordinates = listOf(currentLocation, originalStart)
                 roadDirections(plan.mode, coordinates).toTourLegs(
@@ -140,13 +173,18 @@ class TourPlanner(
             return plan.copy(
                 orderedPoints = emptyList(),
                 legs = returnLegs,
-                estimatedDurationSeconds = returnLegs.sumOf(TourLeg::durationSeconds),
-                departureTime = if (plan.mode == TravelMode.TRANSIT) currentTime else plan.departureTime,
+                estimatedDurationSeconds = returnItinerary?.estimatedDurationSeconds() ?:
+                    returnLegs.sumOf(TourLeg::durationSeconds),
+                departureTime = returnItinerary?.departureTime ?: plan.departureTime,
+                arrivalTime = returnItinerary?.arrivalTime ?: plan.arrivalTime,
+                transitTimeMode = if (plan.mode == TravelMode.TRANSIT) TransitTimeMode.NOW else plan.transitTimeMode,
+                transitAnchorTime = if (plan.mode == TravelMode.TRANSIT) null else plan.transitAnchorTime,
                 initialStart = originalStart,
             )
         }
 
         val legs: List<TourLeg>
+        var transitItinerary: BuiltTransitItinerary? = null
         val orderedRemaining: List<PilgrimagePoint>
         if (plan.mode == TravelMode.TRANSIT) {
             orderedRemaining = when (plan.endPolicy) {
@@ -157,14 +195,18 @@ class TourPlanner(
                 }
                 else -> optimizer.recommendTransitOrder(currentLocation, remaining)
             }
-            legs = buildTransitLegs(
+            transitItinerary = buildTransitItinerary(
                 start = currentLocation,
                 orderedStops = orderedRemaining,
-                departureTime = currentTime,
+                timeMode = TransitTimeMode.NOW,
+                anchorTime = currentTime,
+                routingPreference = plan.transitRoutingPreference,
+                transitTravelModes = plan.transitTravelModes,
                 dwellMinutes = plan.dwellMinutes,
                 returnToStart = plan.endPolicy == EndPolicy.RETURN_TO_START,
                 returnDestination = originalStart,
             )
+            legs = transitItinerary.legs
         } else {
             orderedRemaining = orderRoadStops(
                 start = currentLocation,
@@ -186,13 +228,13 @@ class TourPlanner(
         return plan.copy(
             orderedPoints = orderedRemaining,
             legs = legs,
-            estimatedDurationSeconds = legs.sumOf(TourLeg::durationSeconds) +
-                if (plan.mode == TravelMode.TRANSIT) {
-                    plan.dwellMinutes * 60.0 * orderedRemaining.size
-                } else {
-                    0.0
-                },
-            departureTime = if (plan.mode == TravelMode.TRANSIT) currentTime else plan.departureTime,
+            estimatedDurationSeconds = transitItinerary?.estimatedDurationSeconds(
+                finalDwellMinutes = if (plan.endPolicy == EndPolicy.RETURN_TO_START) 0 else plan.dwellMinutes,
+            ) ?: legs.sumOf(TourLeg::durationSeconds),
+            departureTime = transitItinerary?.departureTime ?: plan.departureTime,
+            arrivalTime = transitItinerary?.arrivalTime ?: plan.arrivalTime,
+            transitTimeMode = if (plan.mode == TravelMode.TRANSIT) TransitTimeMode.NOW else plan.transitTimeMode,
+            transitAnchorTime = if (plan.mode == TravelMode.TRANSIT) null else plan.transitAnchorTime,
             initialStart = originalStart,
         )
     }
@@ -204,16 +246,27 @@ class TourPlanner(
         ) {
             "Manual order must contain every selected point exactly once"
         }
-        val start = plan.legs.firstOrNull()?.from ?: orderedPoints.first().coordinate
+        val start = plan.initialStart ?: plan.legs.firstOrNull()?.from ?: orderedPoints.first().coordinate
         val visits = if (orderedPoints.firstOrNull()?.coordinate == start) orderedPoints.drop(1) else orderedPoints
+        var transitItinerary: BuiltTransitItinerary? = null
         val legs = if (plan.mode == TravelMode.TRANSIT) {
-            buildTransitLegs(
+            val timeMode = plan.transitTimeMode
+            val anchorTime = if (timeMode == TransitTimeMode.NOW) {
+                requireNotNull(plan.departureTime)
+            } else {
+                requireNotNull(plan.transitAnchorTime)
+            }
+            transitItinerary = buildTransitItinerary(
                 start = start,
                 orderedStops = visits,
-                departureTime = requireNotNull(plan.departureTime),
+                timeMode = timeMode,
+                anchorTime = anchorTime,
+                routingPreference = plan.transitRoutingPreference,
+                transitTravelModes = plan.transitTravelModes,
                 dwellMinutes = plan.dwellMinutes,
                 returnToStart = plan.endPolicy == EndPolicy.RETURN_TO_START,
             )
+            transitItinerary.legs
         } else {
             val coordinates = buildRouteCoordinates(start, visits, plan.endPolicy)
             refreshChangedRoadLegs(
@@ -226,42 +279,217 @@ class TourPlanner(
         return plan.copy(
             orderedPoints = orderedPoints,
             legs = legs,
-            estimatedDurationSeconds = legs.sumOf(TourLeg::durationSeconds) +
-                if (plan.mode == TravelMode.TRANSIT) plan.dwellMinutes * 60.0 * visits.size else 0.0,
+            estimatedDurationSeconds = transitItinerary?.estimatedDurationSeconds(
+                finalDwellMinutes = if (plan.endPolicy == EndPolicy.RETURN_TO_START) 0 else plan.dwellMinutes,
+            ) ?: legs.sumOf(TourLeg::durationSeconds),
+            departureTime = transitItinerary?.departureTime ?: plan.departureTime,
+            arrivalTime = transitItinerary?.arrivalTime ?: plan.arrivalTime,
         )
     }
 
-    private suspend fun buildTransitLegs(
+    private suspend fun buildTransitItinerary(
         start: GeoPoint,
         orderedStops: List<PilgrimagePoint>,
-        departureTime: String,
+        timeMode: TransitTimeMode,
+        anchorTime: String,
+        routingPreference: TransitRoutingPreference,
+        transitTravelModes: Set<TransitTravelMode>,
         dwellMinutes: Int,
         returnToStart: Boolean,
         returnDestination: GeoPoint = start,
-    ): List<TourLeg> {
+        onProgress: (completedSegments: Int, segmentCount: Int) -> Unit = { _, _ -> },
+    ): BuiltTransitItinerary {
         val destinations = orderedStops.map { it.coordinate } +
             if (returnToStart) listOf(returnDestination) else emptyList()
+        val normalizedAnchor = formatTransitDepartureTime(OffsetDateTime.parse(anchorTime))
+        if (destinations.isEmpty()) {
+            return BuiltTransitItinerary(emptyList(), normalizedAnchor, normalizedAnchor)
+        }
+        val itinerary = if (timeMode == TransitTimeMode.ARRIVE_BY) {
+            buildArriveByTransitItinerary(
+                start = start,
+                destinations = destinations,
+                orderedStops = orderedStops,
+                arrivalTime = normalizedAnchor,
+                routingPreference = routingPreference,
+                transitTravelModes = transitTravelModes,
+                dwellMinutes = dwellMinutes,
+                onProgress = onProgress,
+            )
+        } else {
+            buildDepartAtTransitItinerary(
+                start = start,
+                destinations = destinations,
+                orderedStops = orderedStops,
+                departureTime = normalizedAnchor,
+                routingPreference = routingPreference,
+                transitTravelModes = transitTravelModes,
+                dwellMinutes = dwellMinutes,
+                onProgress = onProgress,
+            )
+        }
+        if (
+            itinerary.legs.any {
+                it.from != it.to || it.distanceMeters > 0.0 || it.durationSeconds > 0.0
+            } &&
+            itinerary.legs.none { it.mode == TravelMode.TRANSIT }
+        ) {
+            throw TransitRideUnavailableException()
+        }
+        return itinerary
+    }
+
+    private suspend fun buildDepartAtTransitItinerary(
+        start: GeoPoint,
+        destinations: List<GeoPoint>,
+        orderedStops: List<PilgrimagePoint>,
+        departureTime: String,
+        routingPreference: TransitRoutingPreference,
+        transitTravelModes: Set<TransitTravelMode>,
+        dwellMinutes: Int,
+        onProgress: (completedSegments: Int, segmentCount: Int) -> Unit,
+    ): BuiltTransitItinerary {
         val legs = mutableListOf<TourLeg>()
         var from = start
-        var nextDeparture = formatTransitDepartureTime(OffsetDateTime.parse(departureTime))
+        var nextDeparture = departureTime
+        var actualDeparture = departureTime
+        var actualArrival = departureTime
         destinations.forEachIndexed { index, destination ->
-            val journey = transitProvider.journey(from, destination, nextDeparture)
-            val destinationPointId = orderedStops.getOrNull(index)?.id
-            legs += journey.legs.mapIndexed { legIndex, leg ->
-                if (legIndex == journey.legs.lastIndex) leg.copy(destinationPointId = destinationPointId) else leg
+            val journey = transitJourneyOrWalk(
+                from = from,
+                to = destination,
+                query = TransitJourneyQuery(
+                    departureTime = nextDeparture,
+                    routingPreference = routingPreference,
+                    transitTravelModes = transitTravelModes,
+                ),
+                segmentIndex = index,
+                segmentCount = destinations.size,
+            )
+            if (index == 0) {
+                actualDeparture = formatTransitDepartureTime(OffsetDateTime.parse(journey.departureTime))
             }
-            val isFinalReturn = returnToStart && index == destinations.lastIndex
-            nextDeparture = if (isFinalReturn) {
-                journey.arrivalTime
-            } else {
-                formatTransitDepartureTime(
+            actualArrival = formatTransitDepartureTime(OffsetDateTime.parse(journey.arrivalTime))
+            legs += journey.withDestinationPointId(orderedStops.getOrNull(index)?.id)
+            onProgress(index + 1, destinations.size)
+            if (index < destinations.lastIndex) {
+                nextDeparture = formatTransitDepartureTime(
                     OffsetDateTime.parse(journey.arrivalTime).plusMinutes(dwellMinutes.toLong()),
                 )
             }
             from = destination
         }
-        return legs
+        return BuiltTransitItinerary(legs, actualDeparture, actualArrival)
     }
+
+    private suspend fun buildArriveByTransitItinerary(
+        start: GeoPoint,
+        destinations: List<GeoPoint>,
+        orderedStops: List<PilgrimagePoint>,
+        arrivalTime: String,
+        routingPreference: TransitRoutingPreference,
+        transitTravelModes: Set<TransitTravelMode>,
+        dwellMinutes: Int,
+        onProgress: (completedSegments: Int, segmentCount: Int) -> Unit,
+    ): BuiltTransitItinerary {
+        val origins = listOf(start) + destinations.dropLast(1)
+        val segmentLegs = MutableList<List<TourLeg>>(destinations.size) { emptyList() }
+        var previousArrivalDeadline = arrivalTime
+        var actualDeparture = arrivalTime
+        var actualArrival = arrivalTime
+        var completedSegments = 0
+        for (index in destinations.indices.reversed()) {
+            val journey = transitJourneyOrWalk(
+                from = origins[index],
+                to = destinations[index],
+                query = TransitJourneyQuery(
+                    arrivalTime = previousArrivalDeadline,
+                    routingPreference = routingPreference,
+                    transitTravelModes = transitTravelModes,
+                ),
+                segmentIndex = index,
+                segmentCount = destinations.size,
+            )
+            if (index == destinations.lastIndex) {
+                actualArrival = formatTransitDepartureTime(OffsetDateTime.parse(journey.arrivalTime))
+            }
+            actualDeparture = formatTransitDepartureTime(OffsetDateTime.parse(journey.departureTime))
+            segmentLegs[index] = journey.withDestinationPointId(orderedStops.getOrNull(index)?.id)
+            completedSegments += 1
+            onProgress(completedSegments, destinations.size)
+            if (index > 0) {
+                previousArrivalDeadline = formatTransitDepartureTime(
+                    OffsetDateTime.parse(journey.departureTime).minusMinutes(dwellMinutes.toLong()),
+                )
+            }
+        }
+        return BuiltTransitItinerary(segmentLegs.flatten(), actualDeparture, actualArrival)
+    }
+
+    private suspend fun transitJourneyOrWalk(
+        from: GeoPoint,
+        to: GeoPoint,
+        query: TransitJourneyQuery,
+        segmentIndex: Int,
+        segmentCount: Int,
+    ): TransitJourney = if (from == to) {
+        walkingConnector(from, to, query)
+    } else try {
+        transitProvider.journey(from, to, query)
+    } catch (transitFailure: ApiException.NoRoute) {
+        try {
+            walkingConnector(from, to, query)
+        } catch (walkingFailure: ApiException.NoRoute) {
+            throw TransitSegmentUnavailableException(
+                segmentNumber = segmentIndex + 1,
+                segmentCount = segmentCount,
+                cause = walkingFailure,
+            )
+        }
+    }
+
+    private suspend fun walkingConnector(
+        from: GeoPoint,
+        to: GeoPoint,
+        query: TransitJourneyQuery,
+    ): TransitJourney {
+        val route = if (from == to) {
+            RoadRoute(
+                listOf(
+                    RoadRouteSegment(
+                        geometry = listOf(from),
+                        steps = emptyList(),
+                        distanceMeters = 0.0,
+                        durationSeconds = 0.0,
+                    ),
+                ),
+            )
+        } else {
+            roadProvider.directions(TravelMode.WALK, listOf(from, to))
+        }
+        if (route.segments.size != 1) {
+            throw ApiException.InvalidResponse(IllegalStateException("Walking connector must contain one segment"))
+        }
+        val durationSeconds = route.segments.single().durationSeconds.roundToLong()
+        val requestedDeparture = query.departureTime?.let(OffsetDateTime::parse)
+        val requestedArrival = query.arrivalTime?.let(OffsetDateTime::parse)
+        val departure = requestedDeparture ?: requireNotNull(requestedArrival).minusSeconds(durationSeconds)
+        val arrival = requestedArrival ?: departure.plusSeconds(durationSeconds)
+        return TransitJourney(
+            legs = route.toTourLegs(
+                points = listOf(from, to),
+                mode = TravelMode.WALK,
+                destinationPointIds = listOf(null),
+            ),
+            departureTime = formatTransitDepartureTime(departure),
+            arrivalTime = formatTransitDepartureTime(arrival),
+        )
+    }
+
+    private fun TransitJourney.withDestinationPointId(pointId: String?): List<TourLeg> =
+        legs.mapIndexed { index, leg ->
+            if (index == legs.lastIndex) leg.copy(destinationPointId = pointId) else leg
+        }
 
     private fun buildRouteCoordinates(
         start: GeoPoint,
@@ -427,6 +655,29 @@ data class TransitPlanRequest(
     val startPointId: String? = null,
     val endPolicy: EndPolicy,
     val fixedEndPointId: String? = null,
-    val departureTime: String,
+    val timeMode: TransitTimeMode,
+    val anchorTime: String,
+    val routingPreference: TransitRoutingPreference = TransitRoutingPreference.RECOMMENDED,
+    val transitTravelModes: Set<TransitTravelMode> = emptySet(),
     val dwellMinutes: Int = 15,
 )
+
+private data class BuiltTransitItinerary(
+    val legs: List<TourLeg>,
+    val departureTime: String,
+    val arrivalTime: String,
+) {
+    fun estimatedDurationSeconds(finalDwellMinutes: Int = 0): Double =
+        Duration.between(
+            OffsetDateTime.parse(departureTime),
+            OffsetDateTime.parse(arrivalTime),
+        ).seconds.coerceAtLeast(0).toDouble() + finalDwellMinutes * 60.0
+}
+
+class TransitSegmentUnavailableException(
+    val segmentNumber: Int,
+    val segmentCount: Int,
+    cause: Throwable? = null,
+) : Exception("Transit segment $segmentNumber of $segmentCount has no transit or walking route", cause)
+
+class TransitRideUnavailableException : Exception("Transit itinerary contains no transit ride")

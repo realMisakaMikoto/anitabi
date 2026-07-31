@@ -2,8 +2,7 @@ package cn.anitabi.navigator.data.network
 
 import java.io.IOException
 import kotlin.coroutines.resume
-import kotlin.coroutines.resumeWithException
-import kotlin.coroutines.suspendCoroutine
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.serialization.DeserializationStrategy
 import kotlinx.serialization.json.Json
 import okhttp3.Call
@@ -49,35 +48,50 @@ class ApiHttpClient(
     suspend fun <T> execute(
         request: Request,
         deserializer: DeserializationStrategy<T>,
-        errorMapper: (status: Int, body: String) -> ApiException = ApiException::fromStatus,
+        errorMapper: (status: Int, body: String, retryAfter: String?) -> ApiException =
+            { status, body, _ -> ApiException.fromStatus(status, body) },
     ): T {
         val response = try {
-            client.newCall(request).await()
+            client.newCall(request).awaitBody()
         } catch (exception: IOException) {
             throw ApiException.Network(exception)
         }
 
-        return response.use {
-            val responseBody = it.body.string()
-            if (!it.isSuccessful) {
-                throw errorMapper(it.code, responseBody.take(MAX_ERROR_BODY_LENGTH))
-            }
-            try {
-                json.decodeFromString(deserializer, responseBody)
-            } catch (exception: Exception) {
-                throw ApiException.InvalidResponse(exception)
-            }
+        if (response.status !in 200..299) {
+            throw errorMapper(
+                response.status,
+                response.body.take(MAX_ERROR_BODY_LENGTH),
+                response.retryAfter,
+            )
+        }
+        return try {
+            json.decodeFromString(deserializer, response.body)
+        } catch (exception: Exception) {
+            throw ApiException.InvalidResponse(exception)
         }
     }
 
-    private suspend fun Call.await(): Response = suspendCoroutine { continuation ->
+    private suspend fun Call.awaitBody(): HttpResponseBody = suspendCancellableCoroutine { continuation ->
+        continuation.invokeOnCancellation { cancel() }
         enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
-                continuation.resumeWithException(e)
+                continuation.resumeWith(Result.failure(e))
             }
 
             override fun onResponse(call: Call, response: Response) {
-                continuation.resume(response)
+                try {
+                    response.use {
+                        continuation.resume(
+                            HttpResponseBody(
+                                status = it.code,
+                                retryAfter = it.header("Retry-After"),
+                                body = it.body.string(),
+                            ),
+                        )
+                    }
+                } catch (exception: IOException) {
+                    continuation.resumeWith(Result.failure(exception))
+                }
             }
         })
     }
@@ -93,9 +107,15 @@ class ApiHttpClient(
     }
 }
 
+private data class HttpResponseBody(
+    val status: Int,
+    val retryAfter: String?,
+    val body: String,
+)
+
 sealed class ApiException(message: String, cause: Throwable? = null) : Exception(message, cause) {
     class NotFound : ApiException("Resource not found")
-    class RateLimited : ApiException("API rate limit reached")
+    class RateLimited(val retryAfterMillis: Long? = null) : ApiException("API rate limit reached")
     class Server(val status: Int) : ApiException("API server error $status")
     class Http(val status: Int) : ApiException("HTTP $status")
     class InvalidCredentials : ApiException("API credentials were rejected")

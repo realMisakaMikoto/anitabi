@@ -5,12 +5,17 @@ import cn.anitabi.navigator.core.model.EndPolicy
 import cn.anitabi.navigator.core.model.GeoPoint
 import cn.anitabi.navigator.core.model.PilgrimagePoint
 import cn.anitabi.navigator.core.model.RouteObjective
+import cn.anitabi.navigator.core.model.StoredTourV2
 import cn.anitabi.navigator.core.model.TourLeg
+import cn.anitabi.navigator.core.model.TransitTimeMode
+import cn.anitabi.navigator.core.model.TransitTravelMode
 import cn.anitabi.navigator.core.model.TravelMode
+import cn.anitabi.navigator.data.network.ApiException
 import java.time.OffsetDateTime
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertThrows
 import org.junit.Test
 
 class TourPlannerTest {
@@ -44,6 +49,7 @@ class TourPlannerTest {
         val transit = FakeTransitProvider()
         val planner = TourPlanner(FakeRoadProvider(), transit)
         val departure = "2026-07-29T09:00+09:00"
+        val progress = mutableListOf<Pair<Int, Int>>()
 
         val plan = planner.planTransit(
             TransitPlanRequest(
@@ -51,16 +57,273 @@ class TourPlannerTest {
                 selectedPoints = listOf(point("near", 0.1), point("far", 0.2)),
                 start = GeoPoint(0.0, 0.0),
                 endPolicy = EndPolicy.OPEN,
-                departureTime = departure,
+                timeMode = TransitTimeMode.DEPART_AT,
+                anchorTime = departure,
+                dwellMinutes = 15,
+            ),
+        ) { completed, total -> progress += completed to total }
+
+        assertEquals("2026-07-29T09:00:00+09:00", transit.queries[0].departureTime)
+        assertEquals("2026-07-29T09:25:00+09:00", transit.queries[1].departureTime)
+        assertEquals(2, plan.legs.size)
+        assertEquals(2, transit.queries.size)
+        assertEquals("2026-07-29T09:35:00+09:00", plan.arrivalTime)
+        assertEquals(TravelMode.TRANSIT, plan.mode)
+        assertEquals(listOf(1 to 2, 2 to 2), progress)
+    }
+
+    @Test
+    fun `transit planner chains arrive by requests backwards`() = runBlocking {
+        val transit = FakeTransitProvider()
+        val planner = TourPlanner(FakeRoadProvider(), transit)
+
+        val plan = planner.planTransit(
+            TransitPlanRequest(
+                anime = anime,
+                selectedPoints = listOf(point("near", 0.1), point("far", 0.2)),
+                start = GeoPoint(0.0, 0.0),
+                endPolicy = EndPolicy.OPEN,
+                timeMode = TransitTimeMode.ARRIVE_BY,
+                anchorTime = "2026-07-29T10:00:00+09:00",
                 dwellMinutes = 15,
             ),
         )
 
-        assertEquals("2026-07-29T09:00:00+09:00", transit.departures[0])
-        assertEquals("2026-07-29T09:25:00+09:00", transit.departures[1])
-        assertEquals(2, plan.legs.size)
-        assertEquals(2, transit.departures.size)
-        assertEquals(TravelMode.TRANSIT, plan.mode)
+        assertEquals("2026-07-29T10:00:00+09:00", transit.queries[0].arrivalTime)
+        assertEquals("2026-07-29T09:35:00+09:00", transit.queries[1].arrivalTime)
+        assertEquals("2026-07-29T09:25:00+09:00", plan.departureTime)
+        assertEquals("2026-07-29T10:00:00+09:00", plan.arrivalTime)
+        assertEquals("2026-07-29T10:00:00+09:00", plan.transitAnchorTime)
+        assertEquals(TransitTimeMode.ARRIVE_BY, plan.transitTimeMode)
+    }
+
+    @Test
+    fun `transit travel modes forward through planning rebuild and replan`() = runBlocking {
+        val transit = FakeTransitProvider()
+        val planner = TourPlanner(FakeRoadProvider(), transit)
+        val travelModes = setOf(TransitTravelMode.BUS, TransitTravelMode.TRAIN)
+        val plan = planner.planTransit(
+            TransitPlanRequest(
+                anime = anime,
+                selectedPoints = listOf(point("near", 0.1), point("far", 0.2)),
+                start = GeoPoint(0.0, 0.0),
+                endPolicy = EndPolicy.OPEN,
+                timeMode = TransitTimeMode.DEPART_AT,
+                anchorTime = "2026-07-29T09:00:00+09:00",
+                transitTravelModes = travelModes,
+            ),
+        )
+
+        assertEquals(travelModes, plan.transitTravelModes)
+        assertEquals(2, transit.queries.size)
+        assertTrue(transit.queries.all { it.transitTravelModes == travelModes })
+
+        transit.queries.clear()
+        val rebuilt = planner.rebuild(plan, plan.orderedPoints)
+        assertEquals(travelModes, rebuilt.transitTravelModes)
+        assertEquals(2, transit.queries.size)
+        assertTrue(transit.queries.all { it.transitTravelModes == travelModes })
+
+        transit.queries.clear()
+        val replanned = planner.replanRemaining(
+            plan = rebuilt,
+            currentLocation = GeoPoint(0.05, 0.0),
+            completedPointIds = emptySet(),
+            currentTime = "2026-07-29T09:30:00+09:00",
+        )
+        assertEquals(travelModes, replanned.transitTravelModes)
+        assertEquals(2, transit.queries.size)
+        assertTrue(transit.queries.all { it.transitTravelModes == travelModes })
+    }
+
+    @Test
+    fun `arrive by rebuild keeps the user deadline when Google arrives early`() = runBlocking {
+        val transit = EarlyArrivalTransitProvider()
+        val planner = TourPlanner(FakeRoadProvider(), transit)
+        val deadline = "2026-07-29T10:00:00+09:00"
+        val plan = planner.planTransit(
+            TransitPlanRequest(
+                anime = anime,
+                selectedPoints = listOf(point("near", 0.1), point("far", 0.2)),
+                start = GeoPoint(0.0, 0.0),
+                endPolicy = EndPolicy.OPEN,
+                timeMode = TransitTimeMode.ARRIVE_BY,
+                anchorTime = deadline,
+                dwellMinutes = 15,
+            ),
+        )
+
+        assertEquals("2026-07-29T09:50:00+09:00", plan.arrivalTime)
+        assertEquals(deadline, plan.transitAnchorTime)
+
+        planner.rebuild(plan, plan.orderedPoints)
+
+        assertEquals(deadline, transit.queries[2].arrivalTime)
+    }
+
+    @Test
+    fun `restored current location tour keeps the first segment when reordered`() = runBlocking {
+        val start = GeoPoint(0.0, 0.0)
+        val planner = TourPlanner(FakeRoadProvider(), FakeTransitProvider())
+        val plan = planner.planTransit(
+            TransitPlanRequest(
+                anime = anime,
+                selectedPoints = listOf(point("near", 0.1), point("far", 0.2)),
+                start = start,
+                endPolicy = EndPolicy.OPEN,
+                timeMode = TransitTimeMode.DEPART_AT,
+                anchorTime = "2026-07-29T09:00:00+09:00",
+            ),
+        )
+        val restored = StoredTourV2.from(plan, null).toUnresolvedPlan()
+
+        val reordered = restored.orderedPoints.reversed()
+        val rebuilt = planner.rebuild(restored, reordered)
+
+        assertEquals(start, rebuilt.legs.first().from)
+        assertEquals(2, rebuilt.legs.size)
+        assertEquals(reordered.map { it.id }, rebuilt.legs.mapNotNull(TourLeg::destinationPointId))
+    }
+
+    @Test
+    fun `missing transit segment becomes a walking connector and planning continues`() = runBlocking {
+        val road = FakeRoadProvider()
+        val transit = FailingTransitProvider(failingCall = 1)
+        val planner = TourPlanner(road, transit)
+
+        val plan = planner.planTransit(
+            TransitPlanRequest(
+                anime = anime,
+                selectedPoints = listOf(point("near", 0.1), point("far", 0.2)),
+                start = GeoPoint(0.0, 0.0),
+                endPolicy = EndPolicy.OPEN,
+                timeMode = TransitTimeMode.NOW,
+                anchorTime = "2026-07-29T09:00:00+09:00",
+            ),
+        )
+
+        assertEquals(listOf(TravelMode.WALK), road.directionModes)
+        assertEquals(listOf(TravelMode.WALK, TravelMode.TRANSIT), plan.legs.map(TourLeg::mode))
+        assertEquals(listOf("near", "far"), plan.legs.map(TourLeg::destinationPointId))
+        assertEquals(2, transit.queries.size)
+    }
+
+    @Test
+    fun `walking-only fallback is not reported as a transit itinerary`() {
+        val road = FakeRoadProvider()
+        val planner = TourPlanner(road, AlwaysNoRouteTransitProvider())
+
+        val exception = assertThrows(TransitRideUnavailableException::class.java) {
+            runBlocking {
+                planner.planTransit(
+                    TransitPlanRequest(
+                        anime = anime,
+                        selectedPoints = listOf(point("near", 0.1), point("far", 0.2)),
+                        start = GeoPoint(0.0, 0.0),
+                        endPolicy = EndPolicy.OPEN,
+                        timeMode = TransitTimeMode.NOW,
+                        anchorTime = "2026-07-29T09:00:00+09:00",
+                    ),
+                )
+            }
+        }
+
+        assertTrue(exception.message.orEmpty().contains("no transit ride"))
+        assertEquals(listOf(TravelMode.WALK, TravelMode.WALK), road.directionModes)
+    }
+
+    @Test
+    fun `zero-valued walking fallback between different points is not transit evidence`() {
+        val planner = TourPlanner(ZeroValuedRoadProvider(), AlwaysNoRouteTransitProvider())
+
+        assertThrows(TransitRideUnavailableException::class.java) {
+            runBlocking {
+                planner.planTransit(
+                    TransitPlanRequest(
+                        anime = anime,
+                        selectedPoints = listOf(point("near", 0.1), point("far", 0.2)),
+                        start = GeoPoint(0.0, 0.0),
+                        endPolicy = EndPolicy.OPEN,
+                        timeMode = TransitTimeMode.NOW,
+                        anchorTime = "2026-07-29T09:00:00+09:00",
+                    ),
+                )
+            }
+        }
+    }
+
+    @Test
+    fun `missing transit and walking route reports the exact segment`() {
+        val planner = TourPlanner(NoRouteRoadProvider(), FailingTransitProvider(failingCall = 1))
+
+        val exception = assertThrows(TransitSegmentUnavailableException::class.java) {
+            runBlocking {
+                planner.planTransit(
+                    TransitPlanRequest(
+                        anime = anime,
+                        selectedPoints = listOf(point("near", 0.1), point("far", 0.2)),
+                        start = GeoPoint(0.0, 0.0),
+                        endPolicy = EndPolicy.OPEN,
+                        timeMode = TransitTimeMode.NOW,
+                        anchorTime = "2026-07-29T09:00:00+09:00",
+                    ),
+                )
+            }
+        }
+
+        assertEquals(1, exception.segmentNumber)
+        assertEquals(2, exception.segmentCount)
+    }
+
+    @Test
+    fun `transit service failure is not disguised as a walking-only route`() {
+        val road = FakeRoadProvider()
+        val planner = TourPlanner(road, UnavailableTransitProvider())
+
+        val exception = assertThrows(ApiException.UpstreamUnavailable::class.java) {
+            runBlocking {
+                planner.planTransit(
+                    TransitPlanRequest(
+                        anime = anime,
+                        selectedPoints = listOf(point("near", 0.1), point("far", 0.2)),
+                        start = GeoPoint(0.0, 0.0),
+                        endPolicy = EndPolicy.OPEN,
+                        timeMode = TransitTimeMode.NOW,
+                        anchorTime = "2026-07-29T09:00:00+09:00",
+                    ),
+                )
+            }
+        }
+
+        assertTrue(exception is ApiException.UpstreamUnavailable)
+        assertTrue(road.directionModes.isEmpty())
+    }
+
+    @Test
+    fun `identical adjacent coordinates become local zero-distance connectors`() = runBlocking {
+        val road = FakeRoadProvider()
+        val transit = FakeTransitProvider()
+        val planner = TourPlanner(road, transit)
+        val coordinate = GeoPoint(0.0, 0.0)
+
+        val plan = planner.planTransit(
+            TransitPlanRequest(
+                anime = anime,
+                selectedPoints = listOf(
+                    PilgrimagePoint("a", "a", coordinate),
+                    PilgrimagePoint("b", "b", coordinate),
+                ),
+                start = coordinate,
+                endPolicy = EndPolicy.OPEN,
+                timeMode = TransitTimeMode.NOW,
+                anchorTime = "2026-07-29T09:00:00+09:00",
+            ),
+        )
+
+        assertTrue(transit.queries.isEmpty())
+        assertTrue(road.directionModes.isEmpty())
+        assertEquals(listOf("a", "b"), plan.legs.mapNotNull(TourLeg::destinationPointId))
+        assertTrue(plan.legs.all { it.mode == TravelMode.WALK && it.distanceMeters == 0.0 })
     }
 
     @Test
@@ -74,12 +337,13 @@ class TourPlannerTest {
                 selectedPoints = (1..14).map { point("point-$it", it.toDouble()) },
                 start = GeoPoint(0.0, 0.0),
                 endPolicy = EndPolicy.OPEN,
-                departureTime = "2026-07-29T09:00:00+09:00",
+                timeMode = TransitTimeMode.DEPART_AT,
+                anchorTime = "2026-07-29T09:00:00+09:00",
             ),
         )
 
         assertEquals(14, plan.orderedPoints.size)
-        assertEquals(14, transit.departures.size)
+        assertEquals(14, transit.queries.size)
     }
 
     @Test
@@ -116,14 +380,15 @@ class TourPlannerTest {
                 selectedPoints = listOf(point("near", 0.1), point("far", 0.2)),
                 start = GeoPoint(0.0, 0.0),
                 endPolicy = EndPolicy.OPEN,
-                departureTime = "2026-07-29T23:40:00+08:00",
+                timeMode = TransitTimeMode.DEPART_AT,
+                anchorTime = "2026-07-29T23:40:00+08:00",
                 dwellMinutes = 15,
             ),
         )
 
         assertEquals(
             OffsetDateTime.parse("2026-07-30T00:05:00+08:00"),
-            OffsetDateTime.parse(transit.departures[1]),
+            OffsetDateTime.parse(transit.queries[1].departureTime),
         )
     }
 
@@ -193,6 +458,7 @@ class TourPlannerTest {
 private class FakeRoadProvider : RoadRoutingProvider {
     val matrixRequestSizes = mutableListOf<Int>()
     val directionRequestSizes = mutableListOf<Int>()
+    val directionModes = mutableListOf<TravelMode>()
 
     override suspend fun matrix(
         mode: TravelMode,
@@ -207,7 +473,10 @@ private class FakeRoadProvider : RoadRoutingProvider {
     }
 
     override suspend fun directions(mode: TravelMode, points: List<GeoPoint>): RoadRoute = RoadRoute(
-        points.also { directionRequestSizes += it.size }.zipWithNext().map { (from, to) ->
+        points.also {
+            directionRequestSizes += it.size
+            directionModes += mode
+        }.zipWithNext().map { (from, to) ->
             RoadRouteSegment(
                 geometry = listOf(from, to),
                 steps = emptyList(),
@@ -219,11 +488,16 @@ private class FakeRoadProvider : RoadRoutingProvider {
 }
 
 private class FakeTransitProvider : TransitJourneyProvider {
-    val departures = mutableListOf<String>()
+    val queries = mutableListOf<TransitJourneyQuery>()
 
-    override suspend fun journey(from: GeoPoint, to: GeoPoint, departureTime: String): TransitJourney {
-        departures += departureTime
-        val arrival = OffsetDateTime.parse(departureTime).plusMinutes(10).toString()
+    override suspend fun journey(
+        from: GeoPoint,
+        to: GeoPoint,
+        query: TransitJourneyQuery,
+    ): TransitJourney {
+        queries += query
+        val departure = query.departureTime ?: OffsetDateTime.parse(query.arrivalTime).minusMinutes(10).toString()
+        val arrival = query.arrivalTime ?: OffsetDateTime.parse(query.departureTime).plusMinutes(10).toString()
         return TransitJourney(
             legs = listOf(
                 TourLeg(
@@ -237,7 +511,121 @@ private class FakeTransitProvider : TransitJourneyProvider {
                     source = "fake",
                 ),
             ),
+            departureTime = departure,
             arrivalTime = arrival,
         )
+    }
+}
+
+private class FailingTransitProvider(private val failingCall: Int) : TransitJourneyProvider {
+    val queries = mutableListOf<TransitJourneyQuery>()
+
+    override suspend fun journey(
+        from: GeoPoint,
+        to: GeoPoint,
+        query: TransitJourneyQuery,
+    ): TransitJourney {
+        queries += query
+        if (queries.size == failingCall) throw ApiException.NoRoute()
+        val departure = query.departureTime ?: OffsetDateTime.parse(query.arrivalTime).minusMinutes(10).toString()
+        val arrival = query.arrivalTime ?: OffsetDateTime.parse(query.departureTime).plusMinutes(10).toString()
+        return TransitJourney(
+            legs = listOf(
+                TourLeg(
+                    from = from,
+                    to = to,
+                    mode = TravelMode.TRANSIT,
+                    geometry = listOf(from, to),
+                    steps = emptyList(),
+                    distanceMeters = 100.0,
+                    durationSeconds = 600.0,
+                    source = "fake",
+                ),
+            ),
+            departureTime = departure,
+            arrivalTime = arrival,
+        )
+    }
+}
+
+private class EarlyArrivalTransitProvider : TransitJourneyProvider {
+    val queries = mutableListOf<TransitJourneyQuery>()
+
+    override suspend fun journey(
+        from: GeoPoint,
+        to: GeoPoint,
+        query: TransitJourneyQuery,
+    ): TransitJourney {
+        queries += query
+        val requestedArrival = OffsetDateTime.parse(requireNotNull(query.arrivalTime))
+        val arrival = requestedArrival.minusMinutes(10)
+        val departure = arrival.minusMinutes(10)
+        return TransitJourney(
+            legs = listOf(
+                TourLeg(
+                    from = from,
+                    to = to,
+                    mode = TravelMode.TRANSIT,
+                    geometry = listOf(from, to),
+                    steps = emptyList(),
+                    distanceMeters = 100.0,
+                    durationSeconds = 600.0,
+                    source = "fake",
+                ),
+            ),
+            departureTime = departure.toString(),
+            arrivalTime = arrival.toString(),
+        )
+    }
+}
+
+private class NoRouteRoadProvider : RoadRoutingProvider {
+    override suspend fun matrix(
+        mode: TravelMode,
+        points: List<GeoPoint>,
+        objective: RouteObjective,
+    ): TravelMatrix = error("Matrix is not used for transit fallback")
+
+    override suspend fun directions(mode: TravelMode, points: List<GeoPoint>): RoadRoute {
+        throw ApiException.NoRoute()
+    }
+}
+
+private class ZeroValuedRoadProvider : RoadRoutingProvider {
+    override suspend fun matrix(
+        mode: TravelMode,
+        points: List<GeoPoint>,
+        objective: RouteObjective,
+    ): TravelMatrix = error("Matrix is not used for transit fallback")
+
+    override suspend fun directions(mode: TravelMode, points: List<GeoPoint>): RoadRoute = RoadRoute(
+        points.zipWithNext().map { (from, to) ->
+            RoadRouteSegment(
+                geometry = listOf(from, to),
+                steps = emptyList(),
+                distanceMeters = 0.0,
+                durationSeconds = 0.0,
+            )
+        },
+    )
+}
+
+private class UnavailableTransitProvider : TransitJourneyProvider {
+    override suspend fun journey(
+        from: GeoPoint,
+        to: GeoPoint,
+        query: TransitJourneyQuery,
+    ): TransitJourney {
+        throw ApiException.UpstreamUnavailable()
+    }
+}
+
+private class AlwaysNoRouteTransitProvider : TransitJourneyProvider {
+    override suspend fun journey(
+        from: GeoPoint,
+        to: GeoPoint,
+        query: TransitJourneyQuery,
+    ): TransitJourney {
+        throw ApiException.NoRoute()
     }
 }
