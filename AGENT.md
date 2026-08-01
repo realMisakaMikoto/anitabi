@@ -38,15 +38,17 @@
 
 - 规范仓库：`realMisakaMikoto/junrei_navi`。
 - 本地 `origin` 仍配置为旧地址 `https://github.com/realMisakaMikoto/anitabi.git`，目前由 GitHub 重定向；远程 API 和新链接应使用规范仓库。
-- 当前工作分支：`codex/navigation-task-cancel-crash`。压缩前 HEAD 和完整日志锚点为 `c92a92195d903ecb89ae563a509699f32e5737ef`。
-- `main` / `origin/main`：`cbc29fa7acc3dd2e589d5849d2f6e66be53b9ea1`。
+- 当前工作分支：`main`。功能分支交接提交为 `c0e1e5c04afb55cae76ca93f2a1920e1e62b20bb`；压缩前完整日志锚点为 `c92a92195d903ecb89ae563a509699f32e5737ef`。
+- `main` / `origin/main` 已包含功能分支交接提交 `c0e1e5c04afb55cae76ca93f2a1920e1e62b20bb`；本次状态记录提交位于其后。
 - 稳定标签 `v0.2.1` 指向 `fd65c1d54372df43769d4c53602ed2fb833f8ae2`。
-- 当前分支在压缩前比 `main` 多 4 个提交：
+- `main` 已通过快进合并纳入相对原基线 `cbc29fa7acc3dd2e589d5849d2f6e66be53b9ea1` 的 6 个提交：
   - `95cdb8366cab59a4b9cb12bdc61d98d8dd3f3d34`：修复 Google Navigation cancelled-task 概率闪退。
   - `43b9c7d067b7b1907d0b4ef528ff5ef65ec2c45a`：显示名改为 `巡礼手帳`，准备同版本替换 APK。
   - `b39e7a0`：替换包交接记录。
   - `c92a921`：旧 Release 说明品牌更新记录。
-- 这些源码提交尚未合并进 `main`，也未移动 `v0.2.1` 标签。
+  - `e1b71e5`：压缩项目执行记录。
+  - `c0e1e5c`：增加报错解决记录硬性约束。
+- 这些提交已合并进 `main`；`v0.2.1` 标签未移动，也未重写历史。
 - 当前唯一允许保留的未跟踪路径是用户的 `.codex-remote-attachments/`；不要暂存或清理。
 
 ### 稳定 Release 的特殊边界
@@ -57,8 +59,8 @@
   - SHA-256：`77e2634ae3e22d663cc25bbf74b28fd3682074f2a1aa8cad51ab5a4615855d9a`
 - 该摘要与本地 `app/build/outputs/manual-release/v0.2.1/anitabi-v0.2.1.apk` 及 Gradle Release 输出一致；相邻 `.sha256` 文件匹配。构建目录已忽略，`clean` 可能删除本地产物。
 - 公开替换包包含 cancelled-task 修复和 `巡礼手帳` 改名，仍为 `versionName=0.2.1` / `versionCode=7`，并保持固定签名。
-- 但稳定标签和 `main` 仍指向替换前源码。因此当前公开 APK 与标签源码不完全一致；不得声称标签可重现该资产，也不得擅自移动标签或重写历史。
-- 稳定 `v0.2.1` Release 说明按用户要求未修改，正文 SHA-256 仍为 `f5ef07346eee097efe7bdfd1e2c00ae2012707af4a43c143132c4ef5a9b59afe`。它可能未完整描述后来替换的 APK；未经用户要求不要修改。
+- 稳定标签仍指向替换前源码，但 `main` 已包含替换包对应的修复和改名。因此当前公开 APK 与标签源码仍不完全一致；不得声称标签可重现该资产，也不得擅自移动标签或重写历史。
+- 用户已自行更新稳定 `v0.2.1` Release 文案。2026-08-01 只读 GitHub API 核对确认：正文不再记录旧 APK SHA-256，改为要求使用随 Release 发布的校验文件；APK 资产仍为 49,058,373 字节、SHA-256 `77e2634ae3e22d663cc25bbf74b28fd3682074f2a1aa8cad51ab5a4615855d9a`。本任务未修改公开 Release 文案。
 - 现有 8 个 Release：`v0.1.0`、`v0.1.1`、`v0.1.2`、`v0.1.3`、`v0.1.4`、`v0.2.0`、`v0.2.1-rc.7`、`v0.2.1`；每个仍有 APK 和校验文件两个资产。RC1–RC6 的 Release 对象已删除，但 Git tags/commits 保留。
 - 除稳定 `v0.2.1` 外，上述旧 Release 说明正文中的旧应用名已替换为 `Anitabi Navigator`。这是历史说明品牌，不等于当前应用显示名。
 
@@ -143,7 +145,7 @@
 - v0.2.0：加入多作品联合巡礼、首次导览、真机/模拟器覆盖和可升级生产基线。
 - v0.2.1：迁移到 Google Navigation + VPS Google Routes + Firebase，加入无限点分批、Room 2 数据迁移、遥测选择加入、配额与生产部署。
 - RC1–RC6 的 Release 因已知缺陷被删除，tags 保留；RC7 修复地图/R8/道路/公交参数问题。后续公交证据促成更严格的 transit 真实性与错误处理。
-- 稳定 v0.2.1 已发布；随后在功能分支修复 Navigation Future 取消崩溃、改名为 `巡礼手帳`，并生成/替换同版本 APK。标签源码尚未同步这些分支提交。
+- 稳定 v0.2.1 已发布；随后修复 Navigation Future 取消崩溃、改名为 `巡礼手帳`，并生成/替换同版本 APK。相关提交现已合并进 `main`，但标签源码仍未同步。
 
 ## 常用权威入口
 
@@ -158,8 +160,8 @@
 
 ## 最近任务（最多 5 条）
 
-- 2026-08-01：修复 `Navigator.setDestinations()` Future 取消导致的概率主线程崩溃；新增 4 个回归测试，完整 Android 验证和有界 Xiaomi 测试通过。提交 `95cdb83`。
 - 2026-08-01：显示名与当前文档改为 `巡礼手帳`，保持包名、版本和签名不变；生成同版本替换 APK。提交 `43b9c7d`。
 - 2026-08-01：将稳定版以外 7 个历史 Release 的说明正文应用名改为 `Anitabi Navigator`；稳定 `v0.2.1` 与 `README.md` 未改。提交 `c92a921`。
 - 2026-08-01：完整读取并审计旧 1,637 行 / 274,142 字节工作树记录，将其替换为当前状态摘要；用 Git 锚点保留全部历史，并通过只读 GitHub API 发现并记录稳定 APK 已被替换、但标签源码未同步的边界。本任务只修改 `AGENT.md`。
 - 2026-08-01：新增硬性约束：任何程序、构建、测试、CI、部署或运行环境报错解决后，必须在本文件记录现象、根因、解决方法和验证结果；本任务只修改 `AGENT.md`。
+- 2026-08-01：只读确认用户已更新稳定 `v0.2.1` Release 文案且公开 APK 资产仍为 `77e263…`；将 `codex/navigation-task-cancel-crash` 的 6 个提交快进合并至 `main`，标签未移动。本任务未重跑构建或测试，除合并既有提交外只修改 `AGENT.md`。
