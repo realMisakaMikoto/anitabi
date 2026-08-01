@@ -13,9 +13,15 @@ import com.google.android.libraries.navigation.NavigationApi
 import com.google.android.libraries.navigation.Navigator
 import com.google.android.libraries.navigation.RoutingOptions
 import com.google.android.libraries.navigation.Waypoint
+import java.util.concurrent.CancellationException as FutureCancellationException
+import java.util.concurrent.ExecutionException
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlinx.coroutines.CancellableContinuation
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -129,7 +135,7 @@ internal class GoogleRoadNavigationSession(
         }
         activeNavigator.stopGuidance()
         activeNavigator.clearDestinations()
-        val status = activeNavigator.setDestinations(waypoints, routingOptions()).awaitResult()
+        val status = activeNavigator.setDestinations(waypoints, routingOptions()).awaitNavigationResult()
         check(status == Navigator.RouteStatus.OK) { status.toUserMessage() }
         coordinator.markLoaded(legIndexes)
         activeNavigator.startGuidance()
@@ -169,11 +175,23 @@ internal class GoogleRoadNavigationSession(
         )
 }
 
-private suspend fun <T> ListenableResultFuture<T>.awaitResult(): T =
-    suspendCancellableCoroutine { continuation ->
-        setOnResultListener { value -> continuation.resumeIfActive(value) }
-        continuation.invokeOnCancellation { cancel(true) }
-    }
+internal suspend fun <T> ListenableResultFuture<T>.awaitNavigationResult(): T = try {
+    // SDK 7.8.0 throws cancelled listener failures on the UI thread, including cleanup-triggered cancellation.
+    runInterruptible(Dispatchers.IO) { completedNavigationResult() }
+} catch (exception: FutureCancellationException) {
+    currentCoroutineContext().ensureActive()
+    throw NavigationRouteRequestCancelledException(exception)
+}
+
+private fun <T> ListenableResultFuture<T>.completedNavigationResult(): T = try {
+    get()
+} catch (exception: ExecutionException) {
+    throw exception.cause ?: exception
+}
+
+internal class NavigationRouteRequestCancelledException(
+    cause: FutureCancellationException,
+) : IllegalStateException("Google 导航路线请求已取消", cause)
 
 private fun <T> CancellableContinuation<T>.resumeIfActive(value: T) {
     if (isActive) resume(value)
