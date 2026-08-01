@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import cn.anitabi.navigator.core.model.Anime
 import cn.anitabi.navigator.core.model.EndPolicy
+import cn.anitabi.navigator.core.model.GeoPoint
 import cn.anitabi.navigator.core.model.PilgrimagePoint
 import cn.anitabi.navigator.core.model.RouteObjective
 import cn.anitabi.navigator.core.model.TourPlan
@@ -66,7 +67,13 @@ class PlannerViewModel(
 
     fun setMode(mode: TravelMode) {
         mutableState.update { current ->
-            if (current.isLoading) current else current.copy(mode = mode, errorMessage = null, plan = null)
+            if (current.isLoading) current
+            else current.copy(
+                mode = mode,
+                errorMessage = null,
+                unavailableRouteSegment = null,
+                plan = null,
+            )
         }
     }
 
@@ -98,16 +105,27 @@ class PlannerViewModel(
     fun setUseCurrentLocation() {
         mutableState.update {
             if (it.isLoading) it
-            else it.copy(useCurrentLocation = true, startPointId = null, plan = null, errorMessage = null)
+            else it.copy(
+                useCurrentLocation = true,
+                startPointId = null,
+                plan = null,
+                errorMessage = null,
+                unavailableRouteSegment = null,
+            )
         }
     }
 
     fun locationPermissionDenied() {
-        mutableState.update { it.copy(errorMessage = "需要定位权限才能从当前位置出发") }
+        mutableState.update {
+            it.copy(
+                errorMessage = "需要定位权限才能从当前位置出发",
+                unavailableRouteSegment = null,
+            )
+        }
     }
 
     fun navigationPermissionDenied(message: String) {
-        mutableState.update { it.copy(errorMessage = message) }
+        mutableState.update { it.copy(errorMessage = message, unavailableRouteSegment = null) }
     }
 
     fun setFixedEndPoint(pointId: String) {
@@ -122,6 +140,7 @@ class PlannerViewModel(
                 transitTime = time,
                 plan = null,
                 errorMessage = null,
+                unavailableRouteSegment = null,
             )
         }
     }
@@ -129,7 +148,12 @@ class PlannerViewModel(
     fun setTransitRoutingPreference(preference: TransitRoutingPreference) {
         mutableState.update {
             if (it.isLoading) it
-            else it.copy(transitRoutingPreference = preference, plan = null, errorMessage = null)
+            else it.copy(
+                transitRoutingPreference = preference,
+                plan = null,
+                errorMessage = null,
+                unavailableRouteSegment = null,
+            )
         }
     }
 
@@ -140,6 +164,7 @@ class PlannerViewModel(
                 transitTravelModes = toggledTransitTravelModes(it.transitTravelModes, mode),
                 plan = null,
                 errorMessage = null,
+                unavailableRouteSegment = null,
             )
         }
     }
@@ -159,6 +184,7 @@ class PlannerViewModel(
             it.copy(
                 isLoading = true,
                 errorMessage = null,
+                unavailableRouteSegment = null,
                 plannedTransitSegments = 0,
                 totalTransitSegments = if (current.mode == TravelMode.TRANSIT) current.transitSegmentCount() else 0,
             )
@@ -264,7 +290,9 @@ class PlannerViewModel(
         val current = state.value
         if (current.isLoading) return
         val plan = current.plan ?: return
-        mutableState.update { it.copy(isLoading = true, errorMessage = null) }
+        mutableState.update {
+            it.copy(isLoading = true, errorMessage = null, unavailableRouteSegment = null)
+        }
         val generation = ++planningGeneration
         planningJob?.cancel()
         planningJob = viewModelScope.launch {
@@ -300,7 +328,13 @@ class PlannerViewModel(
     fun clearPlan() {
         mutableState.update {
             if (it.isLoading) it
-            else it.copy(plan = null, draftOrder = emptyList(), orderChanged = false, errorMessage = null)
+            else it.copy(
+                plan = null,
+                draftOrder = emptyList(),
+                orderChanged = false,
+                errorMessage = null,
+                unavailableRouteSegment = null,
+            )
         }
     }
 
@@ -320,6 +354,7 @@ class PlannerViewModel(
             it.copy(
                 isLoading = false,
                 errorMessage = plannerFailureMessage(throwable),
+                unavailableRouteSegment = unavailableRouteSegmentDetails(throwable, it),
                 plannedTransitSegments = 0,
                 totalTransitSegments = 0,
             )
@@ -433,8 +468,41 @@ data class PlannerUiState(
     val plannedTransitSegments: Int = 0,
     val totalTransitSegments: Int = 0,
     val errorMessage: String? = null,
+    val unavailableRouteSegment: UnavailableRouteSegment? = null,
 ) {
     fun transitSegmentCount(): Int =
         selectedPoints.size - (if (startPointId != null) 1 else 0) +
             (if (endPolicy == EndPolicy.RETURN_TO_START) 1 else 0)
+}
+
+data class UnavailableRouteSegment(
+    val segmentNumber: Int,
+    val segmentCount: Int,
+    val origin: UnavailableRouteEndpoint,
+    val destination: UnavailableRouteEndpoint,
+)
+
+data class UnavailableRouteEndpoint(
+    val name: String,
+    val coordinate: GeoPoint,
+)
+
+internal fun unavailableRouteSegmentDetails(
+    throwable: Throwable,
+    state: PlannerUiState,
+): UnavailableRouteSegment? {
+    val failure = throwable as? TransitSegmentUnavailableException ?: return null
+
+    fun endpoint(coordinate: GeoPoint): UnavailableRouteEndpoint {
+        val point = state.selectedPoints.firstOrNull { it.coordinate == coordinate }
+        val name = point?.name ?: if (state.useCurrentLocation) "当前位置" else "行程起点"
+        return UnavailableRouteEndpoint(name = name, coordinate = coordinate)
+    }
+
+    return UnavailableRouteSegment(
+        segmentNumber = failure.segmentNumber,
+        segmentCount = failure.segmentCount,
+        origin = endpoint(failure.from),
+        destination = endpoint(failure.to),
+    )
 }

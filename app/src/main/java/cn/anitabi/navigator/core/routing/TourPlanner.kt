@@ -443,6 +443,8 @@ class TourPlanner(
             throw TransitSegmentUnavailableException(
                 segmentNumber = segmentIndex + 1,
                 segmentCount = segmentCount,
+                from = from,
+                to = to,
                 cause = walkingFailure,
             )
         }
@@ -677,6 +679,8 @@ private data class BuiltTransitItinerary(
 class TransitSegmentUnavailableException(
     val segmentNumber: Int,
     val segmentCount: Int,
+    val from: GeoPoint,
+    val to: GeoPoint,
     cause: Throwable? = null,
 ) : Exception("Transit segment $segmentNumber of $segmentCount has no transit or walking route", cause)
 

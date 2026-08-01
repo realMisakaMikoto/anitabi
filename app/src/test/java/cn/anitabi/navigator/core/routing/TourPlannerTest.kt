@@ -255,14 +255,16 @@ class TourPlannerTest {
     @Test
     fun `missing transit and walking route reports the exact segment`() {
         val planner = TourPlanner(NoRouteRoadProvider(), FailingTransitProvider(failingCall = 1))
+        val start = GeoPoint(0.0, 0.0)
+        val near = point("near", 0.1)
 
         val exception = assertThrows(TransitSegmentUnavailableException::class.java) {
             runBlocking {
                 planner.planTransit(
                     TransitPlanRequest(
                         anime = anime,
-                        selectedPoints = listOf(point("near", 0.1), point("far", 0.2)),
-                        start = GeoPoint(0.0, 0.0),
+                        selectedPoints = listOf(near, point("far", 0.2)),
+                        start = start,
                         endPolicy = EndPolicy.OPEN,
                         timeMode = TransitTimeMode.NOW,
                         anchorTime = "2026-07-29T09:00:00+09:00",
@@ -273,6 +275,8 @@ class TourPlannerTest {
 
         assertEquals(1, exception.segmentNumber)
         assertEquals(2, exception.segmentCount)
+        assertEquals(start, exception.from)
+        assertEquals(near.coordinate, exception.to)
     }
 
     @Test

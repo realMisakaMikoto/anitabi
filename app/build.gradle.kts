@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("com.google.firebase.crashlytics")
@@ -6,6 +8,13 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
     id("org.jetbrains.kotlin.plugin.serialization")
     id("androidx.room")
+}
+
+val localProperties = Properties().apply {
+    rootProject.file("local.properties")
+        .takeIf { it.isFile }
+        ?.inputStream()
+        ?.use(::load)
 }
 
 fun signingValue(name: String): String? = providers.gradleProperty(name)
@@ -17,7 +26,10 @@ val releaseStorePath = signingValue("ANITABI_STORE_FILE")
 val releaseStorePassword = signingValue("ANITABI_STORE_PASSWORD")
 val releaseKeyAlias = signingValue("ANITABI_KEY_ALIAS")
 val releaseKeyPassword = signingValue("ANITABI_KEY_PASSWORD")
-val navigationApiKey = signingValue("ANITABI_NAVIGATION_API_KEY").orEmpty()
+val navigationApiKey = (
+    signingValue("ANITABI_NAVIGATION_API_KEY")
+        ?: localProperties.getProperty("ANITABI_NAVIGATION_API_KEY")
+    ).orEmpty()
 val releaseSigningValues = listOf(
     releaseStorePath,
     releaseStorePassword,
@@ -43,8 +55,8 @@ android {
         applicationId = "cn.anitabi.navigator"
         minSdk = 26
         targetSdk = 37
-        versionCode = 7
-        versionName = "0.2.1"
+        versionCode = 8
+        versionName = "0.2.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         manifestPlaceholders["NAVIGATION_API_KEY"] = navigationApiKey
@@ -137,6 +149,7 @@ dependencies {
     ksp("androidx.room:room-compiler:2.8.4")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
+    debugImplementation("androidx.compose.ui:ui-test-manifest")
     testImplementation("junit:junit:4.13.2")
     testImplementation("com.squareup.okhttp3:mockwebserver:5.4.0")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0")

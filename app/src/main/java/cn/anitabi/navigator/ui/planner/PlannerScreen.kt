@@ -2,8 +2,10 @@ package cn.anitabi.navigator.ui.planner
 
 import android.Manifest
 import android.app.Activity
+import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.ContextWrapper
+import android.content.Intent
 import android.text.format.DateFormat
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -11,21 +13,30 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
-import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -33,15 +44,22 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.DirectionsBike
 import androidx.compose.material.icons.automirrored.rounded.DirectionsWalk
+import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material.icons.rounded.ArrowDropDown
 import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.Clear
 import androidx.compose.material.icons.rounded.DirectionsBus
 import androidx.compose.material.icons.rounded.DirectionsCar
 import androidx.compose.material.icons.rounded.DragHandle
 import androidx.compose.material.icons.rounded.ErrorOutline
+import androidx.compose.material.icons.rounded.ExpandLess
+import androidx.compose.material.icons.rounded.ExpandMore
+import androidx.compose.material.icons.rounded.LocationOn
 import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.rounded.Place
 import androidx.compose.material.icons.rounded.Route
 import androidx.compose.material.icons.rounded.Schedule
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -65,6 +83,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
 import androidx.compose.material3.rememberDatePickerState
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -78,14 +97,30 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cn.anitabi.navigator.navigation.AndroidLocationProvider
 import cn.anitabi.navigator.navigation.requestGoogleNavigationTerms
 import cn.anitabi.navigator.core.model.EndPolicy
+import cn.anitabi.navigator.core.model.GeoPoint
 import cn.anitabi.navigator.core.model.PilgrimagePoint
 import cn.anitabi.navigator.core.model.RouteObjective
 import cn.anitabi.navigator.core.model.TourPlan
@@ -95,9 +130,8 @@ import cn.anitabi.navigator.core.model.TransitTimeMode
 import cn.anitabi.navigator.core.model.TransitTravelMode
 import cn.anitabi.navigator.core.model.TravelMode
 import cn.anitabi.navigator.ui.theme.Ink
-import cn.anitabi.navigator.ui.theme.Moss
 import cn.anitabi.navigator.ui.theme.MutedInk
-import cn.anitabi.navigator.ui.theme.Paper
+import cn.anitabi.navigator.ui.theme.NumericTextStyle
 import cn.anitabi.navigator.ui.theme.Sand
 import cn.anitabi.navigator.ui.theme.Vermilion
 import kotlin.math.abs
@@ -109,7 +143,11 @@ import java.time.OffsetDateTime
 import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
+import java.util.Locale
 import androidx.core.content.ContextCompat
+import androidx.core.net.toUri
 import android.content.pm.PackageManager
 
 @Composable
@@ -229,6 +267,41 @@ private tailrec fun Context.findActivity(): Activity? = when (this) {
     else -> null
 }
 
+private fun Context.openGoogleMapsTransitDirections(segment: UnavailableRouteSegment): Boolean {
+    val uri = googleMapsTransitDirectionsUrl(segment.origin.coordinate, segment.destination.coordinate).toUri()
+    val googleMapsIntent = Intent(Intent.ACTION_VIEW, uri).setPackage(GOOGLE_MAPS_PACKAGE)
+    val browserFallback = Intent(Intent.ACTION_VIEW, uri)
+    if (findActivity() == null) {
+        googleMapsIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        browserFallback.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    }
+    return try {
+        startActivity(googleMapsIntent)
+        true
+    } catch (_: ActivityNotFoundException) {
+        try {
+            startActivity(browserFallback)
+            true
+        } catch (_: ActivityNotFoundException) {
+            false
+        }
+    }
+}
+
+internal fun googleMapsTransitDirectionsUrl(origin: GeoPoint, destination: GeoPoint): String {
+    fun encoded(point: GeoPoint): String = URLEncoder.encode(
+        "${point.latitude},${point.longitude}",
+        StandardCharsets.UTF_8.name(),
+    )
+
+    return "https://www.google.com/maps/dir/?api=1" +
+        "&origin=${encoded(origin)}" +
+        "&destination=${encoded(destination)}" +
+        "&travelmode=transit"
+}
+
+private const val GOOGLE_MAPS_PACKAGE = "com.google.android.apps.maps"
+
 internal fun navigationPermissionError(
     hasLocation: Boolean,
     hasNotifications: Boolean,
@@ -239,9 +312,21 @@ internal fun navigationPermissionError(
     else -> null
 }
 
+private enum class PlannerWidthClass {
+    Compact,
+    Medium,
+    Expanded,
+}
+
+private fun plannerWidthClass(width: Dp): PlannerWidthClass = when {
+    width < 600.dp -> PlannerWidthClass.Compact
+    width < 840.dp -> PlannerWidthClass.Medium
+    else -> PlannerWidthClass.Expanded
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun PlannerSettingsScreen(
+internal fun PlannerSettingsScreen(
     state: PlannerUiState,
     onBack: () -> Unit,
     onModeChange: (TravelMode) -> Unit,
@@ -255,8 +340,13 @@ private fun PlannerSettingsScreen(
     onTransitTravelModeToggle: (TransitTravelMode) -> Unit,
     onDwellChange: (String) -> Unit,
     onGenerate: () -> Unit,
+    onOpenGoogleMaps: ((UnavailableRouteSegment) -> Boolean)? = null,
 ) {
     val context = LocalContext.current
+    var googleMapsLaunchFailed by remember(state.unavailableRouteSegment) { mutableStateOf(false) }
+    val openGoogleMaps = onOpenGoogleMaps ?: { segment: UnavailableRouteSegment ->
+        context.openGoogleMapsTransitDirections(segment)
+    }
     val zoneId = remember(state.transitZoneId) {
         runCatching { ZoneId.of(state.transitZoneId) }.getOrDefault(ZoneOffset.UTC)
     }
@@ -275,172 +365,146 @@ private fun PlannerSettingsScreen(
     }
     var showScheduleSheet by remember { mutableStateOf(false) }
     var showTransitOptionsSheet by remember { mutableStateOf(false) }
+    var showStartPointSheet by remember { mutableStateOf(false) }
+    var showEndPointSheet by remember { mutableStateOf(false) }
+    var showUnavailableRouteDetails by remember(state.unavailableRouteSegment) { mutableStateOf(false) }
     var showDatePicker by remember { mutableStateOf(false) }
     var showTimePicker by remember { mutableStateOf(false) }
     var pendingTimeMode by remember { mutableStateOf(TransitTimeMode.DEPART_AT) }
     var pendingDate by remember(state.transitDate) { mutableStateOf(state.transitDate) }
     var pendingTime by remember(state.transitTime) { mutableStateOf(state.transitTime) }
 
-    Surface(color = Paper, modifier = Modifier.fillMaxSize()) {
+    Surface(
+        color = MaterialTheme.colorScheme.background,
+        modifier = Modifier.fillMaxSize().testTag("planner-settings-screen"),
+    ) {
         Column(modifier = Modifier.fillMaxSize()) {
             PlannerTopBar(title = "编排一日路线", onBack = onBack)
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(18.dp),
-                verticalArrangement = Arrangement.spacedBy(18.dp),
-            ) {
-                item {
-                    SectionTitle("出行方式", "总行程点数不限，单次请求会自动安全分批")
+            BoxWithConstraints(modifier = Modifier.weight(1f)) {
+                val widthClass = plannerWidthClass(maxWidth)
+                val useTwoPane = widthClass != PlannerWidthClass.Compact || maxWidth > maxHeight
+                if (useTwoPane) {
                     Row(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            .fillMaxSize()
+                            .padding(
+                                horizontal = if (widthClass == PlannerWidthClass.Expanded) 32.dp else 20.dp,
+                                vertical = 20.dp,
+                            ),
+                        horizontalArrangement = Arrangement.spacedBy(
+                            if (widthClass == PlannerWidthClass.Expanded) 28.dp else 20.dp,
+                        ),
                     ) {
-                        ModeChip(TravelMode.DRIVE, state.mode, "驾车", onModeChange)
-                        ModeChip(TravelMode.BIKE, state.mode, "骑行", onModeChange)
-                        ModeChip(TravelMode.WALK, state.mode, "步行", onModeChange)
-                        ModeChip(
-                            TravelMode.TRANSIT,
-                            state.mode,
-                            "公交",
-                            onModeChange,
-                            enabled = true,
-                        )
-                    }
-                    googleRouteBetaNotice(state.mode)?.let { notice ->
-                        Text(
-                            notice,
-                            color = MutedInk,
-                            style = MaterialTheme.typography.bodySmall,
-                            modifier = Modifier.padding(top = 8.dp),
-                        )
-                    }
-                }
-
-                item {
-                    SectionTitle("起点", "可从当前位置或某个已选巡礼点出发")
-                    ChoiceChip("当前位置", state.useCurrentLocation, onUseCurrentLocation)
-                    PointChoices(
-                        points = state.selectedPoints,
-                        selectedId = if (state.useCurrentLocation) null else state.startPointId,
-                        onSelect = onStartChange,
-                        modifier = Modifier.padding(top = 6.dp),
-                    )
-                }
-
-                item {
-                    SectionTitle("终点", "自由结束、指定终点或返回起点")
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        ChoiceChip("自由", state.endPolicy == EndPolicy.OPEN) { onEndPolicyChange(EndPolicy.OPEN) }
-                        ChoiceChip("指定", state.endPolicy == EndPolicy.FIXED) { onEndPolicyChange(EndPolicy.FIXED) }
-                        ChoiceChip("返回起点", state.endPolicy == EndPolicy.RETURN_TO_START) {
-                            onEndPolicyChange(EndPolicy.RETURN_TO_START)
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .verticalScroll(rememberScrollState()),
+                            verticalArrangement = Arrangement.spacedBy(20.dp),
+                        ) {
+                            PlannerCoreSettings(
+                                state = state,
+                                onModeChange = onModeChange,
+                                onUseCurrentLocation = onUseCurrentLocation,
+                                onChooseStartPoint = { showStartPointSheet = true },
+                                onEndPolicyChange = onEndPolicyChange,
+                                onChooseEndPoint = { showEndPointSheet = true },
+                            )
                         }
-                    }
-                    if (state.endPolicy == EndPolicy.FIXED) {
-                        PointChoices(
-                            points = state.selectedPoints.filterNot { it.id == state.startPointId },
-                            selectedId = state.fixedEndPointId,
-                            onSelect = onFixedEndChange,
-                            modifier = Modifier.padding(top = 8.dp),
+                        Box(
+                            modifier = Modifier
+                                .width(1.dp)
+                                .fillMaxHeight()
+                                .background(MaterialTheme.colorScheme.outlineVariant),
                         )
-                    }
-                }
-
-                if (state.mode != TravelMode.TRANSIT) {
-                    item {
-                        SectionTitle("优化目标", "路线矩阵分批计算后由手机本地排序")
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            ChoiceChip("预计最快", state.objective == RouteObjective.FASTEST) {
-                                onObjectiveChange(RouteObjective.FASTEST)
-                            }
-                            ChoiceChip("距离最短", state.objective == RouteObjective.SHORTEST) {
-                                onObjectiveChange(RouteObjective.SHORTEST)
-                            }
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .widthIn(max = 520.dp)
+                                .fillMaxHeight()
+                                .verticalScroll(rememberScrollState()),
+                        ) {
+                            PlannerRouteOptions(
+                                state = state,
+                                today = today,
+                                zoneId = zoneId,
+                                onObjectiveChange = onObjectiveChange,
+                                onShowSchedule = { showScheduleSheet = true },
+                                onShowTransitOptions = { showTransitOptionsSheet = true },
+                                onDwellChange = onDwellChange,
+                            )
                         }
                     }
                 } else {
-                    item {
-                        SectionTitle("出发与停留", "公交按每站到达时间串联后续班次")
-                        TransitSettingRow(
-                            icon = Icons.Rounded.Schedule,
-                            label = "公交时间",
-                            value = transitScheduleLabel(
-                                mode = state.transitTimeMode,
-                                date = state.transitDate,
-                                time = state.transitTime,
-                                today = today,
-                            ),
-                            enabled = !state.isLoading,
-                            onClick = { showScheduleSheet = true },
-                        )
-                        TransitSettingRow(
-                            icon = Icons.Rounded.Tune,
-                            label = "公交选项",
-                            value = transitOptionsSummaryLabel(
-                                state.transitRoutingPreference,
-                                state.transitTravelModes,
-                            ),
-                            enabled = !state.isLoading,
-                            onClick = { showTransitOptionsSheet = true },
-                            modifier = Modifier.padding(top = 8.dp),
-                        )
-                        OutlinedTextField(
-                            value = state.dwellMinutesInput,
-                            onValueChange = onDwellChange,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 8.dp),
-                            label = { Text("每个景点停留（分钟）") },
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        )
-                        Text(
-                            "时间按手机时区 ${zoneId.id} 解释",
-                            color = MutedInk,
-                            style = MaterialTheme.typography.bodySmall,
-                            modifier = Modifier.padding(top = 6.dp),
-                        )
-                    }
-                }
-
-                item {
-                    state.errorMessage?.let {
-                        PlannerErrorCard(message = it, modifier = Modifier.padding(bottom = 8.dp))
-                    }
-                    Button(
-                        onClick = onGenerate,
-                        enabled = !state.isLoading,
+                    Column(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .height(52.dp),
-                        shape = RoundedCornerShape(10.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Vermilion),
+                            .fillMaxSize()
+                            .verticalScroll(rememberScrollState())
+                            .padding(horizontal = 16.dp, vertical = 20.dp),
+                        verticalArrangement = Arrangement.spacedBy(20.dp),
                     ) {
-                        if (state.isLoading) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(22.dp),
-                                color = Color.White,
-                                strokeWidth = 2.dp,
-                            )
-                            Text(
-                                loadingRouteLabel(state),
-                                modifier = Modifier.padding(start = 10.dp),
-                            )
-                        } else {
-                            Icon(Icons.Rounded.Route, contentDescription = null)
-                            Text("生成完整路线", modifier = Modifier.padding(start = 8.dp))
-                        }
+                        PlannerCoreSettings(
+                            state = state,
+                            onModeChange = onModeChange,
+                            onUseCurrentLocation = onUseCurrentLocation,
+                            onChooseStartPoint = { showStartPointSheet = true },
+                            onEndPolicyChange = onEndPolicyChange,
+                            onChooseEndPoint = { showEndPointSheet = true },
+                        )
+                        PlannerRouteOptions(
+                            state = state,
+                            today = today,
+                            zoneId = zoneId,
+                            onObjectiveChange = onObjectiveChange,
+                            onShowSchedule = { showScheduleSheet = true },
+                            onShowTransitOptions = { showTransitOptionsSheet = true },
+                            onDwellChange = onDwellChange,
+                        )
                     }
                 }
             }
+            state.errorMessage?.let {
+                PlannerErrorCard(
+                    message = it,
+                    unavailableRouteSegment = state.unavailableRouteSegment,
+                    onShowDetails = { showUnavailableRouteDetails = true },
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                )
+            }
+            PlannerBottomAction(
+                onClick = onGenerate,
+                enabled = !state.isLoading,
+                label = if (state.isLoading) loadingRouteLabel(state) else "生成路线",
+                isLoading = state.isLoading,
+                icon = Icons.Rounded.Route,
+            )
         }
+    }
+
+    if (showStartPointSheet) {
+        PointPickerSheet(
+            title = "选择起点",
+            points = state.selectedPoints,
+            selectedId = if (state.useCurrentLocation) null else state.startPointId,
+            onDismiss = { showStartPointSheet = false },
+            onSelect = { pointId ->
+                onStartChange(pointId)
+                showStartPointSheet = false
+            },
+        )
+    }
+
+    if (showEndPointSheet) {
+        PointPickerSheet(
+            title = "选择终点",
+            points = state.selectedPoints.filterNot { it.id == state.startPointId },
+            selectedId = state.fixedEndPointId,
+            onDismiss = { showEndPointSheet = false },
+            onSelect = { pointId ->
+                onFixedEndChange(pointId)
+                showEndPointSheet = false
+            },
+        )
     }
 
     if (showScheduleSheet) {
@@ -636,6 +700,488 @@ private fun PlannerSettingsScreen(
             },
         )
     }
+
+    if (showUnavailableRouteDetails) {
+        state.unavailableRouteSegment?.let { segment ->
+            UnavailableRouteDetailsSheet(
+                segment = segment,
+                onDismiss = { showUnavailableRouteDetails = false },
+                googleMapsLaunchFailed = googleMapsLaunchFailed,
+                onOpenGoogleMaps = {
+                    googleMapsLaunchFailed = !openGoogleMaps(segment)
+                },
+            )
+        }
+    }
+}
+
+@Composable
+private fun PlannerCoreSettings(
+    state: PlannerUiState,
+    onModeChange: (TravelMode) -> Unit,
+    onUseCurrentLocation: () -> Unit,
+    onChooseStartPoint: () -> Unit,
+    onEndPolicyChange: (EndPolicy) -> Unit,
+    onChooseEndPoint: () -> Unit,
+) {
+    val selectedStart = state.selectedPoints.firstOrNull { it.id == state.startPointId }
+    val selectedEnd = state.selectedPoints.firstOrNull { it.id == state.fixedEndPointId }
+    Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
+        SettingsSection(
+            title = "出行方式",
+            subtitle = "选择整段巡礼主要使用的交通方式",
+        ) {
+            Column(
+                modifier = Modifier.padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ModeChip(
+                        mode = TravelMode.DRIVE,
+                        selected = state.mode,
+                        label = "驾车",
+                        onSelect = onModeChange,
+                        enabled = !state.isLoading,
+                        modifier = Modifier.weight(1f),
+                    )
+                    ModeChip(
+                        mode = TravelMode.BIKE,
+                        selected = state.mode,
+                        label = "骑行",
+                        onSelect = onModeChange,
+                        enabled = !state.isLoading,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ModeChip(
+                        mode = TravelMode.WALK,
+                        selected = state.mode,
+                        label = "步行",
+                        onSelect = onModeChange,
+                        enabled = !state.isLoading,
+                        modifier = Modifier.weight(1f),
+                    )
+                    ModeChip(
+                        mode = TravelMode.TRANSIT,
+                        selected = state.mode,
+                        label = "公交",
+                        onSelect = onModeChange,
+                        enabled = !state.isLoading,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                googleRouteBetaNotice(state.mode)?.let { notice ->
+                    Text(
+                        notice,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(top = 2.dp),
+                    )
+                }
+            }
+        }
+
+        SettingsSection(
+            title = "起点",
+            subtitle = "从当前位置，或一个已选巡礼点出发",
+        ) {
+            SettingsSelectionRow(
+                title = "当前位置",
+                subtitle = "开始时使用设备位置",
+                selected = state.useCurrentLocation,
+                enabled = !state.isLoading,
+                onClick = onUseCurrentLocation,
+                leadingIcon = Icons.Rounded.LocationOn,
+            )
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            PointSelectionRow(
+                title = selectedStart?.name ?: "选择巡礼点",
+                subtitle = if (selectedStart == null) "从已选点中选择" else "从这个巡礼点出发",
+                selected = !state.useCurrentLocation && selectedStart != null,
+                enabled = !state.isLoading,
+                onClick = onChooseStartPoint,
+            )
+        }
+
+        SettingsSection(
+            title = "终点",
+            subtitle = "决定完成最后一个巡礼点后的去向",
+        ) {
+            SettingsSelectionRow(
+                title = "自由结束",
+                subtitle = "在最后一个巡礼点结束",
+                selected = state.endPolicy == EndPolicy.OPEN,
+                enabled = !state.isLoading,
+                onClick = { onEndPolicyChange(EndPolicy.OPEN) },
+            )
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            SettingsSelectionRow(
+                title = "指定终点",
+                subtitle = "选择一个巡礼点作为终点",
+                selected = state.endPolicy == EndPolicy.FIXED,
+                enabled = !state.isLoading,
+                onClick = { onEndPolicyChange(EndPolicy.FIXED) },
+            )
+            if (state.endPolicy == EndPolicy.FIXED) {
+                HorizontalDivider(
+                    color = MaterialTheme.colorScheme.outlineVariant,
+                    modifier = Modifier.padding(horizontal = 14.dp),
+                )
+                PointSelectionRow(
+                    title = selectedEnd?.name ?: "选择终点",
+                    subtitle = if (selectedEnd == null) "从可用巡礼点中选择" else "当前指定终点",
+                    selected = selectedEnd != null,
+                    enabled = !state.isLoading,
+                    onClick = onChooseEndPoint,
+                    inset = true,
+                )
+            }
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            SettingsSelectionRow(
+                title = "返回起点",
+                subtitle = "完成后回到出发位置",
+                selected = state.endPolicy == EndPolicy.RETURN_TO_START,
+                enabled = !state.isLoading,
+                onClick = { onEndPolicyChange(EndPolicy.RETURN_TO_START) },
+            )
+        }
+    }
+}
+
+@Composable
+private fun PlannerRouteOptions(
+    state: PlannerUiState,
+    today: LocalDate,
+    zoneId: ZoneId,
+    onObjectiveChange: (RouteObjective) -> Unit,
+    onShowSchedule: () -> Unit,
+    onShowTransitOptions: () -> Unit,
+    onDwellChange: (String) -> Unit,
+) {
+    if (state.mode != TravelMode.TRANSIT) {
+        SettingsSection(
+            title = "路线偏好",
+            subtitle = "选择时间或距离作为优先目标",
+        ) {
+            SettingsSelectionRow(
+                title = "预计最快",
+                subtitle = "优先缩短总行程时间",
+                selected = state.objective == RouteObjective.FASTEST,
+                enabled = !state.isLoading,
+                onClick = { onObjectiveChange(RouteObjective.FASTEST) },
+            )
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            SettingsSelectionRow(
+                title = "距离最短",
+                subtitle = "优先减少总行程距离",
+                selected = state.objective == RouteObjective.SHORTEST,
+                enabled = !state.isLoading,
+                onClick = { onObjectiveChange(RouteObjective.SHORTEST) },
+            )
+        }
+    } else {
+        SettingsSection(
+            title = "公交行程",
+            subtitle = "设置出发时间、路线偏好与景点停留时间",
+        ) {
+            TransitSettingRow(
+                icon = Icons.Rounded.Schedule,
+                label = "行程时间",
+                value = transitScheduleLabel(
+                    mode = state.transitTimeMode,
+                    date = state.transitDate,
+                    time = state.transitTime,
+                    today = today,
+                ),
+                enabled = !state.isLoading,
+                onClick = onShowSchedule,
+            )
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            TransitSettingRow(
+                icon = Icons.Rounded.Tune,
+                label = "路线选项",
+                value = transitOptionsSummaryLabel(
+                    state.transitRoutingPreference,
+                    state.transitTravelModes,
+                ),
+                enabled = !state.isLoading,
+                onClick = onShowTransitOptions,
+            )
+            HorizontalDivider(
+                color = MaterialTheme.colorScheme.outlineVariant,
+                modifier = Modifier.padding(horizontal = 14.dp),
+            )
+            OutlinedTextField(
+                value = state.dwellMinutesInput,
+                onValueChange = onDwellChange,
+                enabled = !state.isLoading,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                label = { Text("每个景点停留（分钟）") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            )
+            Text(
+                "时间以设备时区 ${zoneId.id} 为准",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(start = 14.dp, end = 14.dp, bottom = 14.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun SettingsSection(
+    title: String,
+    subtitle: String,
+    content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit,
+) {
+    Column {
+        Text(
+            title,
+            color = MaterialTheme.colorScheme.onBackground,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Text(
+            subtitle,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.padding(top = 2.dp, bottom = 10.dp),
+        )
+        Surface(
+            color = MaterialTheme.colorScheme.surface,
+            shape = RoundedCornerShape(16.dp),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+            content = { Column(content = content) },
+        )
+    }
+
+}
+
+@Composable
+private fun SettingsSelectionRow(
+    title: String,
+    subtitle: String,
+    selected: Boolean,
+    enabled: Boolean,
+    onClick: () -> Unit,
+    leadingIcon: ImageVector? = null,
+) {
+    Surface(
+        onClick = onClick,
+        enabled = enabled,
+        color = Color.Transparent,
+        modifier = Modifier
+            .fillMaxWidth()
+            .semantics {
+                role = Role.RadioButton
+                this.selected = selected
+            },
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (leadingIcon != null) {
+                Icon(
+                    leadingIcon,
+                    contentDescription = null,
+                    tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .size(24.dp)
+                        .padding(end = 2.dp),
+                )
+                Spacer(modifier = Modifier.width(10.dp))
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    title,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Medium,
+                )
+                Text(
+                    subtitle,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+            SelectionIndicator(selected = selected)
+        }
+    }
+}
+
+@Composable
+private fun SelectionIndicator(selected: Boolean) {
+    Surface(
+        shape = RoundedCornerShape(50),
+        color = if (selected) MaterialTheme.colorScheme.primary else Color.Transparent,
+        border = BorderStroke(
+            2.dp,
+            if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+        ),
+        modifier = Modifier.size(24.dp),
+    ) {
+        if (selected) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    Icons.Rounded.Check,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.size(16.dp),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PointSelectionRow(
+    title: String,
+    subtitle: String,
+    selected: Boolean,
+    enabled: Boolean,
+    onClick: () -> Unit,
+    inset: Boolean = false,
+) {
+    Surface(
+        onClick = onClick,
+        enabled = enabled,
+        color = if (selected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.32f) else Color.Transparent,
+        modifier = Modifier
+            .fillMaxWidth()
+            .semantics {
+                stateDescription = if (selected) "已选择" else "未选择"
+            },
+    ) {
+        Row(
+            modifier = Modifier.padding(
+                start = if (inset) 28.dp else 14.dp,
+                end = 14.dp,
+                top = 12.dp,
+                bottom = 12.dp,
+            ),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                Icons.Rounded.Place,
+                contentDescription = null,
+                tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(horizontal = 12.dp),
+            ) {
+                Text(
+                    title,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    subtitle,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+            Icon(
+                Icons.Rounded.ArrowDropDown,
+                contentDescription = "展开巡礼点选择",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun PointPickerSheet(
+    title: String,
+    points: List<PilgrimagePoint>,
+    selectedId: String?,
+    onDismiss: () -> Unit,
+    onSelect: (String) -> Unit,
+) {
+    var query by remember { mutableStateOf("") }
+    val filteredPoints = remember(points, query) {
+        val normalizedQuery = query.trim()
+        if (normalizedQuery.isEmpty()) points
+        else points.filter { it.name.contains(normalizedQuery, ignoreCase = true) }
+    }
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+        ) {
+            Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+            Text(
+                "共 ${points.size} 个已选巡礼点",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.padding(top = 2.dp),
+            )
+            OutlinedTextField(
+                value = query,
+                onValueChange = { query = it },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 14.dp, bottom = 8.dp),
+                placeholder = { Text("搜索巡礼点") },
+                leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
+                trailingIcon = if (query.isNotEmpty()) {
+                    {
+                        IconButton(onClick = { query = "" }) {
+                            Icon(Icons.Rounded.Clear, contentDescription = "清除搜索")
+                        }
+                    }
+                } else {
+                    null
+                },
+                singleLine = true,
+            )
+            if (filteredPoints.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(160.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text("没有匹配的巡礼点", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 440.dp),
+                    contentPadding = PaddingValues(bottom = 12.dp),
+                ) {
+                    items(filteredPoints, key = PilgrimagePoint::id) { point ->
+                        SettingsSelectionRow(
+                            title = point.name,
+                            subtitle = "%.5f, %.5f".format(
+                                point.coordinate.latitude,
+                                point.coordinate.longitude,
+                            ),
+                            selected = point.id == selectedId,
+                            enabled = true,
+                            onClick = { onSelect(point.id) },
+                            leadingIcon = Icons.Rounded.Place,
+                        )
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    }
+                }
+            }
+        }
+    }
 }
 
 @Composable
@@ -647,13 +1193,11 @@ private fun TransitSettingRow(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
 ) {
-    Card(
+    Surface(
         onClick = onClick,
         enabled = enabled,
         modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = BorderStroke(1.dp, Sand),
-        shape = RoundedCornerShape(10.dp),
+        color = Color.Transparent,
     ) {
         Row(
             modifier = Modifier
@@ -661,16 +1205,25 @@ private fun TransitSettingRow(
                 .padding(horizontal = 14.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(icon, contentDescription = null, tint = Vermilion)
+            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
             Column(
                 modifier = Modifier
                     .weight(1f)
                     .padding(horizontal = 12.dp),
             ) {
-                Text(label, color = MutedInk, style = MaterialTheme.typography.labelMedium)
-                Text(value, color = Ink, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
+                Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelMedium)
+                Text(
+                    value,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.SemiBold,
+                )
             }
-            Icon(Icons.Rounded.ArrowDropDown, contentDescription = "展开$label", tint = Moss)
+            Icon(
+                Icons.Rounded.ArrowDropDown,
+                contentDescription = "展开$label",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }
@@ -785,120 +1338,402 @@ private fun RoutePreviewScreen(
     onStartNavigation: () -> Unit,
 ) {
     val transitSections = remember(plan.legs) { groupTransitJourneySections(plan.legs) }
-    Surface(color = Paper, modifier = Modifier.fillMaxSize()) {
+    Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
             PlannerTopBar(title = "路线预览", onBack = onBack)
-            RoutePreviewMap(
-                plan = plan,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(250.dp),
-            )
-            if (plan.mode == TravelMode.TRANSIT) {
-                TransitJourneySummaryCard(plan)
-            } else {
-                RouteSummary(plan)
-            }
-            state.errorMessage?.let {
-                PlannerErrorCard(
-                    message = it,
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                )
-            }
-            LazyColumn(
-                modifier = Modifier.weight(1f),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(12.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                googleRouteBetaNotice(plan.mode)?.let { notice ->
-                    item {
-                        Text(notice, color = MutedInk, style = MaterialTheme.typography.bodySmall)
-                    }
-                }
-                if (plan.mode == TravelMode.TRANSIT) {
-                    item {
-                        Text(
-                            "公交行程时间线",
-                            style = MaterialTheme.typography.titleMedium,
-                            modifier = Modifier.padding(top = 4.dp),
-                        )
-                    }
-                    itemsIndexed(transitSections, key = { index, _ -> "transit-section-$index" }) { index, section ->
-                        TransitJourneySectionCard(
-                            section = section,
-                            index = index,
-                            sectionCount = transitSections.size,
+            BoxWithConstraints(modifier = Modifier.weight(1f)) {
+                val widthClass = plannerWidthClass(maxWidth)
+                val useTwoPane = widthClass != PlannerWidthClass.Compact || maxWidth > maxHeight
+                val availableHeight = maxHeight
+                if (useTwoPane) {
+                    Row(modifier = Modifier.fillMaxSize()) {
+                        RoutePreviewMap(
                             plan = plan,
+                            modifier = Modifier
+                                .weight(if (widthClass == PlannerWidthClass.Expanded) 1.35f else 1f)
+                                .fillMaxHeight(),
+                        )
+                        Box(
+                            modifier = Modifier
+                                .width(1.dp)
+                                .fillMaxHeight()
+                                .background(MaterialTheme.colorScheme.outlineVariant),
+                        )
+                        RoutePreviewDetails(
+                            state = state,
+                            plan = plan,
+                            transitSections = transitSections,
+                            onMove = onMove,
+                            onApplyOrder = onApplyOrder,
+                            onStartNavigation = onStartNavigation,
+                            modifier = Modifier
+                                .weight(1f)
+                                .widthIn(max = 520.dp)
+                                .fillMaxHeight(),
+                        )
+                    }
+                } else {
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        RoutePreviewMap(
+                            plan = plan,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(if (availableHeight < 640.dp) 190.dp else 238.dp),
+                        )
+                        RoutePreviewDetails(
+                            state = state,
+                            plan = plan,
+                            transitSections = transitSections,
+                            onMove = onMove,
+                            onApplyOrder = onApplyOrder,
+                            onStartNavigation = onStartNavigation,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f),
                         )
                     }
                 }
-                item {
-                    Column(modifier = Modifier.padding(top = 10.dp)) {
-                        Text("巡礼点顺序", style = MaterialTheme.typography.titleMedium)
-                        Text("长按拖动调整顺序", color = MutedInk, style = MaterialTheme.typography.bodyMedium)
-                    }
-                }
-                itemsIndexed(state.draftOrder, key = { _, point -> point.id }) { index, point ->
-                    ReorderPointCard(
-                        point = point,
-                        index = index,
-                        locked = point.id == state.startPointId ||
-                            (state.endPolicy == EndPolicy.FIXED && index == state.draftOrder.lastIndex),
-                        onMove = onMove,
-                    )
-                }
-                item {
-                    Column(modifier = Modifier.padding(vertical = 8.dp)) {
-                        Text(
-                            "Google Maps",
-                            color = MutedInk,
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                        plan.attribution.forEach { attribution ->
-                            Text(attribution, color = MutedInk, style = MaterialTheme.typography.bodyMedium)
-                        }
-                    }
-                }
-            }
-            if (state.orderChanged) {
-                PlannerBottomAction(
-                    onClick = onApplyOrder,
-                    enabled = !state.isLoading,
-                    label = "按此顺序重新生成",
-                    isLoading = state.isLoading,
-                )
-            } else {
-                PlannerBottomAction(
-                    onClick = onStartNavigation,
-                    enabled = !state.isLoading,
-                    label = if (plan.mode == TravelMode.TRANSIT) "开始公交行程" else "开始连续导航",
-                    isLoading = false,
-                )
             }
         }
     }
 }
 
 @Composable
-private fun PlannerErrorCard(message: String, modifier: Modifier = Modifier) {
+internal fun RoutePreviewDetails(
+    state: PlannerUiState,
+    plan: TourPlan,
+    transitSections: List<TransitJourneySection>,
+    onMove: (Int, Int) -> Unit,
+    onApplyOrder: () -> Unit,
+    onStartNavigation: () -> Unit,
+    modifier: Modifier = Modifier,
+    onOpenGoogleMaps: ((UnavailableRouteSegment) -> Boolean)? = null,
+) {
+    val context = LocalContext.current
+    var googleMapsLaunchFailed by remember(state.unavailableRouteSegment) { mutableStateOf(false) }
+    val openGoogleMaps = onOpenGoogleMaps ?: { segment: UnavailableRouteSegment ->
+        context.openGoogleMapsTransitDirections(segment)
+    }
+    var showUnavailableRouteDetails by remember(state.unavailableRouteSegment) { mutableStateOf(false) }
+    val startLocked = state.draftOrder.firstOrNull()?.id == state.startPointId
+    val endLocked = state.endPolicy == EndPolicy.FIXED
+    Column(
+        modifier = modifier
+            .background(MaterialTheme.colorScheme.background)
+            .testTag("route-preview-details"),
+    ) {
+        LazyColumn(
+            modifier = Modifier.weight(1f),
+            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            item {
+                if (plan.mode == TravelMode.TRANSIT) {
+                    TransitJourneySummaryCard(plan)
+                } else {
+                    RouteSummary(plan)
+                }
+            }
+            state.errorMessage?.let { message ->
+                item {
+                    PlannerErrorCard(
+                        message = message,
+                        unavailableRouteSegment = state.unavailableRouteSegment,
+                        onShowDetails = { showUnavailableRouteDetails = true },
+                        modifier = Modifier.padding(vertical = 4.dp),
+                    )
+                }
+            }
+            googleRouteBetaNotice(plan.mode)?.let { notice ->
+                item {
+                    Text(
+                        notice,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+            }
+            if (plan.mode == TravelMode.TRANSIT) {
+                item {
+                    Column {
+                        Text(
+                            "公交行程",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Text(
+                            "按顺序查看步行、乘车与到站信息",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.padding(top = 2.dp, bottom = 10.dp),
+                        )
+                        TransitJourneyTimeline(
+                            sections = transitSections,
+                            plan = plan,
+                        )
+                    }
+                }
+            }
+            item {
+                Column(modifier = Modifier.padding(top = 8.dp)) {
+                    Text(
+                        "巡礼点顺序",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        "长按拖动；读屏用户可使用上移、下移动作",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(top = 2.dp),
+                    )
+                }
+            }
+            itemsIndexed(state.draftOrder, key = { _, point -> point.id }) { index, point ->
+                val locked = (startLocked && index == 0) ||
+                    (endLocked && index == state.draftOrder.lastIndex)
+                val canMoveUp = !locked && index > 0 && !(startLocked && index == 1)
+                val canMoveDown = !locked && index < state.draftOrder.lastIndex &&
+                    !(endLocked && index == state.draftOrder.lastIndex - 1)
+                ReorderPointCard(
+                    point = point,
+                    index = index,
+                    locked = locked,
+                    canMoveUp = canMoveUp,
+                    canMoveDown = canMoveDown,
+                    onMove = onMove,
+                )
+            }
+            item {
+                Column(modifier = Modifier.padding(vertical = 8.dp)) {
+                    Text(
+                        "Google Maps",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    plan.attribution.forEach { attribution ->
+                        Text(
+                            attribution,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                }
+            }
+        }
+        PlannerBottomAction(
+            onClick = if (state.orderChanged) onApplyOrder else onStartNavigation,
+            enabled = !state.isLoading,
+            label = when {
+                state.isLoading -> "正在重新生成路线"
+                state.orderChanged -> "按此顺序重新生成"
+                plan.mode == TravelMode.TRANSIT -> "开始公交行程"
+                else -> "开始连续导航"
+            },
+            isLoading = state.isLoading,
+            icon = if (state.orderChanged) Icons.Rounded.Route else null,
+        )
+    }
+
+    if (showUnavailableRouteDetails) {
+        state.unavailableRouteSegment?.let { segment ->
+            UnavailableRouteDetailsSheet(
+                segment = segment,
+                onDismiss = { showUnavailableRouteDetails = false },
+                googleMapsLaunchFailed = googleMapsLaunchFailed,
+                onOpenGoogleMaps = {
+                    googleMapsLaunchFailed = !openGoogleMaps(segment)
+                },
+            )
+        }
+    }
+}
+
+@Composable
+private fun PlannerErrorCard(
+    message: String,
+    unavailableRouteSegment: UnavailableRouteSegment?,
+    onShowDetails: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     Surface(
         color = MaterialTheme.colorScheme.errorContainer,
         contentColor = MaterialTheme.colorScheme.onErrorContainer,
-        shape = RoundedCornerShape(10.dp),
-        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        modifier = modifier
+            .fillMaxWidth()
+            .semantics { liveRegion = LiveRegionMode.Assertive },
     ) {
         Row(
             modifier = Modifier.padding(12.dp),
             verticalAlignment = Alignment.Top,
         ) {
             Icon(Icons.Rounded.ErrorOutline, contentDescription = null)
-            Column(modifier = Modifier.padding(start = 10.dp)) {
-                Text("暂时无法生成路线", fontWeight = FontWeight.Bold)
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(start = 10.dp),
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        "暂时无法生成路线",
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.weight(1f),
+                    )
+                    if (unavailableRouteSegment != null) {
+                        TextButton(
+                            onClick = onShowDetails,
+                            modifier = Modifier
+                                .heightIn(min = 48.dp)
+                                .testTag("planner-no-route-details-action"),
+                            contentPadding = PaddingValues(horizontal = 8.dp),
+                            colors = ButtonDefaults.textButtonColors(contentColor = RouteDetailsLinkBlue),
+                        ) {
+                            Text(
+                                "详细信息",
+                                fontWeight = FontWeight.Bold,
+                                textDecoration = TextDecoration.Underline,
+                                style = MaterialTheme.typography.labelLarge,
+                            )
+                        }
+                    }
+                }
                 Text(message, style = MaterialTheme.typography.bodyMedium)
             }
         }
     }
 }
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun UnavailableRouteDetailsSheet(
+    segment: UnavailableRouteSegment,
+    onDismiss: () -> Unit,
+    googleMapsLaunchFailed: Boolean,
+    onOpenGoogleMaps: () -> Unit,
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        modifier = Modifier.testTag("planner-no-route-details-sheet"),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .navigationBarsPadding()
+                .padding(start = 18.dp, end = 18.dp, top = 4.dp, bottom = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    "无路线详细信息",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    "第 ${segment.segmentNumber}/${segment.segmentCount} 段未找到可用的公交或步行路线",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+            Surface(
+                color = MaterialTheme.colorScheme.surface,
+                shape = RoundedCornerShape(12.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Column {
+                    UnavailableRouteEndpointDetails(
+                        label = "起点",
+                        endpoint = segment.origin,
+                        modifier = Modifier.testTag("failed-segment-origin"),
+                    )
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    UnavailableRouteEndpointDetails(
+                        label = "终点",
+                        endpoint = segment.destination,
+                        modifier = Modifier.testTag("failed-segment-destination"),
+                    )
+                }
+            }
+            Text(
+                "将以公交模式打开 Google 地图，并把这两个精确坐标填入起点和终点。",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodySmall,
+            )
+            if (googleMapsLaunchFailed) {
+                Text(
+                    "无法打开 Google 地图或网页链接，请确认设备已安装可处理地图链接的应用。",
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier
+                        .semantics { liveRegion = LiveRegionMode.Polite }
+                        .testTag("planner-google-maps-launch-error"),
+                )
+            }
+            Button(
+                onClick = onOpenGoogleMaps,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 52.dp)
+                    .testTag("planner-open-google-maps-route"),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+            ) {
+                Icon(Icons.AutoMirrored.Rounded.OpenInNew, contentDescription = null, modifier = Modifier.size(20.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("在 Google 地图中查看路线")
+            }
+        }
+    }
+}
+
+@Composable
+private fun UnavailableRouteEndpointDetails(
+    label: String,
+    endpoint: UnavailableRouteEndpoint,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Text(
+            label,
+            color = MaterialTheme.colorScheme.primary,
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Text(
+            endpoint.name,
+            color = MaterialTheme.colorScheme.onSurface,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Text(
+            "纬度 ${formatCoordinate(endpoint.coordinate.latitude)}",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodyMedium.merge(NumericTextStyle),
+        )
+        Text(
+            "经度 ${formatCoordinate(endpoint.coordinate.longitude)}",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodyMedium.merge(NumericTextStyle),
+        )
+    }
+}
+
+private fun formatCoordinate(value: Double): String = String.format(Locale.ROOT, "%.6f", value)
+
+private val RouteDetailsLinkBlue = Color(0xFF0B57D0)
 
 @Composable
 private fun PlannerBottomAction(
@@ -906,27 +1741,44 @@ private fun PlannerBottomAction(
     enabled: Boolean,
     label: String,
     isLoading: Boolean,
+    icon: ImageVector? = null,
 ) {
-    Surface(color = MaterialTheme.colorScheme.surface) {
+    Surface(
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 3.dp,
+        modifier = Modifier
+            .fillMaxWidth()
+            .navigationBarsPadding()
+            .imePadding()
+            .semantics {
+                if (isLoading) {
+                    liveRegion = LiveRegionMode.Polite
+                    stateDescription = label
+                }
+            },
+    ) {
         Button(
             onClick = onClick,
             enabled = enabled,
             modifier = Modifier
                 .fillMaxWidth()
-                .navigationBarsPadding()
-                .padding(12.dp)
-                .height(52.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = Vermilion),
+                .padding(horizontal = 16.dp, vertical = 12.dp)
+                .heightIn(min = 52.dp),
+            shape = RoundedCornerShape(12.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
         ) {
             if (isLoading) {
                 CircularProgressIndicator(
                     modifier = Modifier.size(20.dp),
-                    color = Color.White,
+                    color = MaterialTheme.colorScheme.onPrimary,
                     strokeWidth = 2.dp,
                 )
-            } else {
-                Text(label)
+                Spacer(modifier = Modifier.width(10.dp))
+            } else if (icon != null) {
+                Icon(icon, contentDescription = null, modifier = Modifier.size(20.dp))
+                Spacer(modifier = Modifier.width(8.dp))
             }
+            Text(label)
         }
     }
 }
@@ -942,24 +1794,40 @@ private fun TransitJourneySummaryCard(plan: TourPlan) {
     val lineLabels = transitLegs.mapNotNull { transit ->
         transit.line?.takeIf(String::isNotBlank) ?: transitVehicleLabel(transit.vehicleMode)
     }.distinct()
-    val visibleLineLabels = lineLabels.take(6)
+    val largeText = LocalDensity.current.fontScale >= 1.5f
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = BorderStroke(1.dp, Sand),
-        shape = RoundedCornerShape(10.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        shape = RoundedCornerShape(16.dp),
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 10.dp),
+            .padding(vertical = 4.dp),
     ) {
-        Column(modifier = Modifier.padding(14.dp)) {
+        Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Rounded.DirectionsBus, contentDescription = null, tint = Vermilion)
+                Surface(
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.size(44.dp),
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            Icons.Rounded.DirectionsBus,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                        )
+                    }
+                }
                 Column(
                     modifier = Modifier
                         .weight(1f)
-                        .padding(start = 10.dp),
+                        .padding(start = 12.dp),
                 ) {
-                    Text("当前公交方案", color = MutedInk, style = MaterialTheme.typography.labelMedium)
+                    Text(
+                        "公交路线",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.labelMedium,
+                    )
                     Text(
                         if (departure != null || arrival != null) {
                             "${formatTransitTime(departure, firstTransit?.departureTimeZone)} → " +
@@ -967,63 +1835,56 @@ private fun TransitJourneySummaryCard(plan: TourPlan) {
                         } else {
                             "完整步行与换乘行程"
                         },
-                        color = Ink,
+                        color = MaterialTheme.colorScheme.onSurface,
                         style = MaterialTheme.typography.titleLarge,
-                    )
-                }
-                Column(horizontalAlignment = Alignment.End) {
-                    Text(
-                        transitPreferenceLabel(plan.transitRoutingPreference),
-                        color = Vermilion,
-                        style = MaterialTheme.typography.labelLarge,
-                    )
-                    Text(
-                        transitTravelModesLabel(plan.transitTravelModes),
-                        color = MutedInk,
-                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.SemiBold,
                     )
                 }
             }
+            HorizontalDivider(
+                color = MaterialTheme.colorScheme.outlineVariant,
+                modifier = Modifier.padding(vertical = 14.dp),
+            )
+            BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    maxItemsInEachRow = if (maxWidth < 440.dp || largeText) 2 else 4,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    LightSummaryValue(
+                        formatDuration(plan.estimatedDurationSeconds),
+                        "总用时",
+                        Modifier.weight(1f),
+                    )
+                    LightSummaryValue("${plan.orderedPoints.size} 站", "巡礼点", Modifier.weight(1f))
+                    LightSummaryValue("${transitLegs.size} 段", "乘车", Modifier.weight(1f))
+                    LightSummaryValue(formatDistance(walkingDistance), "步行", Modifier.weight(1f))
+                }
+            }
             Text(
-                "全程约 ${formatDuration(plan.estimatedDurationSeconds)}（含景点停留） · " +
-                    "乘车 ${transitLegs.size} 段 · 步行 ${formatDistance(walkingDistance)}",
-                color = MutedInk,
-                modifier = Modifier.padding(top = 8.dp),
+                "${transitPreferenceLabel(plan.transitRoutingPreference)} · " +
+                    transitTravelModesLabel(plan.transitTravelModes),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(top = 12.dp),
             )
             if (lineLabels.isNotEmpty()) {
-                FlowRow(
-                    modifier = Modifier.padding(top = 10.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    visibleLineLabels.forEach { label ->
-                        Surface(
-                            color = MaterialTheme.colorScheme.surfaceVariant,
-                            shape = RoundedCornerShape(6.dp),
-                        ) {
-                            Text(
-                                label,
-                                color = Ink,
-                                style = MaterialTheme.typography.labelLarge,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                            )
-                        }
-                    }
-                    if (lineLabels.size > visibleLineLabels.size) {
-                        Text(
-                            "+${lineLabels.size - visibleLineLabels.size} 条线路",
-                            color = MutedInk,
-                            style = MaterialTheme.typography.labelLarge,
-                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
-                        )
-                    }
-                }
+                Text(
+                    "途经 ${lineLabels.take(5).joinToString(" · ")}" +
+                        if (lineLabels.size > 5) " 等 ${lineLabels.size} 条线路" else "",
+                    color = MaterialTheme.colorScheme.onSurface,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(top = 4.dp),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
         }
     }
 }
 
-private data class TransitJourneySection(
+internal data class TransitJourneySection(
     val legs: List<TourLeg>,
     val destinationPointId: String?,
 )
@@ -1043,129 +1904,233 @@ private fun groupTransitJourneySections(legs: List<TourLeg>): List<TransitJourne
 }
 
 @Composable
-private fun TransitJourneySectionCard(
-    section: TransitJourneySection,
-    index: Int,
-    sectionCount: Int,
+private fun TransitJourneyTimeline(
+    sections: List<TransitJourneySection>,
     plan: TourPlan,
 ) {
-    val destination = section.destinationPointId?.let { pointId ->
-        plan.selectedPoints.firstOrNull { it.id == pointId }?.name
-    } ?: if (index == sectionCount - 1 && plan.endPolicy == EndPolicy.RETURN_TO_START) {
-        "返回起点"
-    } else {
-        "下一巡礼点"
-    }
-    Card(
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = BorderStroke(1.dp, Sand),
-        shape = RoundedCornerShape(10.dp),
+    Surface(
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        shape = RoundedCornerShape(16.dp),
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Surface(
-                    color = Vermilion,
-                    shape = RoundedCornerShape(50),
-                    modifier = Modifier.size(30.dp),
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Text("${index + 1}", color = Color.White, fontWeight = FontWeight.Bold)
-                    }
+        Column(modifier = Modifier.padding(vertical = 6.dp)) {
+            sections.forEachIndexed { index, section ->
+                val destination = section.destinationPointId?.let { pointId ->
+                    plan.selectedPoints.firstOrNull { it.id == pointId }?.name
+                } ?: if (index == sections.lastIndex && plan.endPolicy == EndPolicy.RETURN_TO_START) {
+                    "返回起点"
+                } else {
+                    "下一巡礼点"
                 }
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(start = 10.dp),
-                ) {
-                    Text("前往 $destination", color = Ink, fontWeight = FontWeight.Bold)
-                    Text(
-                        "第 ${index + 1}/$sectionCount 段 · " +
-                            "${formatDuration(section.legs.sumOf(TourLeg::durationSeconds))} · " +
-                            formatDistance(section.legs.sumOf(TourLeg::distanceMeters)),
-                        color = MutedInk,
-                        style = MaterialTheme.typography.bodyMedium,
+                if (index > 0) {
+                    HorizontalDivider(
+                        color = MaterialTheme.colorScheme.outlineVariant,
+                        modifier = Modifier.padding(start = 60.dp),
                     )
                 }
-            }
-            section.legs.forEach { leg ->
-                HorizontalDivider(
-                    modifier = Modifier.padding(vertical = 10.dp),
-                    color = Sand,
-                )
-                TransitTimelineLegRow(leg)
+                Row(
+                    modifier = Modifier.padding(start = 14.dp, end = 14.dp, top = 14.dp, bottom = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.primary,
+                        shape = RoundedCornerShape(50),
+                        modifier = Modifier.size(32.dp),
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text(
+                                "${index + 1}",
+                                color = MaterialTheme.colorScheme.onPrimary,
+                                fontWeight = FontWeight.Bold,
+                            )
+                        }
+                    }
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(start = 12.dp),
+                    ) {
+                        Text(
+                            "前往 $destination",
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Text(
+                            "${formatDuration(section.legs.sumOf(TourLeg::durationSeconds))} · " +
+                                formatDistance(section.legs.sumOf(TourLeg::distanceMeters)),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                }
+                section.legs.forEachIndexed { legIndex, leg ->
+                    TransitTimelineLegRow(
+                        leg = leg,
+                        showConnector = !(index == sections.lastIndex && legIndex == section.legs.lastIndex),
+                    )
+                }
             }
         }
     }
 }
 
 @Composable
-private fun TransitTimelineLegRow(leg: TourLeg) {
+private fun TransitTimelineLegRow(
+    leg: TourLeg,
+    showConnector: Boolean,
+) {
     val transit = leg.transit
     val walking = leg.mode == TravelMode.WALK
-    Row(verticalAlignment = Alignment.Top) {
-        Surface(
-            color = MaterialTheme.colorScheme.surfaceVariant,
-            shape = RoundedCornerShape(50),
-            modifier = Modifier.size(36.dp),
+    val walkingInstruction = leg.steps.firstOrNull()?.instruction?.takeIf(String::isNotBlank)
+    val stopLabel = transit?.let {
+        listOfNotNull(it.departureStop, it.arrivalStop).joinToString(" → ").takeIf(String::isNotBlank)
+    }
+    val hasExtraDetails = if (walking) {
+        walkingInstruction.orEmpty().length > 64
+    } else {
+        transit != null && (
+            transit.departurePlatform != null ||
+                transit.arrivalPlatform != null ||
+                transit.intermediateStops.isNotEmpty() ||
+                stopLabel.orEmpty().length > 64
+            )
+    }
+    var expanded by remember(leg) { mutableStateOf(false) }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(IntrinsicSize.Min)
+            .padding(horizontal = 14.dp),
+        verticalAlignment = Alignment.Top,
+    ) {
+        Box(
+            modifier = Modifier
+                .width(36.dp)
+                .fillMaxHeight(),
+            contentAlignment = Alignment.TopCenter,
         ) {
-            Box(contentAlignment = Alignment.Center) {
-                Icon(
-                    if (walking) Icons.AutoMirrored.Rounded.DirectionsWalk else Icons.Rounded.DirectionsBus,
-                    contentDescription = null,
-                    tint = if (walking) Moss else Vermilion,
-                    modifier = Modifier.size(20.dp),
+            if (showConnector) {
+                Box(
+                    modifier = Modifier
+                        .width(2.dp)
+                        .fillMaxHeight()
+                        .background(MaterialTheme.colorScheme.outlineVariant),
                 )
+            }
+            Surface(
+                color = MaterialTheme.colorScheme.surfaceVariant,
+                shape = RoundedCornerShape(50),
+                modifier = Modifier.size(36.dp),
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        if (walking) Icons.AutoMirrored.Rounded.DirectionsWalk else Icons.Rounded.DirectionsBus,
+                        contentDescription = null,
+                        tint = if (walking) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
             }
         }
         Column(
             modifier = Modifier
                 .weight(1f)
-                .padding(start = 10.dp),
+                .padding(start = 10.dp, bottom = 16.dp),
         ) {
             Text(
                 if (walking) "步行接驳" else transit?.let { it.line ?: transitVehicleLabel(it.vehicleMode) }
                     ?: "公共交通",
-                color = Ink,
+                color = MaterialTheme.colorScheme.onSurface,
                 fontWeight = FontWeight.SemiBold,
             )
             if (walking) {
                 Text(
                     "约 ${formatDuration(leg.durationSeconds)} · ${formatDistance(leg.distanceMeters)}",
-                    color = MutedInk,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     style = MaterialTheme.typography.bodyMedium,
                 )
-                leg.steps.firstOrNull()?.instruction?.takeIf(String::isNotBlank)?.let { instruction ->
-                    Text(instruction, color = MutedInk, style = MaterialTheme.typography.bodyMedium)
+                walkingInstruction?.let { instruction ->
+                    Text(
+                        instruction,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodyMedium,
+                        maxLines = if (expanded) Int.MAX_VALUE else 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
             } else if (transit != null) {
                 val departure = formatTransitTime(transit.departureTime, transit.departureTimeZone)
                 val arrival = formatTransitTime(transit.arrivalTime, transit.arrivalTimeZone)
-                Text("$departure → $arrival · ${formatDuration(leg.durationSeconds)}", color = MutedInk)
-                transit.direction?.takeIf(String::isNotBlank)?.let { Text("开往 $it", color = MutedInk) }
-                if (transit.departureStop != null || transit.arrivalStop != null) {
+                Text(
+                    "$departure → $arrival · ${formatDuration(leg.durationSeconds)}",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                transit.direction?.takeIf(String::isNotBlank)?.let {
+                    Text("开往 $it", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                stopLabel?.let {
                     Text(
-                        listOfNotNull(transit.departureStop, transit.arrivalStop).joinToString(" → "),
-                        color = MutedInk,
+                        it,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = if (expanded) Int.MAX_VALUE else 2,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
-                transit.stopCount?.let { Text("途经 $it 站", color = MutedInk) }
-                transit.departurePlatform?.let { Text("上车站台：$it", color = MutedInk) }
-                transit.arrivalPlatform?.let { Text("下车站台：$it", color = MutedInk) }
-                transit.intermediateStops.takeIf { it.isNotEmpty() }?.let { stops ->
-                    Text("中途站：${stops.joinToString(" → ")}", color = MutedInk, maxLines = 2)
+                transit.stopCount?.let {
+                    Text("途经 $it 站", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                if (expanded) {
+                    transit.departurePlatform?.let {
+                        Text("上车站台：$it", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    transit.arrivalPlatform?.let {
+                        Text("下车站台：$it", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    transit.intermediateStops.takeIf { it.isNotEmpty() }?.let { stops ->
+                        Text(
+                            "中途站：${stops.joinToString(" → ")}",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
                 if (transit.cancelled) {
-                    Text("该班次已取消，需要重新查询", color = Vermilion, fontWeight = FontWeight.Bold)
+                    Text(
+                        "该班次已取消，需要重新查询",
+                        color = MaterialTheme.colorScheme.error,
+                        fontWeight = FontWeight.Bold,
+                    )
                 } else if (transit.realtime) {
-                    Text("含实时信息", color = MutedInk)
+                    Text(
+                        "含实时信息",
+                        color = MaterialTheme.colorScheme.primary,
+                        style = MaterialTheme.typography.labelMedium,
+                    )
                 }
             } else {
                 Text(
                     "约 ${formatDuration(leg.durationSeconds)} · ${formatDistance(leg.distanceMeters)}",
-                    color = MutedInk,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     style = MaterialTheme.typography.bodyMedium,
                 )
+            }
+            if (hasExtraDetails) {
+                TextButton(
+                    onClick = { expanded = !expanded },
+                    modifier = Modifier.heightIn(min = 48.dp),
+                    contentPadding = PaddingValues(horizontal = 0.dp, vertical = 6.dp),
+                ) {
+                    Text(if (expanded) "收起详情" else "查看详情")
+                    Icon(
+                        if (expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+                        contentDescription = null,
+                        modifier = Modifier
+                            .padding(start = 4.dp)
+                            .size(18.dp),
+                    )
+                }
             }
         }
     }
@@ -1194,15 +2159,36 @@ private fun ReorderPointCard(
     point: PilgrimagePoint,
     index: Int,
     locked: Boolean,
+    canMoveUp: Boolean,
+    canMoveDown: Boolean,
     onMove: (Int, Int) -> Unit,
 ) {
     var dragDistance by remember { mutableFloatStateOf(0f) }
-    Card(
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFFCF7)),
-        border = BorderStroke(1.dp, Sand),
-        shape = RoundedCornerShape(10.dp),
+    val accessibilityActions = buildList {
+        if (canMoveUp) {
+            add(
+                CustomAccessibilityAction("上移") {
+                    onMove(index, index - 1)
+                    true
+                },
+            )
+        }
+        if (canMoveDown) {
+            add(
+                CustomAccessibilityAction("下移") {
+                    onMove(index, index + 1)
+                    true
+                },
+            )
+        }
+    }
+    Column(
         modifier = Modifier
             .fillMaxWidth()
+            .semantics {
+                stateDescription = if (locked) "顺序已锁定" else "可调整顺序"
+                customActions = accessibilityActions
+            }
             .pointerInput(index, locked) {
                 if (!locked) {
                     detectDragGesturesAfterLongPress(
@@ -1220,16 +2206,20 @@ private fun ReorderPointCard(
             },
     ) {
         Row(
-            modifier = Modifier.padding(12.dp),
+            modifier = Modifier.padding(horizontal = 4.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(
                 modifier = Modifier
                     .size(30.dp)
-                    .background(Vermilion, RoundedCornerShape(50)),
+                    .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(50)),
                 contentAlignment = Alignment.Center,
             ) {
-                Text("${index + 1}", color = Color.White, fontWeight = FontWeight.Bold)
+                Text(
+                    "${index + 1}",
+                    color = MaterialTheme.colorScheme.onPrimary,
+                    fontWeight = FontWeight.Bold,
+                )
             }
             Column(
                 modifier = Modifier
@@ -1239,64 +2229,126 @@ private fun ReorderPointCard(
                 Text(point.name, style = MaterialTheme.typography.titleMedium)
                 Text(
                     "%.5f, %.5f".format(point.coordinate.latitude, point.coordinate.longitude),
-                    color = MutedInk,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     style = MaterialTheme.typography.bodyMedium,
                 )
             }
             Icon(
                 if (locked) Icons.Rounded.Lock else Icons.Rounded.DragHandle,
-                contentDescription = null,
-                tint = if (locked) Vermilion else Moss,
+                contentDescription = if (locked) "顺序已锁定" else "长按拖动",
+                tint = if (locked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
     }
 }
 
 @Composable
 private fun RouteSummary(plan: TourPlan) {
     val totalDistance = plan.legs.sumOf { it.distanceMeters }
-    Row(
+    val largeText = LocalDensity.current.fontScale >= 1.5f
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        shape = RoundedCornerShape(16.dp),
         modifier = Modifier
             .fillMaxWidth()
-            .background(Ink)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
+            .padding(vertical = 4.dp),
     ) {
-        SummaryValue("${plan.orderedPoints.size} 站", "巡礼点")
-        SummaryValue(formatDuration(plan.estimatedDurationSeconds), "预计用时")
-        SummaryValue(if (totalDistance > 0) "%.1f km".format(totalDistance / 1000) else "公交", "总距离")
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Rounded.Route,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+                Text(
+                    "路线概览",
+                    color = MaterialTheme.colorScheme.onSurface,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(start = 10.dp),
+                )
+            }
+            HorizontalDivider(
+                color = MaterialTheme.colorScheme.outlineVariant,
+                modifier = Modifier.padding(vertical = 14.dp),
+            )
+            BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    maxItemsInEachRow = if (maxWidth < 440.dp || largeText) 2 else 3,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    LightSummaryValue("${plan.orderedPoints.size} 站", "巡礼点", Modifier.weight(1f))
+                    LightSummaryValue(
+                        formatDuration(plan.estimatedDurationSeconds),
+                        "预计用时",
+                        Modifier.weight(1f),
+                    )
+                    LightSummaryValue(
+                        if (totalDistance > 0) "%.1f km".format(totalDistance / 1000) else "—",
+                        "总距离",
+                        Modifier.weight(1f),
+                    )
+                }
+            }
+        }
     }
 }
 
 @Composable
-private fun SummaryValue(value: String, label: String) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(value, color = Color.White, fontWeight = FontWeight.Bold)
-        Text(label, color = Sand, style = MaterialTheme.typography.bodyMedium)
+private fun LightSummaryValue(
+    value: String,
+    label: String,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(
+            value,
+            color = MaterialTheme.colorScheme.onSurface,
+            style = MaterialTheme.typography.titleMedium.merge(NumericTextStyle),
+            maxLines = 2,
+            textAlign = TextAlign.Center,
+        )
+        Text(
+            label,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodySmall,
+        )
     }
 }
 
 @Composable
 private fun PlannerTopBar(title: String, onBack: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(Ink)
-            .statusBarsPadding()
-            .padding(horizontal = 8.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
+    Surface(
+        color = MaterialTheme.colorScheme.surface,
+        contentColor = MaterialTheme.colorScheme.onSurface,
+        tonalElevation = 1.dp,
     ) {
-        IconButton(onClick = onBack) {
-            Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "返回", tint = Color.White)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .statusBarsPadding()
+                .heightIn(min = 56.dp)
+                .padding(horizontal = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            IconButton(onClick = onBack) {
+                Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "返回")
+            }
+            Text(
+                title,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(start = 4.dp),
+            )
         }
-        Text(title, color = Color.White, style = MaterialTheme.typography.titleLarge)
     }
-}
-
-@Composable
-private fun SectionTitle(title: String, subtitle: String) {
-    Text(title, style = MaterialTheme.typography.titleLarge)
-    Text(subtitle, color = MutedInk, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(top = 2.dp, bottom = 8.dp))
 }
 
 @Composable
@@ -1305,6 +2357,7 @@ private fun ModeChip(
     selected: TravelMode,
     label: String,
     onSelect: (TravelMode) -> Unit,
+    modifier: Modifier = Modifier,
     enabled: Boolean = true,
 ) {
     val icon = when (mode) {
@@ -1313,35 +2366,58 @@ private fun ModeChip(
         TravelMode.WALK -> Icons.AutoMirrored.Rounded.DirectionsWalk
         TravelMode.TRANSIT -> Icons.Rounded.DirectionsBus
     }
-    FilterChip(
-        selected = selected == mode,
+    val isSelected = selected == mode
+    Card(
         onClick = { onSelect(mode) },
         enabled = enabled,
-        label = { Text(label) },
-        leadingIcon = { Icon(icon, contentDescription = null, modifier = Modifier.size(18.dp)) },
-    )
-}
-
-@Composable
-private fun ChoiceChip(label: String, selected: Boolean, onClick: () -> Unit) {
-    FilterChip(selected = selected, onClick = onClick, label = { Text(label) })
-}
-
-@Composable
-private fun PointChoices(
-    points: List<PilgrimagePoint>,
-    selectedId: String?,
-    onSelect: (String) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Row(
+        colors = CardDefaults.cardColors(
+            containerColor = if (isSelected) {
+                MaterialTheme.colorScheme.primaryContainer
+            } else {
+                MaterialTheme.colorScheme.surface
+            },
+        ),
+        border = BorderStroke(
+            1.dp,
+            if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
+        ),
+        shape = RoundedCornerShape(12.dp),
         modifier = modifier
-            .fillMaxWidth()
-            .horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+            .testTag("planner-mode-${mode.name}")
+            .semantics {
+                role = Role.RadioButton
+                this.selected = isSelected
+            },
     ) {
-        points.forEach { point ->
-            ChoiceChip(point.name, point.id == selectedId) { onSelect(point.id) }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 58.dp)
+                .padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center,
+        ) {
+            Icon(
+                icon,
+                contentDescription = null,
+                tint = if (isSelected) {
+                    MaterialTheme.colorScheme.onPrimaryContainer
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                },
+                modifier = Modifier.size(21.dp),
+            )
+            Text(
+                label,
+                color = if (isSelected) {
+                    MaterialTheme.colorScheme.onPrimaryContainer
+                } else {
+                    MaterialTheme.colorScheme.onSurface
+                },
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.padding(start = 8.dp),
+            )
         }
     }
 }
