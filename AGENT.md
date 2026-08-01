@@ -38,9 +38,9 @@
 
 - 规范仓库：`realMisakaMikoto/junrei_navi`。
 - 本地 `origin` 仍配置为旧地址 `https://github.com/realMisakaMikoto/anitabi.git`，目前由 GitHub 重定向；远程 API 和新链接应使用规范仓库。
-- 当前发布分支：`codex/transit-no-route`，以 `origin/main` 的 `6993f1ce6d638ec2d1600b7a079d0a2f928cbb7e` 为发布候选基线；v0.2.2 的提交、PR、标签和 Release 状态以本节后续记录及 `docs/releases/v0.2.2.md` 为准。功能分支交接提交为 `c0e1e5c04afb55cae76ca93f2a1920e1e62b20bb`；压缩前完整日志锚点为 `c92a92195d903ecb89ae563a509699f32e5737ef`。
-- `main` / `origin/main` 已包含功能分支交接提交 `c0e1e5c04afb55cae76ca93f2a1920e1e62b20bb`；本次状态记录提交位于其后。
-- 稳定标签 `v0.2.1` 指向 `fd65c1d54372df43769d4c53602ed2fb833f8ae2`。
+- 当前本地分支为 `main`。功能提交 `0423bd06e67694e28f15c378a948a9bcd9d4ff28` 经 [PR #11](https://github.com/realMisakaMikoto/junrei_navi/pull/11) rebase 合并；发布源码提交为 `308d4c2afcc9681335e9b60d68cbb2891b025442`。
+- 稳定标签 `v0.2.2` 指向上述发布源码提交；非草稿、非预发布的 [v0.2.2 Release](https://github.com/realMisakaMikoto/junrei_navi/releases/tag/v0.2.2) 已发布并成为 Latest Release。完整证据在 `docs/releases/v0.2.2.md`。
+- 功能分支 `codex/transit-no-route` 仍保留在远端；不要将其误当作当前发布分支。压缩前完整日志锚点仍为 `c92a92195d903ecb89ae563a509699f32e5737ef`。
 - `main` 已通过快进合并纳入相对原基线 `cbc29fa7acc3dd2e589d5849d2f6e66be53b9ea1` 的 6 个提交：
   - `95cdb8366cab59a4b9cb12bdc61d98d8dd3f3d34`：修复 Google Navigation cancelled-task 概率闪退。
   - `43b9c7d067b7b1907d0b4ef528ff5ef65ec2c45a`：显示名改为 `巡礼手帳`，准备同版本替换 APK。
@@ -54,6 +54,7 @@
 
 ### 稳定 Release 的特殊边界
 
+- 当前公开稳定版为 `v0.2.2`：`anitabi-v0.2.2.apk` 共 49,102,773 字节，SHA-256 `e44f2d8e2179650395fa28ecff3a59d30bcb21c6798585e80b87535a0bf96676`，与公开校验文件及 GitHub 资产摘要一致。APK 为 `cn.anitabi.navigator` / `0.2.2 (8)`，固定 RSA-4096 v2 签名证书不变；API 26/API 37 精确公开资产门禁均通过。
 - 2026-08-01 通过只读 GitHub API 确认：公开稳定 `v0.2.1` 的 APK 已被同版本替换为：
   - 文件：`anitabi-v0.2.1.apk`
   - 大小：49,058,373 字节
@@ -62,14 +63,14 @@
 - 公开替换包包含 cancelled-task 修复和 `巡礼手帳` 改名，仍为 `versionName=0.2.1` / `versionCode=7`，并保持固定签名。
 - 稳定标签仍指向替换前源码，但 `main` 已包含替换包对应的修复和改名。因此当前公开 APK 与标签源码仍不完全一致；不得声称标签可重现该资产，也不得擅自移动标签或重写历史。
 - 用户已自行更新稳定 `v0.2.1` Release 文案。2026-08-01 只读 GitHub API 核对确认：正文不再记录旧 APK SHA-256，改为要求使用随 Release 发布的校验文件；APK 资产仍为 49,058,373 字节、SHA-256 `77e2634ae3e22d663cc25bbf74b28fd3682074f2a1aa8cad51ab5a4615855d9a`。本任务未修改公开 Release 文案。
-- 现有 8 个 Release：`v0.1.0`、`v0.1.1`、`v0.1.2`、`v0.1.3`、`v0.1.4`、`v0.2.0`、`v0.2.1-rc.7`、`v0.2.1`；每个仍有 APK 和校验文件两个资产。RC1–RC6 的 Release 对象已删除，但 Git tags/commits 保留。
+- 现有 9 个 Release：`v0.1.0`、`v0.1.1`、`v0.1.2`、`v0.1.3`、`v0.1.4`、`v0.2.0`、`v0.2.1-rc.7`、`v0.2.1`、`v0.2.2`；每个仍有 APK 和校验文件两个资产。RC1–RC6 的 Release 对象已删除，但 Git tags/commits 保留。
 - 除稳定 `v0.2.1` 外，上述旧 Release 说明正文中的旧应用名已替换为 `Anitabi Navigator`。这是历史说明品牌，不等于当前应用显示名。
 
 ## 当前产品与 Android 架构
 
 - 用户可见名称：`巡礼手帳`。
 - 包名/namespace：`cn.anitabi.navigator`。
-- 发布候选版本：`versionName=0.2.2`、`versionCode=8`；`minSdk=26`、`compileSdk=37`、`targetSdk=37`；Java 17。公开稳定版在本次发布完成前仍为 v0.2.1。
+- 当前稳定版本：`versionName=0.2.2`、`versionCode=8`；`minSdk=26`、`compileSdk=37`、`targetSdk=37`；Java 17。
 - 主要工具链：Gradle 9.6.1、AGP 9.3.0、Kotlin 2.4.10、KSP 2.3.10、Compose BOM 2026.06.01。
 - Google Navigation SDK 7.8.0 负责地图、定位及驾车/步行/骑行道路导航；项目不得同时接入 Maps SDK for Android。
 - Google Routes 由自建 VPS 后端调用，Android 不包含服务账号。Firebase Anonymous Auth 只用于后端鉴权和配额归属。
@@ -125,7 +126,7 @@
 - 本任务只改善错误可解释性和外部核对路径，raw 坐标接入点吸附导致的 Routes API 假阴性仍然存在；Consumer Google Maps 能找到线路不代表应用当前 Routes API 请求也会成功，不得把本界面改动描述成路线算法修复。
 - 报错闭环：技术检索首次沿用 function-call 风格的 `mcporter call`，因未显式命名参数而无法加载工具元数据；改用 `mcporter call exa.web_search_exa 'query=...' numResults=5 --output markdown` 后只取得 Google 官方结果。首次 Kotlin 编译出现 `showUnavailableRouteDetails`、`state` 和 `openGoogleMaps` 未解析，根因是机械补丁把详情面板块放进了无这些状态的 `SettingsSection`；将该块移回 `PlannerSettingsScreen` 作用域后，单测、Lint、Debug 构建和 AndroidTest 编译均通过。首次 APK 核对脚本因当前 shell 未设置 `ANDROID_SDK_ROOT` / `ANDROID_HOME` 而在安装前停止；改用本机已配置的明确 Android SDK Build Tools 路径完成 `aapt dump badging` 后才执行覆盖安装。
 
-### 2026-08-01 v0.2.2 发布准备
+### 2026-08-01 v0.2.2 发布完成
 
 - 用户完成 Debug 候选人工验收后明确授权提交、创建 PR 并发布小版本。Android 已提升为 `versionName=0.2.2` / `versionCode=8`；后端版本与协议保持 0.2.1，Room schema、路线算法、权限流程和 `NavigationService` 行为不变。README、隐私说明、发布说明、发布清单与 `docs/releases/v0.2.2.md` 已同步；v0.2.1 历史材料未改写。
 - 最终本地门禁通过：127 个 JVM 测试 / 26 个套件，0 失败、0 错误、0 跳过；Debug/Release Lint 0 个问题；Debug、正式签名 Release 与 AndroidTest APK 构建成功。后端 29 个测试、TypeScript 构建和生产依赖审计通过，0 个生产依赖漏洞；跟踪源码凭据、Navigation R8 与 Release APK 内容审计全部通过。
@@ -135,7 +136,11 @@
 - 独立发布审查指出旧清单要求正式签名 APK 在 Xiaomi 真机覆盖安装后才能发稳定版，而本轮只有 Debug 候选人工验收。用户已经明确表示该候选任务完成，随后要求提交、PR 和稳定小版本；因此 v0.2.2 的边界已显式调整为“用户接受的 Debug 真机 UI 验收 + 本地/CI 固定签名审计 + 发布后精确公开 APK API 26/API 37 门禁”。正式签名真机覆盖没有执行且保持未验证，不得在证据中补勾或冒充。
 - 同一审查还发现：定向 Google 地图 Intent 失败后，通用 HTTPS fallback 若也没有处理器会再次抛 `ActivityNotFoundException`。现已让两次启动都返回明确成功状态，第二次失败不再崩溃；详情面板会以内联错误色 live region 提示设备无法打开地图或网页链接。Compose 契约测试增加失败回调断言；实际 Google 地图成功交接的既有真机证据边界不变。
 - 上述失败提示回归测试首轮 AndroidTest Kotlin 编译报 `assertTextContains` 未解析，根因是新增断言时漏导入 Compose 测试扩展；补入 `androidx.compose.ui.test.assertTextContains` 后按相同完整门禁重新验证。该失败发生在测试源码编译阶段，没有安装 APK、运行设备测试或产生发布资产。
-- 用户的 `.codex-remote-attachments/` 仍未读取、修改、删除或暂存。PR、远端 CI、标签、GitHub Release 和精确公开 APK 兼容工作流尚待本次发布流程完成，当前不得声称已经发布。
+- GitHub connector 创建 PR 与命令行 `gh pr create` 均因令牌写权限不足返回 403；在已登录的 GitHub 网页会话中创建 ready PR #11 后解决。命令行令牌同样无权重跑失败 workflow job，改由同一网页会话只重跑失败的 API 26 矩阵；没有扩大仓库或账户操作范围。
+- PR run `30699060766` 全绿并 rebase 合并。main run `30699662842` 第一次 API 26 尝试在系统权限界面发生 `com.android.systemui` 的 `NavigationBarFragment` 空指针，应用崩溃缓冲区为空；同一 SHA 的失败 job 重跑后，首次导览、Android 8 重置、离线恢复、前台导航和熄屏 GPS 全部通过。PR 与 main 的 Git tree 相同，API 37 首次通过，因此该项按模拟器 SystemUI 竞态记录，不修改产品代码。未来若要消除波动，只应加固 API 26 androidTest 在该特定系统崩溃后的有界授权恢复。
+- 标签 `v0.2.2` 指向发布源码 `308d4c2afcc9681335e9b60d68cbb2891b025442`。Signed APK Release run `30700533745` 全部通过并创建 Latest Release；精确公开资产兼容 run `30700823528` 的 API 26/API 37 均通过。公开 APK 为 49,102,773 字节、SHA-256 `e44f2d8e2179650395fa28ecff3a59d30bcb21c6798585e80b87535a0bf96676`，包名/版本和固定 RSA-4096 v2 证书均已重新下载核对。正式签名 APK 的个人真机覆盖仍未执行，不得冒充。
+- 发布监控曾因 GitHub API `unexpected EOF` 退出，重新查询同一 run 后确认远端仍在运行，再恢复监控直至成功。公开资产复核后的递归及逐文件临时清理均被工具安全策略拒绝；没有绕过策略，Windows 临时目录 `%LOCALAPPDATA%\Temp\anitabi-v0.2.2-4ea7a5bb2ddb4e0eab20721ff81cc3f1` 暂留一份公开 APK 和校验文件，约 49 MB，不含秘密或用户数据。后续只能在再次确认该绝对目录后安全删除。
+- 用户的 `.codex-remote-attachments/` 仍未读取、修改、删除或暂存。
 
 ## 后端与生产环境
 
@@ -163,13 +168,13 @@
 
 ## 当前验证基线与诚实边界
 
-- 当前分支已有报告：127 个 JVM 测试 / 26 个套件，0 失败、0 错误、0 跳过。
-- Debug 与 Release Lint 均通过，仅有 4 条 `AutoboxingStateCreation` 性能提示；Debug/Release 构建、Navigation R8 审计、源码凭据审计和 APK 内容审计通过。
-- 后端最后记录为 29 个测试通过，TypeScript 构建通过，生产依赖审计 0 漏洞；本次压缩没有重跑后端测试。
-- 原稳定发布流程曾通过：PR `30628585336`、main `30629643413`、signed release `30630717751`、旧公共资产兼容 `30631245688`。
-- `30631245688` 验证的是后来被替换前的公共资产，不能作为当前 `77e263…` APK 的 exact-public-asset 证据。
+- v0.2.2 发布源码已有报告：127 个 JVM 测试 / 26 个套件，0 失败、0 错误、0 跳过；Debug/Release Lint 均为 0 个问题，Debug、正式签名 Release 和 AndroidTest APK 构建通过。
+- Navigation R8 反射契约、跟踪源码凭据和 Release APK 内容审计通过；后端 29 个测试、TypeScript 构建和生产依赖审计通过，生产依赖漏洞为 0。
+- v0.2.2 远端门禁：PR `30699060766`、main `30699662842` attempt 2、signed release `30700533745`、精确公开资产兼容 `30700823528` 全部成功。main API 26 attempt 1 的 SystemUI 竞态及处理见“v0.2.2 发布完成”。
+- 精确公开 `anitabi-v0.2.2.apk` 为 49,102,773 字节、SHA-256 `e44f2d8e2179650395fa28ecff3a59d30bcb21c6798585e80b87535a0bf96676`；校验文件、GitHub 摘要、包名/版本和固定签名均已核对，API 26/API 37 均完成安装、冷启动、首次导览和应用崩溃缓冲区检查。
+- v0.2.1 的历史流程为 PR `30628585336`、main `30629643413`、signed release `30630717751`、旧公共资产兼容 `30631245688`；`30631245688` 验证的是后来被替换前的公共资产，不能作为当前 v0.2.1 替换 APK 的 exact-public-asset 证据。
 - cancelled-task 修复曾在 Xiaomi 15T Pro 上完成 6 次有界启动/快速停止，未再出现 `Task was cancelled`，地图与最终 Google 导航正常；该测试使用既有 mock-location，且测试包早于显示名改动。
-- 当前公开替换 APK 与本地完整测试/签名产物哈希一致，但没有记录新的 exact-public-asset API 26/API 37 工作流或该精确 APK 的真机覆盖验收。需要此类结论时必须重新验证。
+- v0.2.2 的个人真机证据仍只覆盖发布前 Debug 候选；没有安装精确公开签名 APK，不能声称完成正式签名真机覆盖。
 - 手机当前安装、页面、网络、mock location 和选点状态都可能已被用户改变；开始新真机任务时重新只读确认，不沿用旧状态。
 
 ### 2026-08-01 前端重设计与真机验收状态
@@ -178,7 +183,7 @@
 - Xiaomi 真机（Android 16 / API 36）已通过新增 7 个 Compose UI 契约测试和既有 10 个 instrumentation 测试。既有测试覆盖首次引导、设置迁移、Room 迁移、离线进程恢复、离线手动到达及熄屏 mock GPS 自动到达；第三方 FakeGPS 首次干扰自动到达，用户取消该提供者后复测通过。人工检查覆盖竖屏、修复前后横屏、200% 字体、IME resize 与自适应图标安全区。
 - 新增 Compose 测试首轮无法启动 `ComponentActivity`，根因是缺少 Compose 测试宿主 manifest；已增加仅 debug 生效的 `androidx.compose.ui:ui-test-manifest`，重建后 7/7 通过。横屏回归测试首版无法定位未组合的 LazyColumn 屏外节点；改为从列表容器执行 `performScrollToNode` 后通过。
 - 一次被中止的 `connectedDebugAndroidTest` 在 debug APK 因签名不匹配安装失败后，仍于 17:12 自动卸载了正式包，系统记录为 `PACKAGE_FULLY_REMOVED`；因 `allowBackup=false`，本地数据无法通过 Android 备份恢复。用户确认没有重要数据并授权安装测试版。后续禁止在含正式签名包的个人设备上运行该 Gradle 任务，只允许显式校验包名后执行单一 APK 安装。
-- 正式包名的 debug 测试版已重新构建；首次安装被 MIUI 的 USB 安装确认以 `INSTALL_FAILED_USER_RESTRICTED` 取消，用户确认弹窗后重试成功。当前手机安装 `cn.anitabi.navigator`、`versionName=0.2.1`、`versionCode=7`。PR、Release、标签和公开资产均未改动，等待用户手工验收通过；验收后仍需重跑最终 JVM、Release Lint、Release 构建及发布审计。
+- 正式包名的 debug 测试版已重新构建；首次安装被 MIUI 的 USB 安装确认以 `INSTALL_FAILED_USER_RESTRICTED` 取消，用户确认弹窗后重试成功。该时点手机安装的是 `cn.anitabi.navigator`、`versionName=0.2.1`、`versionCode=7`；用户随后完成 Debug 候选人工验收，最终 JVM、Release Lint、Release 构建、发布审计及 v0.2.2 远端发布均已通过。精确公开签名 APK 仍未在该个人真机覆盖安装。
 - 地图异常现象与根因：真机选点页一度只显示地图背景和 Google 水印，底图、道路、地名、Marker 与自动取景均缺失；修复前截图为系统截图目录中的 `anitabi-map-issue-20260801.png`。同一进程的 Logcat 明确报告 Maps 与 Navigation SDK `Authorization failure` / `INVALID_ARGUMENT`，并显示 API Key 为空。确认原因是本机 Key 仅存在于 Git 忽略的 `local.properties`，而原 Gradle 逻辑只读取 Gradle property 或环境变量，普通 `assembleDebug` 因此把空值写入 `com.google.android.geo.API_KEY`。现有 UI 契约测试强制列表模式，没有实例化真实地图，因而无法发现授权缺口。
 - 地图异常实际修复：`app/build.gradle.kts` 仅为 `ANITABI_NAVIGATION_API_KEY` 增加 `local.properties` 后备读取，仍保持 Gradle property、环境变量优先，Release 签名凭据来源语义不变；`local.properties` 继续不受 Git 跟踪，源码和文档未写入实际 Key。`docs/BUILD.md` 已同步本地配置方式。未修改地图生命周期、Marker、相机、ViewModel、repository、网络请求、路线算法或 `NavigationService`。
 - 本次实现前查阅了 2026-07-15 更新的 Google 官方 [Navigation SDK Android Studio 设置](https://developers.google.com/maps/documentation/navigation/android-sdk/android-studio-setup) 与 [Navigation SDK 概览](https://developers.google.com/maps/documentation/navigation/android-sdk/overview)。确认 Key 应从未提交的本地配置安全注入 `com.google.android.geo.API_KEY`；Navigation SDK 已包含地图层且不得与 Maps SDK 同时依赖。因此保留现有 Navigation SDK 7.8.0 和 manifest 注入方式，不增加 Maps SDK、运行时取 Key 或新的地图初始化路径。
@@ -194,6 +199,7 @@
 - v0.2.1：迁移到 Google Navigation + VPS Google Routes + Firebase，加入无限点分批、Room 2 数据迁移、遥测选择加入、配额与生产部署。
 - RC1–RC6 的 Release 因已知缺陷被删除，tags 保留；RC7 修复地图/R8/道路/公交参数问题。后续公交证据促成更严格的 transit 真实性与错误处理。
 - 稳定 v0.2.1 已发布；随后修复 Navigation Future 取消崩溃、改名为 `巡礼手帳`，并生成/替换同版本 APK。相关提交现已合并进 `main`，但标签源码仍未同步。
+- 稳定 v0.2.2 已发布：完成前端与品牌重设计、地图本地 Key 注入修复、无线路详情及 Google 地图交接；PR、main、签名发布和精确公开 APK 的 API 26/API 37 门禁均通过，后端与路线行为未变。
 
 ## 常用权威入口
 
@@ -202,14 +208,14 @@
 - 安全：`SECURITY.md`
 - 构建：`docs/BUILD.md`
 - 后端运维：`backend/README.md`
-- 当前发布候选说明：`docs/RELEASE_NOTES_v0.2.2.md`；v0.2.1 历史说明保持不变。
+- 当前稳定版说明：`docs/RELEASE_NOTES_v0.2.2.md`；v0.2.1 历史说明保持不变。
 - Release/真机证据：`docs/releases/`、`docs/PHYSICAL_DEVICE_ACCEPTANCE_v0.1.3.md`
 - 压缩前完整实施记录：提交 `c92a92195d903ecb89ae563a509699f32e5737ef` 中的 `AGENT.md`
 
 ## 最近任务（最多 5 条）
 
+- 2026-08-01：提交并发布稳定 v0.2.2；PR #11、main、签名 Release 与精确公开 APK 的 API 26/API 37 门禁全部通过，公开 APK 哈希、包名、版本和固定签名已重新下载核对；记录 API 26 模拟器 SystemUI 竞态，正式签名个人真机覆盖保持未验证。
 - 2026-08-01：为确切的公交/步行无线路分段增加红框内“详细信息”、失败两端名称与经纬度底部面板，以及预填两端并选中公交模式的 Google 地图跳转；未改路线行为，完成 JVM、Lint、Debug/AndroidTest 构建、定向 Compose 真机测试与真实 Google 地图交接验证。
-- 2026-08-01：完成公交首段 `NO_ROUTE` 的真机、生产安全日志和 Google 有界对照诊断，确认 raw 坐标接入点吸附是假阴性根因；因官方方案需要用户选择导航点、独立 Geocoding 配额及新的到达点语义，自动 address-label 试做已完整撤销，当前只保留 `AGENT.md` 证据并等待用户确认后续产品范围，未部署或覆盖 APK。
-- 2026-08-01：经用户明确授权，只读检查 `.codex-remote-attachments/`；确认其中只有 2 个 JPEG 用户附件，未修改、删除或暂存。检查完成后恢复默认禁止读取边界，本任务只修改 `AGENT.md`。
-- 2026-08-01：截图定位并修复 debug 真机地图空白：本地 Key 未被 Gradle 读取导致 manifest 占位符为空；现仅为 Navigation Key 增加未跟踪 `local.properties` 后备读取，完成单测、Lint、构建、覆盖安装、授权日志和同页地图截图验证。PR 与 Release 继续等待用户验收。
+- 2026-08-01：完成公交首段 `NO_ROUTE` 的真机、生产安全日志和 Google 有界对照诊断，确认 raw 坐标接入点吸附是假阴性根因；因官方方案需要用户选择导航点、独立 Geocoding 配额及新的到达点语义，自动 address-label 试做已完整撤销，路线算法未改，后续仅增加了透明错误详情与外部核对入口。
+- 2026-08-01：截图定位并修复 debug 真机地图空白：本地 Key 未被 Gradle 读取导致 manifest 占位符为空；现仅为 Navigation Key 增加未跟踪 `local.properties` 后备读取，完成单测、Lint、构建、覆盖安装、授权日志和同页地图截图验证；修复已随 v0.2.2 发布。
 - 2026-08-01：真机截图定位并修复路线设置页出行方式内容贴上沿；将最小高度约束从外层卡片移到内部 Row，底栏与其他页面结构不变，新增中心对齐 bounds 回归测试并在 API 36 真机通过，已覆盖安装修复版并保存前后截图。
