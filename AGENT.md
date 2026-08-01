@@ -1619,3 +1619,19 @@
 - Prepared the user's two manual replacement assets in `app\build\outputs\manual-release\v0.2.1`: `anitabi-v0.2.1.apk` is 49,058,373 bytes with SHA-256 `77e2634ae3e22d663cc25bbf74b28fd3682074f2a1aa8cad51ab5a4615855d9a`, and the adjacent `.sha256` file names that exact APK. The copied APK hash exactly matches the final Gradle Release output.
 - Committed the rename, standing rule, replacement-build documentation, and audit record as `43b9c7d067b7b1907d0b4ef528ff5ef65ec2c45a`, pushed it to the same tracked branch, and independently confirmed the remote branch head matched. No pull request, merge, tag, GitHub Release, remote Release asset replacement, backend deployment, SSH action, VPS mutation, Google/Firebase setting change, billable request, APK installation, or phone interaction occurred in this task; the user retained the manual Release replacement action.
 - No secret, token, raw IP, coordinate, exact location or address, work title, search term, route body, response body, Google/Firebase credential, signing material, VPS credential, password, device identifier, or sensitive SSH value was written to source, Git, documentation, or this record.
+
+## 2026-08-01 - Task 64: legacy GitHub Release-description branding update
+
+### Scope and remote update
+
+- Re-read the complete current 1,621-line `AGENT.md` before starting this new task, then read the complete GitHub workflow instructions. This task did not modify a Google Maps Platform component, so the standing official-Google-documentation prerequisite was not applicable.
+- Interpreted the request narrowly as changing only the Markdown description bodies of every existing GitHub Release before stable `v0.2.1`. The exact target set was `v0.1.0`, `v0.1.1`, `v0.1.2`, `v0.1.3`, `v0.1.4`, `v0.2.0`, and prerelease `v0.2.1-rc.7` in the renamed repository `realMisakaMikoto/junrei_navi`.
+- Recorded a read-only eight-Release inventory before mutation. The command-line GitHub credential could read the inventory but lacked Release mutation scope; its first PATCH was rejected with HTTP 403 before any Release changed. Continued through the already authenticated GitHub web interface under the user's explicit authorization.
+- In each of the seven target descriptions, replaced the single prior Chinese application-name occurrence with `Anitabi Navigator`. No other description wording, link, title, tag, draft/prerelease flag, target commit, attached APK, checksum asset, or asset filename was intentionally edited. Release titles therefore retain their historical wording because the request covered descriptions only.
+
+### Verification and exclusions
+
+- A fresh GitHub API audit found zero prior-name occurrences and exactly one `Anitabi Navigator` occurrence in each of the seven target description bodies. All eight Releases remain present; every Release remains non-draft, only `v0.2.1-rc.7` remains a prerelease, and every Release still has its two published assets.
+- Stable `v0.2.1` was excluded from every write. Its description SHA-256 remained exactly `f5ef07346eee097efe7bdfd1e2c00ae2012707af4a43c143132c4ef5a9b59afe`, matching the pre-task value; its title, status, and two assets also remained unchanged.
+- `README.md` was not edited. Its SHA-256 remained exactly `30ea716a8a66e14fbf3698583f5b111be6291db8720636dba2e9774a39565afc`, and Git reported no README working-tree diff.
+- No source, APK, tag, Release title, Release asset, checksum, pull request, branch, backend, VPS, SSH setting, Google/Firebase resource, phone, or user attachment was changed. The user-owned `.codex-remote-attachments/` directory remains untouched and untracked. No secret or credential was written to source, GitHub Release text, command output, or this record.
