@@ -2,10 +2,16 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
-    android:viewportWidth="108"
-    android:viewportHeight="108">
-    <path
-        android:fillColor="#FFFFFFFF"
-        android:fillType="evenOdd"
-        android:pathData="M54,18C38.5,18 26,30.5 26,46c0,21.5 28,45 28,45s28,-23.5 28,-45C82,30.5 69.5,18 54,18zM54,35a11,11 0,1 0,0 22a11,11 0,1 0,0 -22z" />
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <group
+        android:pivotX="12"
+        android:pivotY="12"
+        android:scaleX="0.85"
+        android:scaleY="0.85">
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:fillType="evenOdd"
+            android:pathData="M8,4h12v6H8z M7,10h13v1H7z M6,11h14v1H6z M5,12h15v1H5z M5,13h14v1H5z M4,14h14v1H4z M4,15h11v2H4z M4,17h10v1H4z M5,18h8v1H5z M6,19h6v1H6z M10,9h2v2h-2z M12,13h2v1h-2z" />
+    </group>
 </vector>

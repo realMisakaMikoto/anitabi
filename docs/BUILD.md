@@ -11,13 +11,14 @@
 
 ## 本地配置
 
-在项目根目录创建不提交的 `local.properties`，只配置 Android SDK 路径：
+在项目根目录创建不提交的 `local.properties`，配置 Android SDK 路径。需要在本机真机查看地图时，也可以把 Navigation SDK Key 放在这个文件中：
 
 ```properties
 sdk.dir=C:\\Users\\your-name\\AppData\\Local\\Android\\Sdk
+ANITABI_NAVIGATION_API_KEY=your-local-key
 ```
 
-将 Navigation SDK Key 作为 Gradle 属性或环境变量提供。以下任选一种，不要提交实际 Key：
+也可以将 Navigation SDK Key 作为 Gradle 属性或环境变量提供。以下任选一种，不要提交实际 Key；Gradle 属性和环境变量优先于 `local.properties`：
 
 - 在用户级 `~/.gradle/gradle.properties` 中设置 `ANITABI_NAVIGATION_API_KEY=...`。
 - 构建时传入 `-PANITABI_NAVIGATION_API_KEY=...`。

@@ -1,16 +1,16 @@
-# v0.2.1 发布检查清单
+# v0.2.2 发布检查清单
 
-稳定 `v0.2.1` 发布前必须全部满足。`v0.2.1-rc.N` 可在“真机覆盖安装”小节仍未完成时发布，但必须标记为 GitHub Prerelease，且发布说明必须明确禁止把 RC 证据冒充稳定版验收。
+稳定 `v0.2.2` 发布前必须完成版本、自动验证、固定签名和用户接受的 Debug 真机界面验收。精确公开 Release APK 的 API 26/API 37 验证只能在资产发布后进行，属于发布完成门禁；失败时必须立即停止宣称发布完成并修复。用户明确接受 Debug 候选后要求发布，因此 v0.2.2 不把“正式签名 APK 在同一真机覆盖安装”列为发布前条件，也不得把 Debug 验收冒充正式包真机证据。
 
 每个版本或 RC 在 `docs/releases/` 保存一份带证据的实际记录；未验证项保持未勾选。
 
 ## 版本、许可与文档
 
-- [ ] `versionCode=7`、`versionName=0.2.1`，RC 标签为 `v0.2.1-rc.N`，稳定标签为 `v0.2.1`。
+- [ ] `versionCode=8`、`versionName=0.2.2`，RC 标签为 `v0.2.2-rc.N`，稳定标签为 `v0.2.2`。
 - [ ] README、NOTICE、隐私说明、关于页和发布说明只描述 Google/Firebase/VPS 当前架构；MapLibre、OpenFreeMap、ORS 与 Transitous 只出现在明确标注的历史记录中。
 - [ ] GPL-3.0-or-later 与 `LICENSE` 中仅针对 Google Navigation/Firebase SDK 的窄范围链接例外一致。
 - [ ] Google Maps Platform、Navigation SDK、Routes API、Firebase、Bangumi 与 Anitabi 的署名和链接可见。
-- [ ] v0.2.0 的发布记录、哈希与真机证据保持历史原文，没有改写成 v0.2.1 结果。
+- [ ] v0.2.0、v0.2.1 及 RC 的发布记录、哈希与真机证据保持历史原文，没有改写成 v0.2.2 结果。
 
 ## Google、Firebase 与费用控制
 
@@ -41,10 +41,11 @@
 - [ ] tracked-source audit 与 APK audit 通过；APK 不含服务端 Google 私钥、VPS 凭据、签名密码、ORS Key、Transitous/ORS/OpenFreeMap/MapLibre 请求路径或 keystore。
 - [ ] `apksigner verify --verbose --print-certs` 通过，证书 SHA-256 与公开 v0.2.0 相同；APK SHA-256 随 Release 发布。
 
-## 正式签名真机覆盖安装
+## 真机与正式签名证据边界
 
-- [ ] Xiaomi 15T Pro 从公开 v0.2.0 直接覆盖安装正式签名 v0.2.1，不卸载、不清数据、不安装辅助应用。
-- [ ] 覆盖后导览完成状态、多作品选择、顺序、设置和导航进度保留；旧 ORS Key 与旧路线内容移除并提示刷新。
+- [ ] Xiaomi 15T Pro 的 Debug 发布候选完成界面、地图、无线路详情及 Google 地图交接验收，用户明确接受该候选并要求发布。
+- [ ] 本地和 GitHub Actions 正式包均沿用固定签名，`versionName=0.2.2` / `versionCode=8`，并通过签名、R8、源码和 APK 内容审计。
+- [ ] 若另行执行正式签名 v0.2.2 真机覆盖安装，必须记录是否从公开 v0.2.1 原位升级、是否保留数据；未执行时保持未勾选，不影响本次已明确接受的 UI 小版本发布边界。
 - [ ] 用户明确同意 Google Navigation 条款，GMS 地图与当前位置正常。
 - [ ] 驾车、骑行或步行完成 Google 原生语音、锁屏、偏航重路由、到达/停留/下一站和服务结束。
 - [ ] 长行程跨生产 20 目的地配额批次，批次边界前完成下一次原子预留；额度耗尽时不绕过。
@@ -53,8 +54,8 @@
 
 ## 发布
 
-- [ ] RC 在 GitHub 标记为 Prerelease；稳定版仅在上述真机项全部完成后发布。
+- [ ] RC 在 GitHub 标记为 Prerelease；稳定 v0.2.2 仅在发布前自动门禁、固定签名核验和用户明确接受的 Debug 真机 UI 验收完成后发布。
 - [ ] 固定签名 keystore 位于工作区外且有离线加密备份；Actions Secrets 完整，日志未输出秘密或 Base64 keystore。
 - [ ] 发布说明列出升级迁移、GMS 要求、联网要求、费用熔断、隐私变化、已知限制和证据边界。
 - [ ] 精确 Release APK 在 API 26/API 37 完成下载、版本检查、安装、冷启动、首次导览和空崩溃缓冲区验证。
-- [ ] 稳定 `v0.2.1` 发布后更新“Latest”状态和最终验收记录；RC 不标记为 Latest。
+- [ ] 稳定 `v0.2.2` 发布后更新“Latest”状态和最终验收记录；RC 不标记为 Latest。

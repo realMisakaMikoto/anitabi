@@ -1,6 +1,6 @@
-# 巡礼手帳 v0.2.1 隐私说明
+# 巡礼手帳 v0.2.2 隐私说明
 
-最后更新：2026-07-30
+最后更新：2026-08-01
 
 ## 本机保存的数据
 
@@ -20,6 +20,8 @@ Google 路线矩阵、路线、折线、步骤、预计时间和公交详情仅�
 
 驾车、骑行和步行道路导航由设备上的 Google Navigation SDK 提供。Google SDK 可能根据其适用条款处理设备位置和导航交互；项目无法替代 Google 的隐私政策。
 
+当用户在无线路详情中明确点击“在 Google 地图中查看路线”时，应用会通过 Android `ACTION_VIEW` 把该失败分段的精确起点、终点和公共交通模式交给已安装的 Google 地图；若未安装 Google 地图，则交给用户设备可处理该 HTTPS 链接的应用。该操作只在用户点击后发生，应用不会为此新增持久化记录。
+
 Firebase Analytics 与 Firebase Crashlytics 为两个独立、可选的开关：
 
 - 两项默认关闭，只有用户明确选择加入后才启用。
@@ -31,7 +33,7 @@ Firebase Analytics 与 Firebase Crashlytics 为两个独立、可选的开关：
 
 ## Bangumi 与 Anitabi
 
-动漫搜索直接访问 Bangumi API。巡礼点 JSON 和图片由 Android 以可识别的 `AnitabiNavigator/0.2.1` User-Agent、按用户操作低频访问 Anitabi 官方 API 与图片域名，不经过项目 VPS。应用不抓取 Anitabi 主站，也不打包或批量下载全站数据。
+动漫搜索直接访问 Bangumi API。巡礼点 JSON 和图片由 Android 以可识别的 `AnitabiNavigator/0.2.2` User-Agent、按用户操作低频访问 Anitabi 官方 API 与图片域名，不经过项目 VPS。应用不抓取 Anitabi 主站，也不打包或批量下载全站数据。
 
 ## 保留、故障与联系
 

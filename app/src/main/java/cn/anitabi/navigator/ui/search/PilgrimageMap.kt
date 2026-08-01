@@ -4,6 +4,7 @@ import android.util.Log
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -15,8 +16,11 @@ import cn.anitabi.navigator.ui.map.pilgrimageMarkerOptions
 import cn.anitabi.navigator.ui.map.withPositiveMapViewport
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
+import com.google.android.gms.maps.model.CircleOptions
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.LatLngBounds
+
+private const val SELECTED_HALO_RADIUS_METERS = 28.0
 
 @Composable
 fun PilgrimageMap(
@@ -33,8 +37,8 @@ fun PilgrimageMap(
     val currentOnMapUnavailable by rememberUpdatedState(onMapUnavailable)
     var map by remember { mutableStateOf<GoogleMap?>(null) }
     var centeredContentKey by remember { mutableStateOf<String?>(null) }
-    var viewportWidth by remember { mutableStateOf(0) }
-    var viewportHeight by remember { mutableStateOf(0) }
+    var viewportWidth by remember { mutableIntStateOf(0) }
+    var viewportHeight by remember { mutableIntStateOf(0) }
 
     NavigationMapView(
         modifier = modifier,
@@ -79,6 +83,18 @@ fun PilgrimageMap(
         try {
             readyMap.clear()
             points.forEach { point ->
+                if (point.id in selectedPointIds) {
+                    readyMap.addCircle(
+                        CircleOptions()
+                            .center(LatLng(point.coordinate.latitude, point.coordinate.longitude))
+                            .radius(SELECTED_HALO_RADIUS_METERS)
+                            .fillColor(0x33C93E4F)
+                            .strokeColor(0xCCC93E4F.toInt())
+                            .strokeWidth(2f)
+                            .clickable(false)
+                            .zIndex(0.5f),
+                    )
+                }
                 readyMap.addMarker(
                     pilgrimageMarkerOptions(point, point.id in selectedPointIds),
                 )?.tag = point.id
