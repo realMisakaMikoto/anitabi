@@ -253,7 +253,7 @@ private fun SearchHero() {
     ) {
         Column {
             Text(
-                text = "巡礼手帖",
+                text = "巡礼手帳",
                 color = Color.White,
                 style = MaterialTheme.typography.displaySmall,
             )

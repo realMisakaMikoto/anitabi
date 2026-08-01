@@ -67,7 +67,7 @@ fun AboutScreen(
                     Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "返回", tint = Color.White)
                 }
                 Column {
-                    Text("关于巡礼手帖", color = Color.White, style = MaterialTheme.typography.titleLarge)
+                    Text("关于巡礼手帳", color = Color.White, style = MaterialTheme.typography.titleLarge)
                     Text("Google 路线 · 自建配额保护 · GPL-3.0-or-later", color = Sand)
                 }
             }

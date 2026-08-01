@@ -38,7 +38,7 @@
 
 - 启动导航后，精确/粗略定位和通知权限均为 granted。
 - `NavigationService` 以 location 类型前台服务运行，`foregroundId=1001`。
-- 持续通知标题为“巡礼手帖 · 连续导航”，正文为当前指令，包含“结束”操作，并带 `ONGOING_EVENT`、`NO_CLEAR` 和 `FOREGROUND_SERVICE` 标志。
+- 持续通知标题使用当时的应用名加“· 连续导航”，正文为当前指令，包含“结束”操作，并带 `ONGOING_EVENT`、`NO_CLEAR` 和 `FOREGROUND_SERVICE` 标志。
 - 定位请求使用 GPS 高精度与网络平衡模式，间隔 2 秒、最小位移 2 米。
 - Google TTS 成功绑定并收到 `zho-CHN` 合成请求，dispatch 到中文 voice；`STREAM_TTS` 未静音并输出到扬声器。
 - 退到桌面 4 秒后，进程、前台服务和通知保持；重新打开为 99 ms 热启动，路线和当前分段未丢失。

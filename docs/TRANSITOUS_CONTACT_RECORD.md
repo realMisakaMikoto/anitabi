@@ -4,13 +4,13 @@ Transitous 官方政策要求项目为 FOSS/非营利，并要求正确的 User-
 
 以下原始说明已于 2026-07-29 通过官网列出的 Matrix 社区发送，用于主动告知项目的低频路由用途。联系是负载沟通记录，不是应用功能的审批门槛。原消息最后错误地把“获得批准”写成启用条件；这是发送者对政策的误读，不是 Transitous 的要求，已在 v0.1.3 中纠正。
 
-## Original message
+## 沟通内容（产品品牌名已更新）
 
-Subject: Permission request for low-volume routing use by Anitabi Navigator
+Subject: Permission request for low-volume routing use by 巡礼手帳
 
 Hello Transitous maintainers,
 
-I am developing Anitabi Navigator, a personal, non-commercial Android pilgrimage navigation app. The source code is public under GPL-3.0-or-later at https://github.com/realMisakaMikoto/anitabi, and APKs are distributed for free through GitHub Releases only.
+I am developing 巡礼手帳, a personal, non-commercial Android pilgrimage navigation app. The source code is public under GPL-3.0-or-later at https://github.com/realMisakaMikoto/anitabi, and APKs are distributed for free through GitHub Releases only.
 
 The app would use `https://api.transitous.org/api/v6/plan` only after explicit user actions:
 

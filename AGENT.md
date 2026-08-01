@@ -2,6 +2,11 @@
 
 > 规则：每个新任务开始前先读取本文件；每个任务完成后追加实际改动与验证结果。
 
+## 用户指定的最高项目执行约束
+
+- 任何涉及 Google Maps Platform 的组件，包括 Google 地图、Navigation SDK、Routes API 及其地图、路线、导航生命周期或相关接口，在设计、编写或修改代码之前，必须先查阅当时最新的 Google 官方开发者文档；不得仅凭记忆、猜测或第三方示例实现。
+- 每个适用任务必须在本文件对应任务记录中写明查阅的官方文档范围、由文档确认的关键约束及其对实现的影响。若官方文档无法访问、互相矛盾或不能确认所需行为，应先停止相关实现并明确报告，不得自行补写未获官方依据的行为。
+
 ## 2026-07-29 — 任务 1：工程初始化与核心领域模型
 
 ### 已完成
@@ -1594,3 +1599,23 @@
 - Deleted and verified deletion of the two task-specific local temporary directories and the task-specific device dump files. The user-owned untracked attachment directory was not modified. Approximately 38.69 GiB of system-drive space remained after builds and cleanup.
 - Work remains local on `codex/navigation-task-cancel-crash`: no commit, push, pull request, tag, GitHub Release, public asset, backend deployment, or version change was made. The phone currently contains this locally built, production-signed v0.2.1 test APK rather than the byte-identical public v0.2.1 asset.
 - No secret, token, raw IP, coordinate, exact location or address, work title, search term, route body, response body, Google/Firebase credential, signing material, VPS credential, password, device identifier, or sensitive SSH value was written to source, Git, logs, or this record.
+
+## 2026-08-01 - Task 63: permanent Google-documentation rule, 巡礼手帳 rename, and v0.2.1 replacement build
+
+### Standing rule and publication scope
+
+- Re-read the complete current 1,596-line `AGENT.md` in UTF-8 before starting this new task and read the complete GitHub publication workflow instructions. Added the user's new standing highest project constraint near the top of this file so it is encountered on every future task reread.
+- The rule requires current official Google developer documentation to be consulted before designing, writing, or modifying any Google Maps Platform component, including map, Navigation SDK, Routes API, related lifecycle, routing, and navigation interfaces. Each applicable task must record the official-document scope, confirmed constraints, and implementation impact; memory, guesses, and third-party examples alone are not acceptable evidence.
+- Audited the mixed worktree before staging. Included only the Task 62 navigation-cancellation repair, its four regression tests, and the corresponding audit record in the first commit. The user-owned `.codex-remote-attachments/` directory remained untracked and untouched; generated signed APKs remain ignored and outside Git.
+- The user expanded this still-active task to rename the application and all current GitHub documentation branding to `巡礼手帳`. Updated the Android application label, search title, About title, onboarding permission copy, foreground-navigation notification, its instrumentation expectation, README, privacy/build/release documentation, backend README title, and the narrow Google SDK linking-exception name. The historical Transitous communication file now explicitly says its product branding was updated instead of silently claiming an untouched verbatim message.
+- A complete tracked-tree search finds no remaining occurrence of either prior user-facing display-name spelling. The independent Anitabi data-service name, package `cn.anitabi.navigator`, Kotlin/Room/theme/internal identifiers, deployment paths, and ASCII technical User-Agent `AnitabiNavigator/0.2.1` remain unchanged because they are compatibility or attribution identifiers rather than the user-facing product name.
+- The user explicitly clarified that this APK must replace the existing public v0.2.1 asset. Reverted the tentative uncommitted v0.2.2 version change before verification; the final build remains `versionCode=7` and `versionName=0.2.1`. Release notes transparently identify the 2026-08-01 same-version replacement, navigation-cancellation repair, renamed application, new artifact size, and new checksum.
+
+### Commit, push, and artifact handoff
+
+- GitHub CLI authentication and the HTTPS remote were available. Committed the reviewed repair as `95cdb8366cab59a4b9cb12bdc61d98d8dd3f3d34` with message `Fix Google navigation cancellation crash`, then pushed `codex/navigation-task-cancel-crash` with upstream tracking. GitHub reported that the repository has moved to `realMisakaMikoto/junrei_navi` and transparently accepted the push through the existing redirect; the configured remote URL was not changed in this task.
+- Rebuilt the renamed production-signed replacement with signing values confined to the child process and cleared afterward. `testDebugUnitTest`, Debug and Release Lint, and `assembleRelease` passed; the report contains 125 JVM tests in 26 suites with zero failures, errors, or skips. Both Lint reports contain only the same four hint-level Compose performance findings.
+- The Navigation R8 reflection audit, Release APK content audit, tracked-source credential audit, `git diff --check`, PowerShell ASCII check, and obsolete-display-name scan all passed. APK inspection reports package `cn.anitabi.navigator`, version 0.2.1/code 7, minSdk 26, targetSdk 37, and application label `巡礼手帳`. Signature verification reports APK Signature Scheme v2, one RSA-4096 signer, and the unchanged certificate SHA-256 `9679c83769368c7150f629d9cba3c0e5d633fa7f1043ce251fdba6c7c64fb00a`.
+- Prepared the user's two manual replacement assets in `app\build\outputs\manual-release\v0.2.1`: `anitabi-v0.2.1.apk` is 49,058,373 bytes with SHA-256 `77e2634ae3e22d663cc25bbf74b28fd3682074f2a1aa8cad51ab5a4615855d9a`, and the adjacent `.sha256` file names that exact APK. The copied APK hash exactly matches the final Gradle Release output.
+- This rename, standing rule, replacement-build documentation, and audit record form a follow-up commit on the same branch. No pull request, merge, tag, GitHub Release, remote Release asset replacement, backend deployment, SSH action, VPS mutation, Google/Firebase setting change, billable request, APK installation, or phone interaction occurred in this task; the user retained the manual Release replacement action.
+- No secret, token, raw IP, coordinate, exact location or address, work title, search term, route body, response body, Google/Firebase credential, signing material, VPS credential, password, device identifier, or sensitive SSH value was written to source, Git, documentation, or this record.

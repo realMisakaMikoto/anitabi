@@ -1,4 +1,4 @@
-# 从源码构建巡礼手帖
+# 从源码构建巡礼手帳
 
 本文面向希望自行编译应用的开发者。普通用户请直接从项目的 [GitHub Releases](https://github.com/realMisakaMikoto/anitabi/releases) 下载 APK。
 

@@ -297,7 +297,7 @@ private fun PermissionStep(
     val permissionsReady = hasLocationPermission && hasNotificationPermission
     Text("一次授权，路上少打断", style = MaterialTheme.typography.headlineMedium, color = Ink)
     Text(
-        "系统会依次显示权限弹窗。Anitabi 只会在功能需要时使用它们。",
+        "系统会依次显示权限弹窗。巡礼手帳只会在功能需要时使用它们。",
         style = MaterialTheme.typography.bodyLarge,
         color = MutedInk,
         modifier = Modifier.padding(top = 10.dp),

@@ -1,4 +1,4 @@
-# 巡礼手帖 v0.2.0
+# 巡礼手帳 v0.2.0
 
 > 这是当前稳定版。愿意使用已通过真机验证的 Google 地图预发布候选，可选择 [v0.2.1 RC7](https://github.com/realMisakaMikoto/anitabi/releases/tag/v0.2.1-rc.7)。
 

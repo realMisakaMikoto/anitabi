@@ -120,7 +120,7 @@ if ($state -ne "device") {
 
 $packageDump = Invoke-AdbText -Arguments @("shell", "dumpsys", "package", $packageName)
 if ($packageDump -notmatch "versionName=0\.2\.0") {
-    throw "The connected phone does not have Anitabi Navigator v0.2.0 installed."
+    throw "The connected phone does not have the expected v0.2.0 package installed."
 }
 
 $packagePath = Invoke-AdbText -Arguments @("shell", "pm", "path", $packageName)

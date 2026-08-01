@@ -643,7 +643,7 @@ class NavigationService : Service(), LocationListener, TextToSpeech.OnInitListen
         )
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_navigation_notification)
-            .setContentTitle("巡礼手帖 · 连续导航")
+            .setContentTitle("巡礼手帳 · 连续导航")
             .setContentText(text)
             .setContentIntent(openIntent)
             .setOngoing(true)

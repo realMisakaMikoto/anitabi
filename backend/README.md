@@ -1,4 +1,4 @@
-# Anitabi API
+# 巡礼手帳 API 后端
 
 The v0.2.1 backend is a single Node.js 24 LTS / Fastify process backed by SQLite WAL. It accepts only Firebase Anonymous ID tokens, normalizes Google Routes responses, and reserves quota before every billable operation.
 

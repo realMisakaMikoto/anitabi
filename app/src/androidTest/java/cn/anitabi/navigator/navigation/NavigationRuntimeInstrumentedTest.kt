@@ -250,7 +250,7 @@ class NavigationRuntimeInstrumentedTest {
         return manager.activeNotifications
             .map { it.notification }
             .firstOrNull { notification ->
-                notification.extras.getString(Notification.EXTRA_TITLE) == "巡礼手帖 · 连续导航" &&
+                notification.extras.getString(Notification.EXTRA_TITLE) == "巡礼手帳 · 连续导航" &&
                     notification.flags and Notification.FLAG_ONGOING_EVENT != 0
             }
     }
