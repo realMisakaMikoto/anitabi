@@ -238,6 +238,10 @@ class TransitHandoffActivity : ComponentActivity() {
             }
             NavigationService.RESULT_EARLY_CONFIRMATION_REQUIRED -> showEarlyArrivalConfirmation()
             NavigationService.RESULT_ENDED -> finish()
+            NavigationService.RESULT_COMPLETED -> {
+                Toast.makeText(this, "巡礼行程已完成", Toast.LENGTH_SHORT).show()
+                finish()
+            }
             else -> showRetry(
                 result.response.message ?: result.request.failureMessage(),
             ) {

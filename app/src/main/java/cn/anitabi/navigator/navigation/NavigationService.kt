@@ -7,6 +7,7 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.res.Configuration
 import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
@@ -109,6 +110,11 @@ class NavigationService : Service(), LocationListener, TextToSpeech.OnInitListen
         NavigationControlAvailability.ensureChannel(this)
         overlayController = TransitOverlayController(this)
         tts = TextToSpeech(this, this)
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        overlayController?.reflow()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -1072,12 +1078,19 @@ class NavigationService : Service(), LocationListener, TextToSpeech.OnInitListen
                     error("当前分段已变化，请返回应用确认")
                 }
                 val update = if (request.advance) {
-                    if (before.state != NavigationState.NEXT_STOP) {
-                        error("当前还不能开始下一段")
+                    when (before.state) {
+                        NavigationState.DWELLING -> activeEngine.leaveDwellEarlyAndStartNextLeg()
+                        NavigationState.NEXT_STOP -> activeEngine.startNextLeg()
+                        else -> error("当前还不能开始下一段")
                     }
-                    activeEngine.startNextLeg().also {
-                        if (it.progress.legIndex == before.legIndex) error("当前还不能开始下一段")
-                    }
+                        .also {
+                            if (
+                                it.progress.state != NavigationState.COMPLETED &&
+                                it.progress.legIndex == before.legIndex
+                            ) {
+                                error("当前还不能开始下一段")
+                            }
+                        }
                 } else {
                     if (before.state !in setOf(NavigationState.NAVIGATING, NavigationState.ARRIVING)) {
                         error("当前状态不能打开本段")
@@ -1091,6 +1104,10 @@ class NavigationService : Service(), LocationListener, TextToSpeech.OnInitListen
                     expectedGeneration = expectedGeneration,
                     forcePersist = true,
                     onCommitted = { committedPlan ->
+                        if (update.progress.state == NavigationState.COMPLETED) {
+                            request.receiver.send(RESULT_COMPLETED, Bundle.EMPTY)
+                            return@commitJapanUpdateIfChanged
+                        }
                         val leg = committedPlan.legs.getOrNull(update.progress.legIndex)
                         if (leg == null) {
                             request.receiver.sendError("当前分段不存在")
@@ -1729,6 +1746,11 @@ class NavigationService : Service(), LocationListener, TextToSpeech.OnInitListen
                         legIndex,
                     ),
                 )
+                progress.state == NavigationState.DWELLING -> builder.addAction(
+                    0,
+                    "提前离开",
+                    handoffPendingIntent(17, TransitHandoffActivity.MODE_NEXT, currentPlan.id, legIndex),
+                )
                 progress.state == NavigationState.NEXT_STOP -> builder.addAction(
                     0,
                     "开始下一段",
@@ -1825,6 +1847,7 @@ class NavigationService : Service(), LocationListener, TextToSpeech.OnInitListen
         const val RESULT_ENDED = 4
         const val RESULT_RELOADED = 5
         const val RESULT_RELOAD_SUPERSEDED = 6
+        const val RESULT_COMPLETED = 7
         const val RESULT_ERROR = -1
         private const val ROUTE_REFRESH_REQUIRED_MESSAGE =
             "路线暂时无法刷新，请联网后重试；行程顺序和导航进度已保留"
