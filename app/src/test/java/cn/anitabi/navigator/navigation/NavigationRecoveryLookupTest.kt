@@ -98,6 +98,26 @@ class NavigationRecoveryLookupTest {
     }
 
     @Test
+    fun `newer recoverable tour supersedes a stale terminal active store`() = runBlocking {
+        val terminal = v022StoredTour(NavigationState.COMPLETED, id = "terminal")
+        val active = v022StoredTour(NavigationState.NAVIGATING, id = "active")
+        val dao = RecoveryLookupDao(
+            entity(active, updatedAtEpochMillis = 200L),
+            entity(terminal, updatedAtEpochMillis = 100L),
+        )
+
+        val recovered = loadNavigationRecoveryCandidate(
+            storedActiveTourId = terminal.id,
+            repository = TourRepository(dao, ApiHttpClient.defaultJson),
+        )
+
+        assertEquals(active.id, recovered?.plan?.id)
+        assertEquals(NavigationState.NAVIGATING, recovered?.progress?.state)
+        assertEquals(1, dao.candidateListReads)
+        assertEquals(2, dao.idReads)
+    }
+
+    @Test
     fun `boot restore control is limited to recoverable external japan transit`() = runBlocking {
         val stored = v022StoredTour(
             state = NavigationState.NAVIGATING,
