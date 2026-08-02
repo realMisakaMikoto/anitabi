@@ -26,6 +26,7 @@ import cn.anitabi.navigator.core.model.RouteObjective
 import cn.anitabi.navigator.core.model.RouteStep
 import cn.anitabi.navigator.core.model.TourLeg
 import cn.anitabi.navigator.core.model.TourPlan
+import cn.anitabi.navigator.core.model.TransitExecutionStrategy
 import cn.anitabi.navigator.core.model.TravelMode
 import cn.anitabi.navigator.data.repository.PilgrimageData
 import cn.anitabi.navigator.navigation.NavigationRuntimeState
@@ -351,6 +352,50 @@ class UiRedesignContractTest {
             assertTrue(arrived)
             assertTrue(stopped)
         }
+    }
+
+    @Test
+    fun japanTransitDwelling_exposesEarlyLeaveAsAnImmediateUserAction() {
+        val basePlan = tourPlan()
+        val plan = basePlan.copy(
+            mode = TravelMode.TRANSIT,
+            legs = basePlan.legs.map { it.copy(mode = TravelMode.TRANSIT) },
+            executionStrategy = TransitExecutionStrategy.EXTERNAL_GOOGLE_MAPS_JAPAN,
+        )
+        var leftEarly = false
+        val state = NavigationRuntimeState(
+            plan = plan,
+            progress = NavigationProgress(
+                tourId = plan.id,
+                state = NavigationState.DWELLING,
+                dwellingUntilEpochMillis = Long.MAX_VALUE,
+            ),
+            instruction = "正在停留",
+            isRunning = true,
+        )
+
+        composeRule.setContent {
+            AnitabiTheme {
+                NavigationDetailPanel(
+                    plan = plan,
+                    state = state,
+                    onStop = {},
+                    onArrived = {},
+                    onRefreshTransit = {},
+                    onOpenExternalLeg = {},
+                    onStartNextExternalLeg = { leftEarly = true },
+                    onPauseExternal = {},
+                    onResumeExternal = {},
+                    onEditFuture = {},
+                    modifier = Modifier.fillMaxSize(),
+                    transitDetailsScrollable = false,
+                    fillAvailableHeight = true,
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("提前离开").assertIsDisplayed().assertIsEnabled().performClick()
+        composeRule.runOnIdle { assertTrue(leftEarly) }
     }
 
     private fun pilgrimageData(): PilgrimageData {

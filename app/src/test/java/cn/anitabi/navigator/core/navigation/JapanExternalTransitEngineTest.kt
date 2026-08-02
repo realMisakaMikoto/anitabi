@@ -199,6 +199,55 @@ class JapanExternalTransitEngineTest {
     }
 
     @Test
+    fun `leaving dwell early advances and starts the next leg in one user action`() {
+        val plan = plan(pointCount = 2, dwellMinutes = 15)
+        val engine = JapanExternalTransitEngine(plan)
+        engine.start()
+        val dwelling = engine.confirmArrival(nowEpochMillis = 1_000L, confirmEarly = true)
+
+        assertEquals(NavigationState.DWELLING, dwelling.progress.state)
+        val next = engine.leaveDwellEarlyAndStartNextLeg()
+
+        assertEquals(NavigationState.NAVIGATING, next.progress.state)
+        assertEquals(1, next.progress.legIndex)
+        assertNull(next.progress.dwellingUntilEpochMillis)
+        assertEquals(setOf("point-0"), next.progress.completedPointIds)
+        assertEquals(next, engine.leaveDwellEarlyAndStartNextLeg())
+    }
+
+    @Test
+    fun `leaving the final dwell early completes without inventing another leg`() {
+        val plan = plan(pointCount = 1, dwellMinutes = 15)
+        val engine = JapanExternalTransitEngine(plan)
+        engine.start()
+        engine.confirmArrival(nowEpochMillis = 1_000L, confirmEarly = true)
+
+        val completed = engine.leaveDwellEarlyAndStartNextLeg()
+
+        assertEquals(NavigationState.COMPLETED, completed.progress.state)
+        assertEquals(0, completed.progress.legIndex)
+        assertNull(completed.progress.dwellingUntilEpochMillis)
+        assertEquals(setOf("point-0"), completed.progress.completedPointIds)
+    }
+
+    @Test
+    fun `leaving dwell early respects pause and can start the return leg`() {
+        val plan = plan(pointCount = 1, dwellMinutes = 15, returnToStart = true)
+        val engine = JapanExternalTransitEngine(plan)
+        engine.start()
+        engine.confirmArrival(nowEpochMillis = 1_000L, confirmEarly = true)
+        val paused = engine.pause(nowEpochMillis = 2_000L)
+
+        assertEquals(paused, engine.leaveDwellEarlyAndStartNextLeg())
+
+        engine.resume(nowEpochMillis = 3_000L)
+        val returning = engine.leaveDwellEarlyAndStartNextLeg()
+        assertEquals(NavigationState.NAVIGATING, returning.progress.state)
+        assertEquals(1, returning.progress.legIndex)
+        assertEquals(setOf("point-0"), returning.progress.completedPointIds)
+    }
+
+    @Test
     fun `return-to-start leg completes without adding a pilgrimage point`() {
         val plan = plan(pointCount = 1, dwellMinutes = 0, returnToStart = true)
         val engine = JapanExternalTransitEngine(plan)

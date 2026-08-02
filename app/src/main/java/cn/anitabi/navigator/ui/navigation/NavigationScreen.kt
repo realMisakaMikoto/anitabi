@@ -676,6 +676,11 @@ private fun NavigationActions(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
                     when (progress.state) {
+                        NavigationState.DWELLING -> Button(
+                            onClick = onStartNextExternalLeg,
+                            modifier = Modifier.weight(1f).heightIn(min = 50.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Vermilion),
+                        ) { Text("提前离开") }
                         NavigationState.NEXT_STOP -> Button(
                             onClick = onStartNextExternalLeg,
                             modifier = Modifier.weight(1f).heightIn(min = 50.dp),

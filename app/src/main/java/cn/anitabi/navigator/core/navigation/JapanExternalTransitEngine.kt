@@ -141,6 +141,12 @@ class JapanExternalTransitEngine(
         return snapshot()
     }
 
+    fun leaveDwellEarlyAndStartNextLeg(): JapanExternalTransitUpdate {
+        if (progress.isPaused || progress.state != NavigationState.DWELLING) return snapshot()
+        finishDwell()
+        return if (progress.state == NavigationState.NEXT_STOP) startNextLeg() else snapshot()
+    }
+
     fun pause(nowEpochMillis: Long): JapanExternalTransitUpdate {
         if (
             progress.isPaused ||

@@ -1,5 +1,6 @@
 package cn.anitabi.navigator.navigation
 
+import android.annotation.SuppressLint
 import android.content.Context
 import androidx.core.content.edit
 
@@ -19,6 +20,7 @@ internal object ActiveNavigationStore {
     }
 
     @Synchronized
+    @SuppressLint("UseKtx") // Native Editor preserves the durable commit result.
     fun clear(
         context: Context,
         expectedTourId: String? = null,
@@ -33,6 +35,7 @@ internal object ActiveNavigationStore {
     }
 
     @Synchronized
+    @SuppressLint("UseKtx") // Native Editor preserves the durable commit result.
     fun replaceIfCurrent(
         context: Context,
         expectedTourId: String?,
