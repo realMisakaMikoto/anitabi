@@ -9,7 +9,6 @@ for (let index = 0; index < workerData.attempts; index += 1) {
     ledger.reserve({
       bucket: "matrix",
       units: workerData.units,
-      uid: workerData.uid,
       now: new Date(workerData.now),
     });
     successes += 1;

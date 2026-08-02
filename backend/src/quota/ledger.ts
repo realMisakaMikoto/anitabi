@@ -2,9 +2,9 @@ import Database from "better-sqlite3";
 import { ApiError } from "../errors.js";
 
 export const QUOTA_LIMITS = {
-  matrix: { monthly: 9_000, dailyPerUid: 2_000 },
-  route: { monthly: 9_000, dailyPerUid: 200 },
-  navigation: { monthly: 900, dailyPerUid: 20 },
+  matrix: { monthly: 9_000 },
+  route: { monthly: 9_000 },
+  navigation: { monthly: 900 },
 } as const;
 
 export type QuotaBucket = keyof typeof QUOTA_LIMITS;
@@ -12,15 +12,12 @@ export type QuotaBucket = keyof typeof QUOTA_LIMITS;
 export type QuotaReservation = Readonly<{
   bucket: QuotaBucket;
   units: number;
-  uid: string;
   now?: Date;
 }>;
 
 export type QuotaReservationResult = Readonly<{
   monthlyUsed: number;
   monthlyRemaining: number;
-  dailyUsed: number;
-  dailyRemaining: number;
 }>;
 
 export type LedgerHealth = Readonly<{
@@ -50,6 +47,8 @@ export class SqliteQuotaLedger implements QuotaLedger {
       database.pragma("busy_timeout = 5000");
       database.exec(`
         CREATE TABLE IF NOT EXISTS quota_usage (
+          -- The uid dimension remains schema-compatible with existing ledgers.
+          -- New reservations only read and write the global dimension.
           dimension TEXT NOT NULL CHECK (dimension IN ('global', 'uid')),
           bucket TEXT NOT NULL CHECK (bucket IN ('matrix', 'route', 'navigation')),
           subject TEXT NOT NULL,
@@ -85,27 +84,18 @@ export class SqliteQuotaLedger implements QuotaLedger {
 
         const limits = QUOTA_LIMITS[reservation.bucket];
         const month = reservation.now.toISOString().slice(0, 7);
-        const day = reservation.now.toISOString().slice(0, 10);
-        const monthlyUsed = this.readUsage("global", reservation.bucket, "*", month);
-        const dailyUsed = this.readUsage("uid", reservation.bucket, reservation.uid, day);
+        const monthlyUsed = this.readGlobalUsage(reservation.bucket, month);
 
-        if (
-          monthlyUsed + reservation.units > limits.monthly ||
-          dailyUsed + reservation.units > limits.dailyPerUid
-        ) {
+        if (monthlyUsed + reservation.units > limits.monthly) {
           throw new ApiError("QUOTA_EXHAUSTED");
         }
 
-        this.addUsage("global", reservation.bucket, "*", month, reservation.units);
-        this.addUsage("uid", reservation.bucket, reservation.uid, day, reservation.units);
+        this.addGlobalUsage(reservation.bucket, month, reservation.units);
 
         const nextMonthly = monthlyUsed + reservation.units;
-        const nextDaily = dailyUsed + reservation.units;
         return {
           monthlyUsed: nextMonthly,
           monthlyRemaining: limits.monthly - nextMonthly,
-          dailyUsed: nextDaily,
-          dailyRemaining: limits.dailyPerUid - nextDaily,
         };
       },
     ).immediate;
@@ -123,9 +113,6 @@ export class SqliteQuotaLedger implements QuotaLedger {
     if (!this.healthy) throw new ApiError("BACKEND_UNAVAILABLE");
     if (!Number.isSafeInteger(reservation.units) || reservation.units <= 0) {
       throw new ApiError("INVALID_ARGUMENT");
-    }
-    if (reservation.uid.length === 0 || reservation.uid.length > 128) {
-      throw new ApiError("UNAUTHENTICATED");
     }
 
     try {
@@ -174,35 +161,24 @@ export class SqliteQuotaLedger implements QuotaLedger {
     return row?.value === "1";
   }
 
-  private readUsage(
-    dimension: "global" | "uid",
-    bucket: QuotaBucket,
-    subject: string,
-    period: string,
-  ): number {
+  private readGlobalUsage(bucket: QuotaBucket, period: string): number {
     const row = this.database
       .prepare(
-        "SELECT used FROM quota_usage WHERE dimension = ? AND bucket = ? AND subject = ? AND period = ?",
+        "SELECT used FROM quota_usage WHERE dimension = 'global' AND bucket = ? AND subject = '*' AND period = ?",
       )
-      .get(dimension, bucket, subject, period) as UsageRow | undefined;
+      .get(bucket, period) as UsageRow | undefined;
     return row?.used ?? 0;
   }
 
-  private addUsage(
-    dimension: "global" | "uid",
-    bucket: QuotaBucket,
-    subject: string,
-    period: string,
-    units: number,
-  ): void {
+  private addGlobalUsage(bucket: QuotaBucket, period: string, units: number): void {
     this.database
       .prepare(`
         INSERT INTO quota_usage(dimension, bucket, subject, period, used)
-        VALUES (?, ?, ?, ?, ?)
+        VALUES ('global', ?, '*', ?, ?)
         ON CONFLICT(dimension, bucket, subject, period)
         DO UPDATE SET used = used + excluded.used
       `)
-      .run(dimension, bucket, subject, period, units);
+      .run(bucket, period, units);
   }
 }
 

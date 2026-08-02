@@ -11,6 +11,16 @@ import org.junit.Test
 
 class PlannerFailureMessageTest {
     @Test
+    fun `shared monthly quota error is not described as a per-user limit`() {
+        val message = plannerFailureMessage(ApiException.QuotaExhausted())
+
+        assertEquals(
+            "本月共享路线额度已用尽，暂时无法查询；不会继续产生费用",
+            message,
+        )
+    }
+
+    @Test
     fun `transport failure identifies the route service and blocked network exit`() {
         val message = plannerFailureMessage(ApiException.Network(IOException("reset")))
 

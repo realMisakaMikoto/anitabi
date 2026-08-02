@@ -20,8 +20,6 @@ const app = buildApp({
   routes: new GoogleRoutesClient({ projectId: config.projectId, oauth }),
   quota,
   rateLimiter: new TokenBucketLimiter({
-    uidCapacity: 10,
-    uidRefillPerSecond: 1,
     ipCapacity: 60,
     ipRefillPerSecond: 5,
     ipHmacKey: config.ipHmacKey,

@@ -38,8 +38,8 @@
 
 - 规范仓库：`realMisakaMikoto/junrei_navi`。
 - 本地 `origin` 仍配置为旧地址 `https://github.com/realMisakaMikoto/anitabi.git`，目前由 GitHub 重定向；远程 API 和新链接应使用规范仓库。
-- 当前分支为 `main`。v0.2.3 发布源码与标签均为 `f173ebafef87c246de1e7d86e5e52979fdd18660`；悬浮控制与“提前离开”功能提交 `ec7a28fec6e75c067906b0b08b1c05cf2b67e328` 已推送至 `codex/v0.2.3-overlay-controls`，ready [PR #13](https://github.com/realMisakaMikoto/junrei_navi/pull/13) 已通过 Chrome rebase 合并。最终 PR CI run `30743065945` 与发布源码 main CI run `30743646492` 的 backend、verify、API 26、API 37 均全部成功。发布后的证据文档提交 `7ebc59173eed7b330fe98f2cb90b7f5adb5b7d9c` 已推送至 `main`；后续 AGENT 收尾提交只记录发布操作，不移动稳定标签。原实施分支 `codex/v0.2.3-japan-transit` 及其上游保留。
-- 非草稿、非预发布的 [v0.2.3 Release](https://github.com/realMisakaMikoto/junrei_navi/releases/tag/v0.2.3) 已发布并成为 Latest Release；Signed APK Release run `30744241032` 成功，精确公开资产兼容 run `30744459795` 的 API 26/API 37 均成功。公开 Release 正文已通过 Chrome 同步为当前 `docs/RELEASE_NOTES_v0.2.3.md`，包含可拖动/缩放/60dp 悬浮球和停留态“提前离开”；完整证据在 `docs/releases/v0.2.3.md`。
+- 当前任务分支为 `codex/v0.2.3-remove-user-limits`，基线为 `main@24dcbab1b59b39c29499073031c86611a2427e2f`；本次保持 `versionName=0.2.3` / `versionCode=9`，移除 UID 日额度与 UID 突发限制，保留共享月额度、HMAC-IP 防滥用和 Firebase 访问鉴权。原 v0.2.3 发布源码与标签均为 `f173ebafef87c246de1e7d86e5e52979fdd18660`；悬浮控制与“提前离开”功能提交 `ec7a28fec6e75c067906b0b08b1c05cf2b67e328` 已通过 Chrome rebase 合并 [PR #13](https://github.com/realMisakaMikoto/junrei_navi/pull/13)。原实施分支 `codex/v0.2.3-japan-transit` 及其上游保留。
+- 非草稿、非预发布的 [v0.2.3 Release](https://github.com/realMisakaMikoto/junrei_navi/releases/tag/v0.2.3) 已发布并成为 Latest Release；Signed APK Release run `30744241032` 成功，精确公开资产兼容 run `30744459795` 的 API 26/API 37 均成功。公开 Release 正文同步于 `main@24dcbab1` 的发布说明，包含可拖动/缩放/60dp 悬浮球和停留态“提前离开”；当前工作树 `docs/RELEASE_NOTES_v0.2.3.md` 新增的额度策略尚未同步，必须等新后端部署和同版本资产替换完成后再更新公开正文。完整证据在 `docs/releases/v0.2.3.md`。
 - 功能分支 `codex/transit-no-route` 仍保留在远端；不要将其误当作当前发布分支。压缩前完整日志锚点仍为 `c92a92195d903ecb89ae563a509699f32e5737ef`。
 - `main` 已通过快进合并纳入相对原基线 `cbc29fa7acc3dd2e589d5849d2f6e66be53b9ea1` 的 6 个提交：
   - `95cdb8366cab59a4b9cb12bdc61d98d8dd3f3d34`：修复 Google Navigation cancelled-task 概率闪退。
@@ -73,7 +73,7 @@
 - 当前源码与公开稳定版均为 `versionName=0.2.3`、`versionCode=9`。`minSdk=26`、`compileSdk=37`、`targetSdk=37`；Java 17。
 - 主要工具链：Gradle 9.6.1、AGP 9.3.0、Kotlin 2.4.10、KSP 2.3.10、Compose BOM 2026.06.01。
 - Google Navigation SDK 7.8.0 负责地图、定位及驾车/步行/骑行道路导航；项目不得同时接入 Maps SDK for Android。
-- Google Routes 由自建 VPS 后端调用，Android 不包含服务账号。Firebase Anonymous Auth 只用于后端鉴权和配额归属。
+- Google Routes 由自建 VPS 后端调用，Android 不包含服务账号。Firebase Anonymous Auth 只用于后端访问鉴权，不作为个人配额或突发限速键。
 - 旧 MapLibre/OpenFreeMap、ORS、Transitous 仅属于 v0.2.0 历史；当前没有这些 Provider、Key UI 或回退路径。
 - Anitabi 数据只从 `https://api.anitabi.cn` 获取，图片只允许 HTTPS `image.anitabi.cn`；主站不得作为 API。保持人类访问频率，技术 User-Agent 随 `BuildConfig.VERSION_NAME`，当前为 `AnitabiNavigator/0.2.3`。
 - Bangumi 搜索使用官方 `https://api.bgm.tv/v0/search/subjects`。
@@ -85,7 +85,7 @@
 - Matrix：每个窗口 2–10 坐标，最多 100 个计费元素。
 - Road route：每次 2–12 个位置，即最多 10 个中间点。
 - Transit route：恰好两个位置，按相邻巡礼点逐段规划。
-- Navigation SDK 技术上限为 25 个目的地；生产协调器因 UID 每日额度按最多 20 个目的地装载并在换批前重新预留。
+- Navigation SDK 技术上限为 25 个目的地；生产协调器按该上限分批装载，并在换批前为当前批次重新预留共享月度额度。
 - 用户拖动点位只刷新受影响的相邻腿/窗口，不应全量重算。
 - Room schema 2 / `StoredTourV2` 只保存用户拥有的数据：作品/点、顺序、起终点、模式、停留与公交选项、完成点和导航状态。
 - Google 矩阵、折线、步骤、ETA、公交详情和 Provider 响应只驻留内存。v0.2.0 升级保留导览、选择、顺序和进度，删除旧 ORS Key 与旧路线；迁移失败保留原记录并显示恢复错误。
@@ -194,7 +194,10 @@
 - 目录：程序 `/opt/anitabi-api`，数据 `/var/lib/anitabi-api`，秘密 `/etc/anitabi-api/secrets`。
 - 容器必须保持非 root、只读根文件系统、drop all capabilities、no-new-privileges、只读秘密挂载、健康检查和自动重启。
 - 最后记录的已部署后端运行树来自 `0902e484c9d6e8745febea665c0a2c293839cf14`，公开与 loopback 健康检查当时正常。任何新部署前都要重新只读盘点，不能把历史健康状态当成实时结果。
-- 配额：Matrix 全局 9,000 元素/月、每 UID 2,000/UTC 日；Routes 全局 9,000 次/月、每 UID 200/UTC 日；Navigation 全局 900 目的地/月、每 UID 20/UTC 日。
+- 配额只保留项目共享 UTC 月度上限：Matrix 9,000 元素、Routes 9,000 次、Navigation 900 个目的地；没有 UID 日额度或 UID 突发令牌桶。HMAC-IP 防滥用仍为容量 60、每秒恢复 5 次，Firebase Anonymous Token 验证仍为所有 POST 的前置条件。
+- 新配额预留只读写 SQLite `global` 月记录；旧 schema 的 `uid` 行原样保留但不再读取、写入或参与限制，不执行破坏性迁移。账本异常、费用开关关闭和恢复不确定仍 fail closed；上游失败仍不退款。`/v1/navigation/reserve` 为旧 v0.2.3 客户端继续返回 `remainingToday=2147483647` 兼容字段，新 Android 不依赖该字段。
+- 本次实现前查阅 2026-07-28 更新的 Google 官方 Routes [用量与计费](https://developers.google.com/maps/documentation/routes/usage-and-billing)、2026-07-15 更新的 Navigation SDK Android [用量与计费](https://developers.google.com/maps/documentation/navigation/android-sdk/pricing)，以及官方 [成本管理](https://developers.google.com/maps/billing-and-pricing/manage-costs) 和 [Routes 监控](https://developers.google.com/maps/documentation/routes/report-monitor)。确认 Routes 按请求、Matrix 按元素、Navigation 按目的地计费，Navigation 单次最多 25 个目的地；Cloud quota 可停止服务，而预算告警不会限制费用。因此只移除项目内 UID 限制，继续保留共享月度硬上限、费用熔断、HMAC-IP 防滥用和 Google Cloud 配额。
+- 报错闭环（本次额度策略更新）：首次整文件读取 `AGENT.md` 被工具输出上限截断，改为按行分段并补读交界后完整覆盖 267 行；首次宽泛 `rg` 误包含日本边界资产并输出超长数据行，后续检索固定为精确源码/文档路径并排除 assets。`mcporter` 首次沿用 function-call/`--args` 写法无法加载参数，改为显式命名参数后只返回 Google 官方来源。`npm audit --omit=dev` 首轮因 registry 连接超时失败，原命令重试后确认 0 个生产漏洞。Docker 首次构建因 Desktop 守护进程未运行失败，先只读确认服务后以隐藏窗口启动，manifest 可访问；基础 Node 镜像拉取连续 20 分钟没有层进度并被有界工具窗口终止，残留拉取客户端随后按完整命令行和 PID 精确停止，确认计数为 0。本机 Docker 镜像门禁尚未完成，必须由部署主机的实际镜像构建补齐，不得冒充通过；Docker Desktop 已恢复为任务前的进程 0、服务 Stopped。此前 5 分钟构建超时留下的两个本任务 Docker 客户端也已按命令行与启动时间精确停止；首条停止后检查因 `Get-Process` 对已消失 PID 返回 1 而假失败，改为显式数组计数确认残留为 0。首版 Lint XML 汇总把 `$null` 数组化误报为每档 1 个问题，改用 XPath `SelectNodes` 后确认 Debug/Release 均为 0。首版签名断言匹配 `V2 Signer #1` 而当前工具输出 `V2 Signer:`，造成已签名 APK 的假失败；按实际字段重跑后 v2、单签名者、RSA-4096 和固定证书全部通过。发布只读审计中，未引用的 tag peel 表达式被 PowerShell 当作脚本块、immutability 设置端点因当前 PAT 无 Administration read 返回 403、以及检索不存在的根 `docker-compose.yml` 导致退出 1；分别通过引用 revision、读取公开 Release 对象和使用实际 `backend/compose.yaml` 闭环。`gh auth status` 预检还输出了 CLI 自动遮蔽的凭据元数据；没有可用 Token 值写入项目或文档，后续只用不回显凭据的用户 API 检查登录状态。
 - SQLite 事务原子预留；上游失败不退款。每日一致性备份保留 7 天；恢复后计费默认关闭，直到证明账本没有回退。
 - 日志只允许端点模板、状态、延迟区间和错误码；不得包含 Token、原始 IP、坐标、作品/搜索文本、请求或响应正文。
 - VPS 服务账号仅有 Service Usage Consumer 权限；私钥只存在于外部受限位置和 VPS 只读挂载。
@@ -211,6 +214,7 @@
 
 ## 当前验证基线与诚实边界
 
+- v0.2.3 同版本额度策略更新的当前本地证据：后端类型检查、构建及 29/29 测试通过，生产依赖审计为 0 个漏洞；Android 为 245 个 JVM 测试 / 44 个套件，0 失败、0 错误、0 跳过，Debug/Release Lint 均为 0 问题，Debug、AndroidTest、Release Kotlin 与正式签名 Release R8 构建成功；tracked-source、Navigation R8 和 Debug/Release APK 内容审计通过。本地正式候选为 `cn.anitabi.navigator` / `0.2.3 (9)`、minSdk 26、targetSdk 37，49,227,286 字节、SHA-256 `d53c396fa56b12e5343599feca4bc5e194ebc9f36d6cdadcaaa7e0104ab8424b`，签名为 v2、单一 RSA-4096 与固定证书。该候选尚不是公开资产；必须先部署新后端再替换 APK，PR、生产、公开资产和远端 CI 证据待完成后补记。
 - v0.2.3 当前源码已有报告：243 个 JVM 测试 / 44 个套件，0 失败、0 错误、0 跳过；Debug/Release Lint 0 问题；Debug/Release/AndroidTest Kotlin、Debug/AndroidTest APK、Release R8、Navigation 反射、源码凭据和 APK 内容审计通过；后端 29/29、类型检查、构建及生产依赖审计通过。最终 PR `30743065945` 和 main `30743646492` 的 backend、verify、API 26、API 37 均成功；签名发布 `30744241032` 与公开资产兼容 `30744459795` 也全部成功。
 - v0.2.3 本地正式签名候选为 49,227,286 字节、SHA-256 `67f2bd35e2aca560a57a3126bed9eb76cefb667fec2872b3e0771a5e24ed9a79`；独立公开 Release APK 为 49,227,274 字节、SHA-256 `47374031a2836949179a9dc3c611e05e071bcb9a527f314253ad4a0d3a3e4a33`。公开包名/版本/minSdk/targetSdk、v2、单一 RSA-4096 签名者、固定证书和内容审计均已核对。核心地区分流、Google Maps 交接、升级保留数据、悬浮控制及 ADB mock `ARRIVING` 有此前候选的真机证据；新增提前离开只有自动证据，未安装个人真机。
 - v0.2.2 发布源码已有报告：127 个 JVM 测试 / 26 个套件，0 失败、0 错误、0 跳过；Debug/Release Lint 均为 0 个问题，Debug、正式签名 Release 和 AndroidTest APK 构建通过。
@@ -260,8 +264,8 @@
 
 ## 最近任务（最多 5 条）
 
+- 2026-08-02：在 `codex/v0.2.3-remove-user-limits` 完成 v0.2.3 同版本额度策略更新：后端删除 UID UTC 日额度与 UID 令牌桶，只保留共享月额度、HMAC-IP 防滥用、Firebase 访问鉴权及 fail-closed；旧 SQLite UID 行保持但不再读写，旧 APK 所需 `remainingToday` 固定返回无个人上限兼容值。Android 道路批次恢复为 Navigation SDK 官方上限 25，新 DTO 忽略旧字段，配额文案统一为共享月额度。后端 29/29、Android 245/245、双 Lint、Debug/AndroidTest、正式签名 R8 与三项审计通过，本地 APK 保持 `0.2.3 (9)` 和固定 RSA-4096 证书。官方计费/配额依据、报错闭环和发布顺序见“后端与生产环境”；必须先部署兼容新旧 APK 的后端，再替换同版本公开资产。当前尚未部署、替换公开资产或改动设备；PR、远端 CI、生产与公开资产证据完成后继续补记。
 - 2026-08-02：日本外部公交 `DWELLING` 已增加“提前离开”，悬浮面板、应用内和通知同步；点击经既有 `MODE_NEXT`/CAS 一次结束停留并启动下一段，末站完成，自然到期仍保留 `NEXT_STOP`。243 个 JVM、双 Lint、Debug/AndroidTest/Release Kotlin、正式签名 R8 和三项审计通过；提交 `ec7a28f` 经 Chrome 创建并 rebase 合并 [PR #13](https://github.com/realMisakaMikoto/junrei_navi/pull/13)，最终 PR/main、签名发布与公开资产兼容门禁全部成功，发布源码/`v0.2.3` 为 `f173ebaf`。[公开 Release](https://github.com/realMisakaMikoto/junrei_navi/releases/tag/v0.2.3) APK 为 49,227,274 字节、SHA-256 `47374031a2836949179a9dc3c611e05e071bcb9a527f314253ad4a0d3a3e4a33`，固定签名与内容审计通过；公开临时核对文件已删除，Release 正文也已同步为最终说明。签名变量、审计超时、Chrome/GitHub 瞬时错误、公开资产路径和签名输出解析均已按本文件报错闭环解决。该按钮未另行安装个人真机，未运行 `connectedAndroidTest`，测试包未动。
 - 2026-08-02：用户要求纯 ADB mock 触发 `ARRIVING`；Google 地图前台时以精度 3 米、80 米内样本持续超过 15 秒，悬浮窗显示 4 米、“已接近目标，请确认到达”和“确认到达”，未点击确认。`finally` 已移除测试 provider，shell app-op=`default`、`mMockProvider=0`，正式/测试包版本未变，crash/ANR 为 0；截图仅在系统临时目录。用户随后确认测试通过并停止当前行程。
 - 2026-08-02：用户解锁并授权 mock location 后，Xiaomi API 36 正式签名候选完成新版悬浮控制真机验收：最小/默认/拖拽放大尺寸、标题拖动稳定、四角停靠、60dp 球、横竖屏、force-stop 冷恢复且不自动开 Maps 均通过；ADB `gps/network` 日本区域样本让距离 1.1→2.2 km 且保持 `NAVIGATING`，暂停立即移除 overlay。首次跨洲 mock 使应用运行态短暂显示非洲，已 force-stop、恢复真实 provider 并改用日本有界样本重做；最终 shell app-op=`default`、`mMockProvider=0`、系统设置恢复，正式/测试包未变，crash/ANR 为 0。未运行 connected Gradle 任务；用户随后停止测试行程，最终 Git 与发布状态见本节首条。
 - 2026-08-02：因用户确认 v0.2.3 功能无问题但旧悬浮窗严重遮挡，已在 `codex/v0.2.3-overlay-controls` 改为可拖动、可缩放、可收成 60dp 悬浮球的单窗口控制器，并持久化形态/尺寸/安全区归一化位置；横竖屏、刘海、密度/字体变化、大字体、TalkBack 点击替代和固定 48dp 操作均已收口。240 个 JVM、双 Lint、Debug/AndroidTest、正式签名 Release、R8/源码/APK 审计全部通过；候选 49,227,286 字节、SHA-256 `779ebeaef4ed397f328865e1d179bb23f1c6fd35a82ef3118b9fd43a655177ed`，固定证书不变，已保留数据原位覆盖真机且测试包未动。首次最终截图被设备指纹锁屏阻断；用户解锁后的完整实体结果见上一条，最终提交与发布状态见本节首条。
-- 2026-08-02：只读核对当时连接的 Xiaomi 真机：安装的是 `0.2.1 (7)` 调试签名包，RSA-2048 证书与官方固定 RSA-4096 不兼容，无法直接原位升级。临时 APK 清理命令两次被安全策略在执行前拒绝，改为校验系统临时单文件后用 .NET 精确删除，签名核对成功且无临时残留。该次未安装、卸载、清数据或启动应用；用户随后明确授权清除旧调试包，并已完成公开 v0.2.2 Room 2 基线与正式 v0.2.3 原位覆盖验收。

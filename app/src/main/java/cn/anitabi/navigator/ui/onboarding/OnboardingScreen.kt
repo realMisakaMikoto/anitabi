@@ -298,7 +298,7 @@ private fun WelcomeStep() {
     )
     InformationBlock(
         title = "路线与费用",
-        body = "路线通过项目自建服务请求 Google。达到免费额度上限后会停止请求，不会自动产生额外费用。",
+        body = "路线通过项目自建服务请求 Google。达到项目共享的月度免费额度上限后会停止请求，不会自动产生额外费用。",
         modifier = Modifier.padding(top = 12.dp),
     )
 }
@@ -405,7 +405,7 @@ private fun ServiceStep(error: String?) {
         modifier = Modifier.testTag("onboarding-service-step"),
     )
     Text(
-        "无需申请或填写 API Key。首次生成路线时，应用会自动创建 Firebase 匿名标识，用于服务端配额管理。",
+        "无需申请或填写 API Key。首次生成路线时，应用会自动创建 Firebase 匿名标识，用于验证对项目路线服务的访问。",
         style = MaterialTheme.typography.bodyLarge,
         color = MutedInk,
         modifier = Modifier.padding(top = 10.dp),
