@@ -25,16 +25,20 @@ data class StoredTourV2(
     val dwellMinutes: Int = 15,
     val completedPointIds: Set<String> = emptySet(),
     val activePointId: String? = null,
+    val activeLegIndex: Int? = null,
     val navigationState: NavigationState = NavigationState.PLANNED,
     val dwellingUntilEpochMillis: Long? = null,
     val offRouteSinceEpochMillis: Long? = null,
     val lastRerouteEpochMillis: Long? = null,
+    val executionStrategy: TransitExecutionStrategy? = null,
+    val isPaused: Boolean = false,
+    val pausedAtEpochMillis: Long? = null,
 ) {
     init {
         require(schemaVersion == SCHEMA_VERSION) { "Unsupported stored tour schema" }
     }
 
-    fun toUnresolvedPlan(): TourPlan {
+    fun toUnresolvedPlan(resolvedExecutionStrategy: TransitExecutionStrategy): TourPlan {
         val pointsById = selectedPoints.associateBy(PilgrimagePoint::id)
         val ordered = manualOrderPointIds.mapNotNull(pointsById::get) +
             selectedPoints.filterNot { it.id in manualOrderPointIds.toSet() }
@@ -69,16 +73,59 @@ data class StoredTourV2(
             dwellMinutes = dwellMinutes,
             initialStart = start,
             state = navigationState,
+            executionStrategy = resolvedExecutionStrategy,
         )
     }
 
-    fun toNavigationProgress(): NavigationProgress = NavigationProgress(
-        tourId = id,
-        completedPointIds = completedPointIds,
-        state = navigationState,
-        dwellingUntilEpochMillis = dwellingUntilEpochMillis,
-        offRouteSinceEpochMillis = offRouteSinceEpochMillis,
-        lastRerouteEpochMillis = lastRerouteEpochMillis,
+    fun toUnresolvedPlan(): TourPlan = toUnresolvedPlan(
+        requireNotNull(executionStrategy) {
+            "Legacy stored tours require coordinate-based execution strategy resolution"
+        },
+    )
+
+    fun toNavigationProgress(
+        resolvedExecutionStrategy: TransitExecutionStrategy,
+    ): NavigationProgress {
+        val pointsById = selectedPoints.associateBy(PilgrimagePoint::id)
+        val ordered = manualOrderPointIds.mapNotNull(pointsById::get) +
+            selectedPoints.filterNot { it.id in manualOrderPointIds.toSet() }
+        val restoredLegIndex = activeLegIndex ?: if (
+            resolvedExecutionStrategy == TransitExecutionStrategy.EXTERNAL_GOOGLE_MAPS_JAPAN
+        ) {
+            activePointId?.let { activeId ->
+                ordered.indexOfFirst { it.id == activeId }.takeIf { it >= 0 }
+            } ?: if (
+                endPolicy == EndPolicy.RETURN_TO_START &&
+                ordered.isNotEmpty() &&
+                ordered.all { it.id in completedPointIds }
+            ) {
+                ordered.size
+            } else {
+                0
+            }
+        } else {
+            val visits = ordered.filterNot { it.id == startPointId }
+            activePointId?.let { activeId ->
+                visits.indexOfFirst { it.id == activeId }.takeIf { it >= 0 }
+            } ?: 0
+        }
+        return NavigationProgress(
+            tourId = id,
+            legIndex = restoredLegIndex,
+            completedPointIds = completedPointIds,
+            state = navigationState,
+            dwellingUntilEpochMillis = dwellingUntilEpochMillis,
+            offRouteSinceEpochMillis = offRouteSinceEpochMillis,
+            lastRerouteEpochMillis = lastRerouteEpochMillis,
+            isPaused = isPaused,
+            pausedAtEpochMillis = pausedAtEpochMillis,
+        )
+    }
+
+    fun toNavigationProgress(): NavigationProgress = toNavigationProgress(
+        requireNotNull(executionStrategy) {
+            "Legacy stored tours require coordinate-based execution strategy resolution"
+        },
     )
 
     companion object {
@@ -119,10 +166,14 @@ data class StoredTourV2(
                 plan.legs.getOrNull(current.legIndex)?.destinationPointId
                     ?: plan.orderedPoints.firstOrNull { it.id !in current.completedPointIds }?.id
             },
+            activeLegIndex = progress?.legIndex,
             navigationState = progress?.state ?: plan.state,
             dwellingUntilEpochMillis = progress?.dwellingUntilEpochMillis,
             offRouteSinceEpochMillis = progress?.offRouteSinceEpochMillis,
             lastRerouteEpochMillis = progress?.lastRerouteEpochMillis,
+            executionStrategy = plan.executionStrategy,
+            isPaused = progress?.isPaused ?: false,
+            pausedAtEpochMillis = progress?.pausedAtEpochMillis,
         )
 
         private fun inferSelectedAnimes(plan: TourPlan): List<Anime> {

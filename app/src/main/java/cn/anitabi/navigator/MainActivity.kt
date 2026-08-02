@@ -40,7 +40,7 @@ class MainActivity : ComponentActivity() {
         )
     }
     private val navigationViewModel by viewModels<NavigationViewModel> {
-        NavigationViewModel.Factory(application, container.tourRepository)
+        NavigationViewModel.Factory(application, container.tourRepository, container.tourPlanner)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {

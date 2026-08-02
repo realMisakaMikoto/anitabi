@@ -1,11 +1,12 @@
 package cn.anitabi.navigator.ui.planner
 
+import android.annotation.SuppressLint
 import android.Manifest
 import android.app.Activity
-import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.Intent
+import android.provider.Settings
 import android.text.format.DateFormat
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -118,13 +119,15 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cn.anitabi.navigator.navigation.AndroidLocationProvider
+import cn.anitabi.navigator.navigation.GoogleMapsTransitLauncher
+import cn.anitabi.navigator.navigation.NavigationControlAvailability
 import cn.anitabi.navigator.navigation.requestGoogleNavigationTerms
 import cn.anitabi.navigator.core.model.EndPolicy
-import cn.anitabi.navigator.core.model.GeoPoint
 import cn.anitabi.navigator.core.model.PilgrimagePoint
 import cn.anitabi.navigator.core.model.RouteObjective
 import cn.anitabi.navigator.core.model.TourPlan
 import cn.anitabi.navigator.core.model.TourLeg
+import cn.anitabi.navigator.core.model.TransitExecutionStrategy
 import cn.anitabi.navigator.core.model.TransitRoutingPreference
 import cn.anitabi.navigator.core.model.TransitTimeMode
 import cn.anitabi.navigator.core.model.TransitTravelMode
@@ -143,13 +146,12 @@ import java.time.OffsetDateTime
 import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
-import java.net.URLEncoder
-import java.nio.charset.StandardCharsets
 import java.util.Locale
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import android.content.pm.PackageManager
 
+@SuppressLint("InlinedApi")
 @Composable
 fun PlannerRoute(
     viewModel: PlannerViewModel,
@@ -188,20 +190,57 @@ fun PlannerRoute(
     ) { result ->
         if (result.values.any { it }) viewModel.setUseCurrentLocation() else viewModel.locationPermissionDenied()
     }
+    val overlayPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult(),
+    ) {
+        val pending = pendingNavigationPlan
+        if (pending == null) return@rememberLauncherForActivityResult
+        val hasFineLocation = AndroidLocationProvider.hasFineLocationPermission(context)
+        val hasControl = NavigationControlAvailability.hasExternalTransitControl(context)
+        if (hasFineLocation && hasControl) {
+            pendingNavigationPlan = null
+            startAfterPermissions(pending)
+        } else {
+            viewModel.navigationPermissionDenied(
+                externalTransitPermissionError(hasFineLocation, hasControl)
+                    ?: "无法开始日本公交分段导航",
+            )
+        }
+    }
     val navigationPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
     ) {
         val pending = pendingNavigationPlan
-        pendingNavigationPlan = null
-        val hasLocation = AndroidLocationProvider.hasLocationPermission(context)
-        val hasNotifications = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
-            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) ==
-            PackageManager.PERMISSION_GRANTED
-        val permissionError = navigationPermissionError(hasLocation, hasNotifications)
-        if (pending != null && permissionError == null) {
-            startAfterPermissions(pending)
-        } else if (permissionError != null) {
-            viewModel.navigationPermissionDenied(permissionError)
+        if (pending == null) return@rememberLauncherForActivityResult
+        if (pending.executionStrategy == TransitExecutionStrategy.EXTERNAL_GOOGLE_MAPS_JAPAN) {
+            val hasFineLocation = AndroidLocationProvider.hasFineLocationPermission(context)
+            val hasControl = NavigationControlAvailability.hasExternalTransitControl(context)
+            when {
+                hasFineLocation && hasControl -> {
+                    pendingNavigationPlan = null
+                    startAfterPermissions(pending)
+                }
+                hasFineLocation -> {
+                    viewModel.navigationPermissionDenied("通知当前不可见，请授权悬浮窗作为日本公交控制入口")
+                    overlayPermissionLauncher.launch(overlaySettingsIntent(context))
+                }
+                else -> viewModel.navigationPermissionDenied(
+                    externalTransitPermissionError(hasFineLocation, hasControl)
+                        ?: "无法开始日本公交分段导航",
+                )
+            }
+        } else {
+            pendingNavigationPlan = null
+            val hasLocation = AndroidLocationProvider.hasLocationPermission(context)
+            val hasNotifications = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+                ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) ==
+                PackageManager.PERMISSION_GRANTED
+            val permissionError = navigationPermissionError(hasLocation, hasNotifications)
+            if (permissionError == null) {
+                startAfterPermissions(pending)
+            } else {
+                viewModel.navigationPermissionDenied(permissionError)
+            }
         }
     }
     val plan = state.plan
@@ -237,28 +276,69 @@ fun PlannerRoute(
             onMove = viewModel::moveDraft,
             onApplyOrder = viewModel::applyManualOrder,
             onStartNavigation = {
-                val hasLocation = AndroidLocationProvider.hasLocationPermission(context)
-                val hasNotifications = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
-                    ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) ==
-                    PackageManager.PERMISSION_GRANTED
-                if (hasLocation && hasNotifications) {
-                    startAfterPermissions(plan)
-                } else {
-                    pendingNavigationPlan = plan
-                    val permissions = buildList {
-                        if (!hasLocation) {
-                            add(Manifest.permission.ACCESS_FINE_LOCATION)
-                            add(Manifest.permission.ACCESS_COARSE_LOCATION)
-                        }
-                        if (!hasNotifications) {
-                            add(Manifest.permission.POST_NOTIFICATIONS)
+                if (plan.executionStrategy == TransitExecutionStrategy.EXTERNAL_GOOGLE_MAPS_JAPAN) {
+                    NavigationControlAvailability.ensureChannel(context)
+                    val hasFineLocation = AndroidLocationProvider.hasFineLocationPermission(context)
+                    val hasControl = NavigationControlAvailability.hasExternalTransitControl(context)
+                    if (hasFineLocation && hasControl) {
+                        startAfterPermissions(plan)
+                    } else {
+                        pendingNavigationPlan = plan
+                        val notificationPermissionMissing =
+                            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                                ContextCompat.checkSelfPermission(
+                                    context,
+                                    Manifest.permission.POST_NOTIFICATIONS,
+                                ) != PackageManager.PERMISSION_GRANTED
+                        val permissions = externalTransitRuntimePermissions(
+                            hasFineLocation = hasFineLocation,
+                            requestNotificationPermission = !hasControl && notificationPermissionMissing,
+                        )
+                        if (permissions.isNotEmpty()) {
+                            navigationPermissionLauncher.launch(permissions.toTypedArray())
+                        } else {
+                            viewModel.navigationPermissionDenied(
+                                "通知当前不可见，请授权悬浮窗作为日本公交控制入口",
+                            )
+                            overlayPermissionLauncher.launch(overlaySettingsIntent(context))
                         }
                     }
-                    navigationPermissionLauncher.launch(permissions.toTypedArray())
+                } else {
+                    val hasLocation = AndroidLocationProvider.hasLocationPermission(context)
+                    val hasNotifications = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+                        ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) ==
+                        PackageManager.PERMISSION_GRANTED
+                    if (hasLocation && hasNotifications) {
+                        startAfterPermissions(plan)
+                    } else {
+                        pendingNavigationPlan = plan
+                        val permissions = buildList {
+                            if (!hasLocation) {
+                                add(Manifest.permission.ACCESS_FINE_LOCATION)
+                                add(Manifest.permission.ACCESS_COARSE_LOCATION)
+                            }
+                            if (!hasNotifications) {
+                                add(Manifest.permission.POST_NOTIFICATIONS)
+                            }
+                        }
+                        navigationPermissionLauncher.launch(permissions.toTypedArray())
+                    }
                 }
             },
         )
     }
+}
+
+@SuppressLint("InlinedApi")
+internal fun externalTransitRuntimePermissions(
+    hasFineLocation: Boolean,
+    requestNotificationPermission: Boolean,
+): List<String> = buildList {
+    if (!hasFineLocation) {
+        add(Manifest.permission.ACCESS_FINE_LOCATION)
+        add(Manifest.permission.ACCESS_COARSE_LOCATION)
+    }
+    if (requestNotificationPermission) add(Manifest.permission.POST_NOTIFICATIONS)
 }
 
 private tailrec fun Context.findActivity(): Activity? = when (this) {
@@ -266,41 +346,6 @@ private tailrec fun Context.findActivity(): Activity? = when (this) {
     is ContextWrapper -> baseContext.findActivity()
     else -> null
 }
-
-private fun Context.openGoogleMapsTransitDirections(segment: UnavailableRouteSegment): Boolean {
-    val uri = googleMapsTransitDirectionsUrl(segment.origin.coordinate, segment.destination.coordinate).toUri()
-    val googleMapsIntent = Intent(Intent.ACTION_VIEW, uri).setPackage(GOOGLE_MAPS_PACKAGE)
-    val browserFallback = Intent(Intent.ACTION_VIEW, uri)
-    if (findActivity() == null) {
-        googleMapsIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        browserFallback.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-    }
-    return try {
-        startActivity(googleMapsIntent)
-        true
-    } catch (_: ActivityNotFoundException) {
-        try {
-            startActivity(browserFallback)
-            true
-        } catch (_: ActivityNotFoundException) {
-            false
-        }
-    }
-}
-
-internal fun googleMapsTransitDirectionsUrl(origin: GeoPoint, destination: GeoPoint): String {
-    fun encoded(point: GeoPoint): String = URLEncoder.encode(
-        "${point.latitude},${point.longitude}",
-        StandardCharsets.UTF_8.name(),
-    )
-
-    return "https://www.google.com/maps/dir/?api=1" +
-        "&origin=${encoded(origin)}" +
-        "&destination=${encoded(destination)}" +
-        "&travelmode=transit"
-}
-
-private const val GOOGLE_MAPS_PACKAGE = "com.google.android.apps.maps"
 
 internal fun navigationPermissionError(
     hasLocation: Boolean,
@@ -311,6 +356,23 @@ internal fun navigationPermissionError(
     !hasNotifications -> "需要通知权限才能在锁屏和后台持续导航"
     else -> null
 }
+
+internal fun externalTransitPermissionError(
+    hasFineLocation: Boolean,
+    hasVisibleControl: Boolean,
+): String? = when {
+    !hasFineLocation && !hasVisibleControl ->
+        "需要精确定位，并至少启用悬浮窗或可见的导航通知"
+    !hasFineLocation -> "需要精确定位权限才能开始日本公交分段导航"
+    !hasVisibleControl -> "请至少启用悬浮窗或可见的导航通知"
+    else -> null
+}
+
+private fun overlaySettingsIntent(context: Context): Intent =
+    Intent(
+        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+        "package:${context.packageName}".toUri(),
+    )
 
 private enum class PlannerWidthClass {
     Compact,
@@ -343,9 +405,10 @@ internal fun PlannerSettingsScreen(
     onOpenGoogleMaps: ((UnavailableRouteSegment) -> Boolean)? = null,
 ) {
     val context = LocalContext.current
+    val googleMapsLauncher = remember(context) { GoogleMapsTransitLauncher(context) }
     var googleMapsLaunchFailed by remember(state.unavailableRouteSegment) { mutableStateOf(false) }
     val openGoogleMaps = onOpenGoogleMaps ?: { segment: UnavailableRouteSegment ->
-        context.openGoogleMapsTransitDirections(segment)
+        googleMapsLauncher.launch(segment.origin.coordinate, segment.destination.coordinate)
     }
     val zoneId = remember(state.transitZoneId) {
         runCatching { ZoneId.of(state.transitZoneId) }.getOrDefault(ZoneOffset.UTC)
@@ -859,6 +922,10 @@ private fun PlannerRouteOptions(
     onShowTransitOptions: () -> Unit,
     onDwellChange: (String) -> Unit,
 ) {
+    val transitPresentation = plannerTransitPresentation(
+        mode = state.mode,
+        executionStrategy = state.transitExecutionStrategy,
+    )
     if (state.mode != TravelMode.TRANSIT) {
         SettingsSection(
             title = "路线偏好",
@@ -880,38 +947,69 @@ private fun PlannerRouteOptions(
                 onClick = { onObjectiveChange(RouteObjective.SHORTEST) },
             )
         }
-    } else {
+    } else if (transitPresentation.showExternalProviderMessage) {
         SettingsSection(
-            title = "公交行程",
-            subtitle = "设置出发时间、路线偏好与景点停留时间",
+            title = "日本公交分段导航",
+            subtitle = EXTERNAL_JAPAN_TRANSIT_PROVIDER_MESSAGE,
         ) {
-            TransitSettingRow(
-                icon = Icons.Rounded.Schedule,
-                label = "行程时间",
-                value = transitScheduleLabel(
-                    mode = state.transitTimeMode,
-                    date = state.transitDate,
-                    time = state.transitTime,
-                    today = today,
-                ),
-                enabled = !state.isLoading,
-                onClick = onShowSchedule,
-            )
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-            TransitSettingRow(
-                icon = Icons.Rounded.Tune,
-                label = "路线选项",
-                value = transitOptionsSummaryLabel(
-                    state.transitRoutingPreference,
-                    state.transitTravelModes,
-                ),
-                enabled = !state.isLoading,
-                onClick = onShowTransitOptions,
+            Text(
+                "应用只安排巡礼点访问顺序；每一段都由你手动打开 Google 地图。",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
             )
             HorizontalDivider(
                 color = MaterialTheme.colorScheme.outlineVariant,
                 modifier = Modifier.padding(horizontal = 14.dp),
             )
+            OutlinedTextField(
+                value = state.dwellMinutesInput,
+                onValueChange = onDwellChange,
+                enabled = !state.isLoading,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                label = { Text("每个景点停留（分钟）") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            )
+        }
+    } else {
+        SettingsSection(
+            title = "公交行程",
+            subtitle = "设置出发时间、路线偏好与景点停留时间",
+        ) {
+            if (transitPresentation.showTransitSchedule) {
+                TransitSettingRow(
+                    icon = Icons.Rounded.Schedule,
+                    label = "行程时间",
+                    value = transitScheduleLabel(
+                        mode = state.transitTimeMode,
+                        date = state.transitDate,
+                        time = state.transitTime,
+                        today = today,
+                    ),
+                    enabled = !state.isLoading,
+                    onClick = onShowSchedule,
+                )
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            }
+            if (transitPresentation.showTransitFilters) {
+                TransitSettingRow(
+                    icon = Icons.Rounded.Tune,
+                    label = "路线选项",
+                    value = transitOptionsSummaryLabel(
+                        state.transitRoutingPreference,
+                        state.transitTravelModes,
+                    ),
+                    enabled = !state.isLoading,
+                    onClick = onShowTransitOptions,
+                )
+                HorizontalDivider(
+                    color = MaterialTheme.colorScheme.outlineVariant,
+                    modifier = Modifier.padding(horizontal = 14.dp),
+                )
+            }
             OutlinedTextField(
                 value = state.dwellMinutesInput,
                 onValueChange = onDwellChange,
@@ -1319,6 +1417,9 @@ internal fun transitOptionsSummaryLabel(
 ): String = "${transitPreferenceLabel(preference)} · ${transitTravelModesLabel(storedModes)}"
 
 private fun loadingRouteLabel(state: PlannerUiState): String {
+    if (state.transitExecutionStrategy == TransitExecutionStrategy.EXTERNAL_GOOGLE_MAPS_JAPAN) {
+        return "正在生成分段行程"
+    }
     if (state.mode != TravelMode.TRANSIT || state.totalTransitSegments <= 0) return "正在生成路线"
     val completed = state.plannedTransitSegments.coerceIn(0, state.totalTransitSegments)
     return if (completed < state.totalTransitSegments) {
@@ -1410,9 +1511,14 @@ internal fun RoutePreviewDetails(
     onOpenGoogleMaps: ((UnavailableRouteSegment) -> Boolean)? = null,
 ) {
     val context = LocalContext.current
+    val transitPresentation = plannerTransitPresentation(
+        mode = plan.mode,
+        executionStrategy = plan.executionStrategy,
+    )
+    val googleMapsLauncher = remember(context) { GoogleMapsTransitLauncher(context) }
     var googleMapsLaunchFailed by remember(state.unavailableRouteSegment) { mutableStateOf(false) }
     val openGoogleMaps = onOpenGoogleMaps ?: { segment: UnavailableRouteSegment ->
-        context.openGoogleMapsTransitDirections(segment)
+        googleMapsLauncher.launch(segment.origin.coordinate, segment.destination.coordinate)
     }
     var showUnavailableRouteDetails by remember(state.unavailableRouteSegment) { mutableStateOf(false) }
     val startLocked = state.draftOrder.firstOrNull()?.id == state.startPointId
@@ -1428,10 +1534,32 @@ internal fun RoutePreviewDetails(
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             item {
-                if (plan.mode == TravelMode.TRANSIT) {
-                    TransitJourneySummaryCard(plan)
-                } else {
-                    RouteSummary(plan)
+                if (transitPresentation.showExternalProviderMessage) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        shape = RoundedCornerShape(14.dp),
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp)) {
+                            Text(
+                                "日本公交 · 外部 Google 地图",
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                            Text(
+                                "$EXTERNAL_JAPAN_TRANSIT_PROVIDER_MESSAGE。此处只显示巡礼点访问顺序。",
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.padding(top = 4.dp),
+                            )
+                        }
+                    }
+                } else if (transitPresentation.showRouteEstimateSummary) {
+                    if (plan.mode == TravelMode.TRANSIT) {
+                        TransitJourneySummaryCard(plan)
+                    } else {
+                        RouteSummary(plan)
+                    }
                 }
             }
             state.errorMessage?.let { message ->
@@ -1453,7 +1581,7 @@ internal fun RoutePreviewDetails(
                     )
                 }
             }
-            if (plan.mode == TravelMode.TRANSIT) {
+            if (transitPresentation.showTransitJourneyDetails) {
                 item {
                     Column {
                         Text(
@@ -1527,6 +1655,8 @@ internal fun RoutePreviewDetails(
             label = when {
                 state.isLoading -> "正在重新生成路线"
                 state.orderChanged -> "按此顺序重新生成"
+                plan.executionStrategy == TransitExecutionStrategy.EXTERNAL_GOOGLE_MAPS_JAPAN ->
+                    "开始日本公交行程"
                 plan.mode == TravelMode.TRANSIT -> "开始公交行程"
                 else -> "开始连续导航"
             },

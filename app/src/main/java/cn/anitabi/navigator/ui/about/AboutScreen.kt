@@ -148,14 +148,17 @@ fun AboutScreen(
                         SourceLink("Firebase") {
                             uriHandler.openUri("https://firebase.google.com/")
                         }
+                        SourceLink("Natural Earth · 日本边界 v5.1.1") {
+                            uriHandler.openUri("https://www.naturalearthdata.com/")
+                        }
                         Text(
-                            "道路导航使用 Navigation SDK；路线规划与公共交通行程使用 Routes API。无需用户填写 API Key，达到项目硬额度后停止请求。",
+                            "道路导航使用 Navigation SDK；日本以外的公共交通使用 Routes API。日本公交只在本机排序，并由用户逐段交给 Google 地图，不经过路线后端。",
                             color = MutedInk,
                             style = MaterialTheme.typography.bodyMedium,
                             modifier = Modifier.padding(top = 8.dp),
                         )
                         Text(
-                            "公交仅按相邻两点逐段请求；没有路线时会明确提示，不会生成猜测路线。",
+                            "日本地区由随 APK 固定携带的 Natural Earth 边界离线判定；日本与日本以外点不能混合生成同一条公交行程。",
                             color = MutedInk,
                             style = MaterialTheme.typography.bodyMedium,
                             modifier = Modifier.padding(top = 6.dp),

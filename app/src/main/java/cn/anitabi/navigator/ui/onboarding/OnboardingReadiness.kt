@@ -5,7 +5,7 @@ internal data class OnboardingReadiness(
     val hasNotificationPermission: Boolean,
 ) {
     val permissionsReady: Boolean
-        get() = hasLocationPermission && hasNotificationPermission
+        get() = hasLocationPermission
 
     val canFinish: Boolean
         get() = permissionsReady
@@ -15,8 +15,6 @@ internal fun onboardingPermissionError(
     hasLocationPermission: Boolean,
     hasNotificationPermission: Boolean,
 ): String? = when {
-    !hasLocationPermission && !hasNotificationPermission -> "还需要定位和通知权限，请授权后继续"
     !hasLocationPermission -> "还需要定位权限，请授权后继续"
-    !hasNotificationPermission -> "还需要通知权限，请授权后继续"
     else -> null
 }

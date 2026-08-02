@@ -80,43 +80,295 @@ class TourRepositoryTest {
     }
 
     @Test
-    fun `cancelled save before dao commit does not publish resolved caches`() = runBlocking {
+    fun `cancellation after a repository write starts completes database and cache publication`() = runBlocking {
         val upsertGate = CompletableDeferred<Unit>()
         val dao = FakeTourPlanDao(upsertGate)
         val repository = TourRepository(dao, ApiHttpClient.defaultJson, now = { 123L })
         val resolved = fixturePlan()
+        val progress = NavigationProgress(
+            tourId = resolved.id,
+            legIndex = 3,
+            stepIndex = 7,
+            state = NavigationState.NAVIGATING,
+        )
         val saveJob = launch {
-            repository.save(
-                resolved,
-                NavigationProgress(
-                    tourId = resolved.id,
-                    legIndex = 3,
-                    stepIndex = 7,
-                    state = NavigationState.NAVIGATING,
-                ),
-            )
+            repository.save(resolved, progress)
         }
         dao.upsertStarted.await()
 
+        saveJob.cancel()
+        assertFalse(saveJob.isCompleted)
+        upsertGate.complete(Unit)
         saveJob.cancelAndJoin()
 
-        assertNull(dao.get(resolved.id))
-        val unresolved = resolved.copy(legs = emptyList(), estimatedDurationSeconds = 0.0)
-        dao.seed(unresolvedEntity(unresolved))
         val restored = requireNotNull(repository.get(resolved.id))
+        assertFalse(restored.routeNeedsRefresh)
+        assertEquals(resolved, restored.plan)
+        assertEquals(progress, restored.progress)
+    }
+
+    @Test
+    fun `writer cancelled while waiting for the repository mutex never reaches dao`() = runBlocking {
+        val upsertGate = CompletableDeferred<Unit>()
+        val dao = FakeTourPlanDao(upsertGate)
+        val repository = TourRepository(dao, ApiHttpClient.defaultJson, now = { 123L })
+        val plan = fixturePlan()
+        val before = NavigationProgress(tourId = plan.id, state = NavigationState.NAVIGATING)
+        val firstSave = launch { repository.save(plan, before) }
+        dao.upsertStarted.await()
+        val waitingSave = launch {
+            repository.save(
+                plan.copy(attribution = listOf("cancelled")),
+                before.copy(legIndex = 1),
+            )
+        }
+
+        waitingSave.cancelAndJoin()
+        upsertGate.complete(Unit)
+        firstSave.join()
+
+        assertEquals(1, dao.upsertCount)
+        val restored = requireNotNull(repository.get(plan.id))
+        assertEquals(plan, restored.plan)
+        assertEquals(before, restored.progress)
+    }
+
+    @Test
+    fun `cancellation after dao commit cannot leave stale resolved caches`() = runBlocking {
+        val dao = FakeTourPlanDao()
+        val repository = TourRepository(dao, ApiHttpClient.defaultJson, now = { 123L })
+        val plan = fixturePlan()
+        val before = NavigationProgress(tourId = plan.id, state = NavigationState.NAVIGATING)
+        val advanced = before.copy(legIndex = 1, completedPointIds = setOf("first"))
+        repository.save(plan, before)
+        val gate = dao.blockNextUpsertAfterCommit()
+
+        val saveJob = launch { repository.save(plan, advanced) }
+        gate.committed.await()
+        saveJob.cancel()
+        gate.release.complete(Unit)
+        saveJob.cancelAndJoin()
+
+        val restored = requireNotNull(repository.get(plan.id))
+        assertFalse(restored.routeNeedsRefresh)
+        assertEquals(plan, restored.plan)
+        assertEquals(advanced, restored.progress)
+    }
+
+    @Test
+    fun `dao failure after durable write evicts stale warm caches`() = runBlocking {
+        val dao = FakeTourPlanDao()
+        val repository = TourRepository(dao, ApiHttpClient.defaultJson, now = { 123L })
+        val plan = fixturePlan()
+        val before = NavigationProgress(tourId = plan.id, state = NavigationState.NAVIGATING)
+        val advanced = before.copy(legIndex = 1, completedPointIds = setOf("first"))
+        repository.save(plan, before)
+        val gate = dao.blockNextUpsertAfterCommit()
+        var failure: Throwable? = null
+
+        val saveJob = launch {
+            failure = runCatching { repository.save(plan, advanced) }.exceptionOrNull()
+        }
+        gate.committed.await()
+        gate.release.completeExceptionally(IllegalStateException("post-commit failure"))
+        saveJob.join()
+
+        assertTrue(failure is IllegalStateException)
+        val restored = requireNotNull(repository.get(plan.id))
         assertTrue(restored.routeNeedsRefresh)
         assertTrue(restored.plan.legs.isEmpty())
-        assertEquals(0, restored.progress?.legIndex)
-        assertEquals(0, restored.progress?.stepIndex)
+        assertEquals(advanced, restored.progress)
+    }
+
+    @Test
+    fun `runtime progress advancing during active edit rolls back the edit and wins`() = runBlocking {
+        val dao = FakeTourPlanDao()
+        val repository = TourRepository(dao, ApiHttpClient.defaultJson, now = { 123L })
+        val plan = fixturePlan()
+        val edited = plan.copy(attribution = listOf("edited"))
+        val before = NavigationProgress(tourId = plan.id, state = NavigationState.NAVIGATING)
+        val advanced = before.copy(legIndex = 1, completedPointIds = setOf("first"))
+        repository.save(plan, before)
+        repository.noteRuntimeProgress(before)
+        val gate = dao.blockNextUpsertAfterCommit()
+        var editSaved: Boolean? = null
+
+        val editJob = launch {
+            editSaved = repository.saveActiveEditIfCurrent(
+                expectedPlan = plan,
+                expectedProgress = before,
+                updatedPlan = edited,
+                updatedProgress = before,
+            )
+        }
+        gate.committed.await()
+        repository.noteRuntimeProgress(advanced)
+        gate.release.complete(Unit)
+        editJob.join()
+
+        assertFalse(requireNotNull(editSaved))
+        val restored = requireNotNull(repository.get(plan.id))
+        assertEquals(plan.attribution, restored.plan.attribution)
+        assertEquals(advanced, restored.progress)
+        assertEquals(plan, repository.saveProgressOnLatestPlan(plan, before, advanced))
+    }
+
+    @Test
+    fun `active edit compare and save rejects a stale navigation progress`() = runBlocking {
+        val repository = TourRepository(FakeTourPlanDao(), ApiHttpClient.defaultJson, now = { 123L })
+        val plan = fixturePlan()
+        val before = NavigationProgress(tourId = plan.id, state = NavigationState.NAVIGATING)
+        val advanced = before.copy(legIndex = 1, completedPointIds = setOf("first"))
+        repository.save(plan, before)
+        repository.saveProgressOnLatestPlan(plan, before, advanced)
+
+        val saved = repository.saveActiveEditIfCurrent(
+            expectedPlan = plan,
+            expectedProgress = before,
+            updatedPlan = plan.copy(attribution = listOf("edited")),
+            updatedProgress = before,
+        )
+
+        assertFalse(saved)
+        val restored = requireNotNull(repository.get(plan.id))
+        assertEquals(plan.attribution, restored.plan.attribution)
+        assertEquals(advanced, restored.progress)
+    }
+
+    @Test
+    fun `new runtime progress rolls back a future edit that committed first`() = runBlocking {
+        val repository = TourRepository(FakeTourPlanDao(), ApiHttpClient.defaultJson, now = { 123L })
+        val plan = fixturePlan()
+        val edited = plan.copy(attribution = listOf("edited"))
+        val before = NavigationProgress(tourId = plan.id, state = NavigationState.NAVIGATING)
+        val advanced = before.copy(legIndex = 1, completedPointIds = setOf("first"))
+        repository.save(plan, before)
+        assertTrue(
+            repository.saveActiveEditIfCurrent(
+                expectedPlan = plan,
+                expectedProgress = before,
+                updatedPlan = edited,
+                updatedProgress = before,
+            ),
+        )
+        repository.noteRuntimeProgress(advanced)
+
+        val committedPlan = repository.saveProgressOnLatestPlan(plan, before, advanced)
+
+        assertEquals(plan, committedPlan)
+        val restored = requireNotNull(repository.get(plan.id))
+        assertEquals(plan.attribution, restored.plan.attribution)
+        assertEquals(advanced, restored.progress)
+    }
+
+    @Test
+    fun `latest runtime progress wins when the queued save is one transition behind`() = runBlocking {
+        val repository = TourRepository(FakeTourPlanDao(), ApiHttpClient.defaultJson, now = { 123L })
+        val plan = fixturePlan()
+        val edited = plan.copy(attribution = listOf("edited"))
+        val before = NavigationProgress(tourId = plan.id, state = NavigationState.NAVIGATING)
+        val firstUpdate = before.copy(legIndex = 1, completedPointIds = setOf("first"))
+        val latestUpdate = firstUpdate.copy(stepIndex = 1, state = NavigationState.ARRIVING)
+        repository.save(plan, before)
+        assertTrue(
+            repository.saveActiveEditIfCurrent(
+                expectedPlan = plan,
+                expectedProgress = before,
+                updatedPlan = edited,
+                updatedProgress = before,
+            ),
+        )
+        repository.noteRuntimeProgress(latestUpdate)
+
+        assertEquals(plan, repository.saveProgressOnLatestPlan(plan, before, firstUpdate))
+        assertEquals(plan, repository.saveProgressOnLatestPlan(plan, firstUpdate, latestUpdate))
+
+        val restored = requireNotNull(repository.get(plan.id))
+        assertEquals(plan.attribution, restored.plan.attribution)
+        assertEquals(latestUpdate, restored.progress)
+    }
+
+    @Test
+    fun `cold recovered active edit compares the persisted snapshot when resolved caches are empty`() = runBlocking {
+        val dao = FakeTourPlanDao()
+        val repository = TourRepository(dao, ApiHttpClient.defaultJson, now = { 123L })
+        val plan = fixturePlan()
+        val before = NavigationProgress(tourId = plan.id, state = NavigationState.NAVIGATING)
+        val edited = plan.copy(attribution = listOf("edited after recovery"))
+        dao.seed(storedEntity(plan, before))
+
+        val saved = repository.saveActiveEditIfCurrent(
+            expectedPlan = plan,
+            expectedProgress = before,
+            updatedPlan = edited,
+            updatedProgress = before,
+        )
+
+        assertTrue(saved)
+        val restored = requireNotNull(repository.get(plan.id))
+        assertEquals(edited.attribution, restored.plan.attribution)
+        assertEquals(before, restored.progress)
+    }
+
+    @Test
+    fun `cold active edit rejects newer persisted progress and plan fields`() = runBlocking {
+        val plan = fixturePlan()
+        val before = NavigationProgress(tourId = plan.id, state = NavigationState.NAVIGATING)
+        val advanced = before.copy(legIndex = 1, completedPointIds = setOf("first"))
+
+        listOf(
+            storedEntity(plan, advanced),
+            storedEntity(plan.copy(objective = RouteObjective.SHORTEST), before),
+        ).forEach { newerEntity ->
+            val dao = FakeTourPlanDao().also { it.seed(newerEntity) }
+            val repository = TourRepository(dao, ApiHttpClient.defaultJson, now = { 123L })
+
+            val saved = repository.saveActiveEditIfCurrent(
+                expectedPlan = plan,
+                expectedProgress = before,
+                updatedPlan = plan.copy(attribution = listOf("stale edit")),
+                updatedProgress = before,
+            )
+
+            assertFalse(saved)
+            assertEquals(newerEntity.storedTourJson, dao.get(plan.id)?.storedTourJson)
+        }
+    }
+
+    @Test
+    fun `v0_2_2 snapshot without execution strategy or leg index can be edited after recovery`() = runBlocking {
+        val dao = FakeTourPlanDao()
+        val repository = TourRepository(dao, ApiHttpClient.defaultJson, now = { 123L })
+        val plan = fixturePlan()
+        val progress = NavigationProgress(tourId = plan.id, state = NavigationState.NAVIGATING)
+        val legacyStored = StoredTourV2.from(plan, progress).copy(
+            executionStrategy = null,
+            activeLegIndex = null,
+        )
+        dao.seed(storedEntity(legacyStored))
+
+        val saved = repository.saveActiveEditIfCurrent(
+            expectedPlan = plan,
+            expectedProgress = progress,
+            updatedPlan = plan.copy(attribution = listOf("legacy edit")),
+            updatedProgress = progress,
+        )
+
+        assertTrue(saved)
     }
 
     private fun unresolvedEntity(plan: TourPlan): TourPlanEntity {
-        val stored = StoredTourV2.from(
-            plan,
-            NavigationProgress(tourId = plan.id, state = NavigationState.PLANNED),
-        )
+        val progress = NavigationProgress(tourId = plan.id, state = NavigationState.PLANNED)
+        return storedEntity(plan, progress)
+    }
+
+    private fun storedEntity(plan: TourPlan, progress: NavigationProgress): TourPlanEntity {
+        return storedEntity(StoredTourV2.from(plan, progress))
+    }
+
+    private fun storedEntity(stored: StoredTourV2): TourPlanEntity {
         return TourPlanEntity(
-            id = plan.id,
+            id = stored.id,
             storedTourJson = ApiHttpClient.defaultJson.encodeToString(StoredTourV2.serializer(), stored),
             legacyPlanJson = null,
             legacyProgressJson = null,
@@ -160,19 +412,42 @@ class TourRepositoryTest {
 private class FakeTourPlanDao(
     private val upsertGate: CompletableDeferred<Unit>? = null,
 ) : TourPlanDao {
+    data class PostCommitGate(
+        val committed: CompletableDeferred<Unit>,
+        val release: CompletableDeferred<Unit>,
+    )
+
     private val entities = linkedMapOf<String, TourPlanEntity>()
     val upsertStarted = CompletableDeferred<Unit>()
+    private var nextPostCommitGate: PostCommitGate? = null
+    var upsertCount: Int = 0
+        private set
 
     override suspend fun get(id: String): TourPlanEntity? = entities[id]
 
     override suspend fun getMostRecent(): TourPlanEntity? =
         entities.values.maxByOrNull(TourPlanEntity::updatedAtEpochMillis)
 
+    override suspend fun getIdsMostRecentFirst(): List<String> = entities.values
+        .sortedWith(compareByDescending<TourPlanEntity> { it.updatedAtEpochMillis }.thenByDescending { it.id })
+        .map(TourPlanEntity::id)
+
     override suspend fun upsert(entity: TourPlanEntity) {
+        upsertCount += 1
         upsertStarted.complete(Unit)
         upsertGate?.await()
         entities[entity.id] = entity
+        nextPostCommitGate?.also { gate ->
+            nextPostCommitGate = null
+            gate.committed.complete(Unit)
+            gate.release.await()
+        }
     }
+
+    fun blockNextUpsertAfterCommit(): PostCommitGate = PostCommitGate(
+        committed = CompletableDeferred(),
+        release = CompletableDeferred(),
+    ).also { nextPostCommitGate = it }
 
     fun seed(entity: TourPlanEntity) {
         entities[entity.id] = entity

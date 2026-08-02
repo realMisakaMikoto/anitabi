@@ -48,6 +48,9 @@ interface TourPlanDao {
     @Query("SELECT * FROM tour_plans ORDER BY updatedAtEpochMillis DESC LIMIT 1")
     suspend fun getMostRecent(): TourPlanEntity?
 
+    @Query("SELECT id FROM tour_plans ORDER BY updatedAtEpochMillis DESC, id DESC")
+    suspend fun getIdsMostRecentFirst(): List<String>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(entity: TourPlanEntity)
 

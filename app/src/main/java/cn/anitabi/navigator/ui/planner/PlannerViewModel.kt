@@ -9,17 +9,21 @@ import cn.anitabi.navigator.core.model.GeoPoint
 import cn.anitabi.navigator.core.model.PilgrimagePoint
 import cn.anitabi.navigator.core.model.RouteObjective
 import cn.anitabi.navigator.core.model.TourPlan
+import cn.anitabi.navigator.core.model.TransitExecutionStrategy
 import cn.anitabi.navigator.core.model.TransitRoutingPreference
 import cn.anitabi.navigator.core.model.TransitTimeMode
 import cn.anitabi.navigator.core.model.TransitTravelMode
 import cn.anitabi.navigator.core.model.TravelMode
 import cn.anitabi.navigator.core.routing.NoRouteException
+import cn.anitabi.navigator.core.routing.MixedTransitRegionException
+import cn.anitabi.navigator.core.routing.REGION_DATA_ERROR_MESSAGE
 import cn.anitabi.navigator.core.routing.RoadPlanRequest
 import cn.anitabi.navigator.core.routing.TourPlanner
 import cn.anitabi.navigator.core.routing.TransitPlanRequest
 import cn.anitabi.navigator.core.routing.TransitRideUnavailableException
 import cn.anitabi.navigator.core.routing.TransitSegmentUnavailableException
 import cn.anitabi.navigator.core.routing.formatTransitDepartureTime
+import cn.anitabi.navigator.core.region.JapanRegionDataException
 import cn.anitabi.navigator.data.network.ApiException
 import cn.anitabi.navigator.data.repository.TourRepository
 import cn.anitabi.navigator.navigation.CurrentLocationProvider
@@ -68,12 +72,27 @@ class PlannerViewModel(
     fun setMode(mode: TravelMode) {
         mutableState.update { current ->
             if (current.isLoading) current
-            else current.copy(
-                mode = mode,
-                errorMessage = null,
-                unavailableRouteSegment = null,
-                plan = null,
-            )
+            else {
+                val classification = if (
+                    mode == TravelMode.TRANSIT &&
+                    current.transitExecutionStrategy == null &&
+                    current.transitRegionError == null
+                ) {
+                    runCatching { planner.transitExecutionStrategy(current.selectedPoints) }
+                } else {
+                    null
+                }
+                val transitRegionError = classification?.exceptionOrNull()?.let(::plannerFailureMessage)
+                    ?: current.transitRegionError
+                current.copy(
+                    mode = mode,
+                    transitExecutionStrategy = classification?.getOrNull() ?: current.transitExecutionStrategy,
+                    transitRegionError = transitRegionError,
+                    errorMessage = if (mode == TravelMode.TRANSIT) transitRegionError else null,
+                    unavailableRouteSegment = null,
+                    plan = null,
+                )
+            }
         }
     }
 
@@ -180,6 +199,10 @@ class PlannerViewModel(
         val current = state.value
         if (current.isLoading) return
         val anime = current.anime ?: return
+        if (current.mode == TravelMode.TRANSIT && current.transitRegionError != null) {
+            mutableState.update { it.copy(errorMessage = current.transitRegionError) }
+            return
+        }
         mutableState.update {
             it.copy(
                 isLoading = true,
@@ -193,6 +216,11 @@ class PlannerViewModel(
         planningJob?.cancel()
         planningJob = viewModelScope.launch {
             try {
+                val transitStrategy = if (current.mode == TravelMode.TRANSIT) {
+                    planner.transitExecutionStrategy(current.selectedPoints)
+                } else {
+                    null
+                }
                 val startPoint = current.startPointId?.let { id -> current.selectedPoints.single { it.id == id } }
                 val startCoordinate = if (current.useCurrentLocation) {
                     locationProvider.currentLocation()
@@ -200,13 +228,19 @@ class PlannerViewModel(
                     requireNotNull(startPoint).coordinate
                 }
                 val plan = if (current.mode == TravelMode.TRANSIT) {
-                    val now = currentTransitPlanningTime(clock)
-                    val anchor = resolveTransitAnchor(
-                        mode = current.transitTimeMode,
-                        date = current.transitDate,
-                        time = current.transitTime,
-                        now = now,
-                    )
+                    val anchorTime = if (transitStrategy == TransitExecutionStrategy.IN_APP_GOOGLE_ROUTES) {
+                        val now = currentTransitPlanningTime(clock)
+                        formatTransitDepartureTime(
+                            resolveTransitAnchor(
+                                mode = current.transitTimeMode,
+                                date = current.transitDate,
+                                time = current.transitTime,
+                                now = now,
+                            ).toOffsetDateTime(),
+                        )
+                    } else {
+                        null
+                    }
                     planner.planTransit(
                         TransitPlanRequest(
                             anime = anime,
@@ -215,8 +249,12 @@ class PlannerViewModel(
                             startPointId = startPoint?.id,
                             endPolicy = current.endPolicy,
                             fixedEndPointId = current.fixedEndPointId,
-                            timeMode = current.transitTimeMode,
-                            anchorTime = formatTransitDepartureTime(anchor.toOffsetDateTime()),
+                            timeMode = if (transitStrategy == TransitExecutionStrategy.EXTERNAL_GOOGLE_MAPS_JAPAN) {
+                                TransitTimeMode.NOW
+                            } else {
+                                current.transitTimeMode
+                            },
+                            anchorTime = anchorTime,
                             routingPreference = current.transitRoutingPreference,
                             transitTravelModes = current.transitTravelModes,
                             dwellMinutes = current.dwellMinutesInput.toIntOrNull() ?: 15,
@@ -389,6 +427,8 @@ internal fun plannerFailureMessage(throwable: Throwable): String = when (throwab
         "第 ${throwable.segmentNumber}/${throwable.segmentCount} 段在所选时间未找到公交或步行路线，请调整时间、顺序或出行方式"
     is TransitRideUnavailableException ->
         "Google 公交没有返回任何乘车线路，未将全步行路线作为公交方案；若地点在日本，这是 Routes API 的官方覆盖限制"
+    is MixedTransitRegionException -> throwable.message ?: MIXED_TRANSIT_REGION_FALLBACK
+    is JapanRegionDataException -> REGION_DATA_ERROR_MESSAGE
     is InvalidTransitScheduleException -> throwable.message ?: "请选择当前或未来 100 天内的时间"
     is NoRouteException -> "所选地点之间存在不可达路段"
     is MissingLocationPermissionException -> "需要定位权限才能从当前位置出发"
@@ -460,6 +500,8 @@ data class PlannerUiState(
     val transitZoneId: String = "UTC",
     val transitRoutingPreference: TransitRoutingPreference = TransitRoutingPreference.RECOMMENDED,
     val transitTravelModes: Set<TransitTravelMode> = emptySet(),
+    val transitExecutionStrategy: TransitExecutionStrategy? = null,
+    val transitRegionError: String? = null,
     val dwellMinutesInput: String = "15",
     val plan: TourPlan? = null,
     val draftOrder: List<PilgrimagePoint> = emptyList(),
@@ -471,9 +513,15 @@ data class PlannerUiState(
     val unavailableRouteSegment: UnavailableRouteSegment? = null,
 ) {
     fun transitSegmentCount(): Int =
-        selectedPoints.size - (if (startPointId != null) 1 else 0) +
+        selectedPoints.size -
+            (if (
+                startPointId != null &&
+                transitExecutionStrategy != TransitExecutionStrategy.EXTERNAL_GOOGLE_MAPS_JAPAN
+            ) 1 else 0) +
             (if (endPolicy == EndPolicy.RETURN_TO_START) 1 else 0)
 }
+
+private const val MIXED_TRANSIT_REGION_FALLBACK = "不支持此操作，请去除日本或日本以外的点。"
 
 data class UnavailableRouteSegment(
     val segmentNumber: Int,
