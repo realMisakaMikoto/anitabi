@@ -36,6 +36,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -68,6 +69,7 @@ class NavigationRuntimeInstrumentedTest {
         assertTrue(saved.plan.legs.isEmpty())
         assertEquals(NavigationState.PLANNED, saved.progress?.state)
         assertTrue(START_ID in saved.progress?.completedPointIds.orEmpty())
+        assertNull(ActiveNavigationStore.get(application))
         reportEvidence("RECOVERY_FAILED_ROUTE_REMAINS_REFRESHABLE")
     }
 

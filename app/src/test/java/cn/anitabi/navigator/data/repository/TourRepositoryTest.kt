@@ -110,6 +110,50 @@ class TourRepositoryTest {
     }
 
     @Test
+    fun `warm progress save accepts deterministic start normalization`() = runBlocking {
+        val repository = TourRepository(FakeTourPlanDao(), ApiHttpClient.defaultJson, now = { 123L })
+        val plan = fixturePlan()
+        val persistedProgress = NavigationProgress(
+            tourId = plan.id,
+            state = NavigationState.NAVIGATING,
+        )
+        val activeProgress = persistedProgress.copy(completedPointIds = setOf("first"))
+        val arrivingProgress = activeProgress.copy(state = NavigationState.ARRIVING)
+        repository.save(plan, persistedProgress)
+        repository.noteRuntimeProgress(arrivingProgress)
+
+        repository.saveProgressOnLatestPlan(
+            basePlan = plan,
+            expectedProgress = activeProgress,
+            updatedProgress = arrivingProgress,
+        )
+
+        assertEquals(arrivingProgress, requireNotNull(repository.get(plan.id)).progress)
+    }
+
+    @Test
+    fun `warm progress save still rejects a missing non-start completion`() = runBlocking {
+        val repository = TourRepository(FakeTourPlanDao(), ApiHttpClient.defaultJson, now = { 123L })
+        val plan = fixturePlan()
+        val persistedProgress = NavigationProgress(
+            tourId = plan.id,
+            state = NavigationState.NAVIGATING,
+        )
+        val staleExpected = persistedProgress.copy(completedPointIds = setOf("second"))
+        val failure = runCatching {
+            repository.save(plan, persistedProgress)
+            repository.saveProgressOnLatestPlan(
+                basePlan = plan,
+                expectedProgress = staleExpected,
+                updatedProgress = staleExpected.copy(state = NavigationState.ARRIVING),
+            )
+        }.exceptionOrNull()
+
+        assertTrue(failure is ConcurrentTourUpdateException)
+        assertEquals(persistedProgress, requireNotNull(repository.get(plan.id)).progress)
+    }
+
+    @Test
     fun `cancellation after a repository write starts completes database and cache publication`() = runBlocking {
         val upsertGate = CompletableDeferred<Unit>()
         val dao = FakeTourPlanDao(upsertGate)
