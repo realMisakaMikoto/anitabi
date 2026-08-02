@@ -135,8 +135,8 @@ test("route schema accepts supported transit preferences and travel-mode bounds"
       assert.equal(response.statusCode, 200);
     }
     assert.deepEqual(fixture.ledger.reservations, [
-      { bucket: "route", units: 1, uid: "anonymous-uid" },
-      { bucket: "route", units: 1, uid: "anonymous-uid" },
+      { bucket: "route", units: 1 },
+      { bucket: "route", units: 1 },
     ]);
     assert.equal(fixture.routes.routeCalls, 2);
   } finally {
@@ -179,7 +179,6 @@ test("matrix reserves billable elements and navigation reserves destinations", a
     assert.deepEqual(fixture.ledger.reservations[0], {
       bucket: "matrix",
       units: 4,
-      uid: "anonymous-uid",
     });
 
     const navigation = await fixture.app.inject(authenticated({
@@ -188,7 +187,10 @@ test("matrix reserves billable elements and navigation reserves destinations", a
       payload: { destinationCount: 25 },
     }));
     assert.equal(navigation.statusCode, 200);
-    assert.deepEqual(navigation.json(), { reservedDestinations: 25, remainingToday: 75 });
+    assert.deepEqual(navigation.json(), {
+      reservedDestinations: 25,
+      remainingToday: 2_147_483_647,
+    });
   } finally {
     await fixture.app.close();
   }
@@ -249,13 +251,11 @@ test("quota uncertainty fails closed before the Google provider is called", asyn
   }
 });
 
-test("local rate limiting provides retry timing before quota or Google calls", async () => {
+test("local IP rate limiting provides retry timing before quota or Google calls", async () => {
   let now = 0;
   const fixture = createApp(new TokenBucketLimiter({
-    uidCapacity: 10,
-    uidRefillPerSecond: 1,
-    ipCapacity: 100,
-    ipRefillPerSecond: 100,
+    ipCapacity: 10,
+    ipRefillPerSecond: 1,
     ipHmacKey: new Uint8Array(32).fill(4),
     now: () => now,
   }));
@@ -345,7 +345,7 @@ test("route provider failures keep one reservation and redact transit request da
       assert.equal(response.statusCode, failure.status);
       assert.equal(response.json().error.code, failure.code);
       assert.deepEqual(fixture.ledger.reservations, [
-        { bucket: "route", units: 1, uid: "anonymous-uid" },
+        { bucket: "route", units: 1 },
       ]);
       assert.equal(fixture.routes.routeCalls, 1);
       const logs = JSON.stringify(fixture.logs);
@@ -382,8 +382,6 @@ function validMatrix(): MatrixRequest {
 }
 
 function createApp(rateLimiter = new TokenBucketLimiter({
-  uidCapacity: 100,
-  uidRefillPerSecond: 100,
   ipCapacity: 100,
   ipRefillPerSecond: 100,
   ipHmacKey: new Uint8Array(32).fill(3),
@@ -427,7 +425,7 @@ class FakeLedger implements QuotaLedger {
   reserve(reservation: QuotaReservation): QuotaReservationResult {
     if (this.reserveError !== undefined) throw this.reserveError;
     this.reservations.push(reservation);
-    return { monthlyUsed: reservation.units, monthlyRemaining: 100, dailyUsed: reservation.units, dailyRemaining: 100 - reservation.units };
+    return { monthlyUsed: reservation.units, monthlyRemaining: 100 };
   }
 
   health(): LedgerHealth {

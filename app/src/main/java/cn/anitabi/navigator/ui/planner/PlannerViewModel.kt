@@ -414,7 +414,7 @@ internal fun plannerFailureMessage(throwable: Throwable): String = when (throwab
     is ApiException.Unauthenticated -> "匿名连接失败，请检查网络后重试"
     is ApiException.InvalidArgument -> "路线请求参数无效，请检查时间和地点"
     is ApiException.NoRoute, is ApiException.NotFound -> "所选地点之间暂无可用路线"
-    is ApiException.QuotaExhausted -> "路线额度已用尽，暂时无法查询；不会继续产生费用"
+    is ApiException.QuotaExhausted -> "本月共享路线额度已用尽，暂时无法查询；不会继续产生费用"
     is ApiException.RateLimited -> "请求过于频繁，请稍后再试"
     is ApiException.UpstreamUnavailable -> "Google 路线服务暂时不可用，请稍后再试"
     is ApiException.BackendUnavailable, is ApiException.Server ->

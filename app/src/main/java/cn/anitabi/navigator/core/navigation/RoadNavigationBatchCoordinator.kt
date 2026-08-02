@@ -5,7 +5,7 @@ import cn.anitabi.navigator.core.routing.TourRequestBatcher
 class RoadNavigationBatchCoordinator(
     private val destinationCount: Int,
     initialLegIndex: Int,
-    private val batchSize: Int = QUOTA_AWARE_BATCH_SIZE,
+    private val batchSize: Int = TourRequestBatcher.MAX_NAVIGATION_DESTINATIONS,
 ) {
     private var activeBatch: IntRange? = null
     private var activeLegIndex = initialLegIndex
@@ -49,10 +49,6 @@ class RoadNavigationBatchCoordinator(
     private fun batchStartingAt(legIndex: Int): IntRange {
         val last = minOf(destinationCount - 1, legIndex + batchSize - 1)
         return legIndex..last
-    }
-
-    companion object {
-        const val QUOTA_AWARE_BATCH_SIZE = 20
     }
 }
 

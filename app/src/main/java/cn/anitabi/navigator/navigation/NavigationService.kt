@@ -1996,7 +1996,7 @@ internal suspend fun completeNavigationCleanup(
 }
 
 internal fun navigationFailureMessage(throwable: Throwable): String = when (throwable) {
-    is ApiException.QuotaExhausted -> "路线额度已用尽，暂时无法开始；不会继续产生费用"
+    is ApiException.QuotaExhausted -> "本月共享路线额度已用尽，暂时无法开始；不会继续产生费用"
     is ApiException.RateLimited -> "请求过于频繁，请稍后再试"
     is ApiException.Unauthenticated -> "匿名连接失败，请检查网络后重试"
     is ApiException.InvalidArgument -> "路线请求参数无效，请返回重新生成路线"

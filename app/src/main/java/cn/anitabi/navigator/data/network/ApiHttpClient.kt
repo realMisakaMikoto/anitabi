@@ -125,7 +125,7 @@ sealed class ApiException(message: String, cause: Throwable? = null) : Exception
     class Unauthenticated(cause: Throwable? = null) : ApiException("Authentication failed", cause)
     class InvalidArgument : ApiException("The request is invalid")
     class NoRoute : ApiException("No route is available")
-    class QuotaExhausted : ApiException("The routing quota is exhausted")
+    class QuotaExhausted : ApiException("The shared monthly routing quota is exhausted")
     class UpstreamUnavailable : ApiException("The routing provider is unavailable")
     class BackendUnavailable : ApiException("The routing backend is unavailable")
 

@@ -307,7 +307,6 @@ data class BackendTransitDetails(
 @Serializable
 data class BackendNavigationReservation(
     val reservedDestinations: Int,
-    val remainingToday: Int,
 )
 
 @Serializable

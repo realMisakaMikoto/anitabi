@@ -194,8 +194,8 @@ class BackendApiTest {
                 """{"distanceMeters":1000,"durationSeconds":600,"legs":[]}""",
             ),
         )
-        server.enqueue(MockResponse().setBody("""{"reservedDestinations":1,"remainingToday":19}"""))
-        server.enqueue(MockResponse().setBody("""{"reservedDestinations":1,"remainingToday":18}"""))
+        server.enqueue(MockResponse().setBody("""{"reservedDestinations":1}"""))
+        server.enqueue(MockResponse().setBody("""{"reservedDestinations":1}"""))
 
         api.route(
             mode = TravelMode.WALK,
@@ -308,7 +308,7 @@ class BackendApiTest {
     @Test
     fun `navigation reservation accepts the maximum batch`() = runBlocking {
         server.enqueue(
-            MockResponse().setBody("""{"reservedDestinations":25,"remainingToday":5}"""),
+            MockResponse().setBody("""{"reservedDestinations":25}"""),
         )
 
         val reservation = api.reserveNavigation(25)
@@ -316,5 +316,16 @@ class BackendApiTest {
         assertEquals(25, reservation.reservedDestinations)
         assertTrue(server.takeRequest().body.readUtf8().contains("\"destinationCount\":25"))
         assertEquals(BackendApi.BASE_URL, "https://api.anitabi.afunnypersonlol0.site")
+    }
+
+    @Test
+    fun `navigation reservation ignores legacy daily quota metadata`() = runBlocking {
+        server.enqueue(
+            MockResponse().setBody("""{"reservedDestinations":1,"remainingToday":19}"""),
+        )
+
+        val reservation = api.reserveNavigation(1)
+
+        assertEquals(1, reservation.reservedDestinations)
     }
 }

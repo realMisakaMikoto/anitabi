@@ -35,7 +35,6 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     trustProxy: true,
   });
   const requestStartedAt = new WeakMap<FastifyRequest, number>();
-  const authenticatedUid = new WeakMap<FastifyRequest, string>();
   const requestErrorCode = new WeakMap<FastifyRequest, string>();
 
   app.addHook("onRequest", async (request) => {
@@ -57,11 +56,10 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     }
     const token = authorization.slice("Bearer ".length);
     if (token.length === 0 || token.length > 8_192) throw new ApiError("UNAUTHENTICATED");
-    const uid = await dependencies.auth.verify(token);
-    if (!dependencies.rateLimiter.consume(uid, request.ip)) {
+    await dependencies.auth.verify(token);
+    if (!dependencies.rateLimiter.consume(request.ip)) {
       throw new ApiError("RATE_LIMITED", { retryAfterSeconds: 1 });
     }
-    authenticatedUid.set(request, uid);
   });
 
   app.get("/v1/health", async (_request, reply) => {
@@ -77,9 +75,8 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     "/v1/matrix",
     { schema: { body: matrixBodySchema } },
     async (request) => {
-      const uid = requireUid(authenticatedUid, request);
       const elementCount = request.body.coordinates.length ** 2;
-      dependencies.quota.reserve({ bucket: "matrix", units: elementCount, uid });
+      dependencies.quota.reserve({ bucket: "matrix", units: elementCount });
       return dependencies.routes.matrix(request.body);
     },
   );
@@ -88,12 +85,11 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     "/v1/route",
     { schema: { body: routeBodySchema } },
     async (request) => {
-      const uid = requireUid(authenticatedUid, request);
       if (request.body.mode === "TRANSIT" && request.body.locations.length !== 2) {
         throw new ApiError("INVALID_ARGUMENT");
       }
       validateTransitTimeWindow(request.body, dependencies.nowMillis?.() ?? Date.now());
-      dependencies.quota.reserve({ bucket: "route", units: 1, uid });
+      dependencies.quota.reserve({ bucket: "route", units: 1 });
       return dependencies.routes.route(request.body);
     },
   );
@@ -102,15 +98,14 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
     "/v1/navigation/reserve",
     { schema: { body: navigationReservationBodySchema } },
     async (request) => {
-      const uid = requireUid(authenticatedUid, request);
-      const reservation = dependencies.quota.reserve({
+      dependencies.quota.reserve({
         bucket: "navigation",
         units: request.body.destinationCount,
-        uid,
       });
       return {
         reservedDestinations: request.body.destinationCount,
-        remainingToday: reservation.dailyRemaining,
+        // Public v0.2.3 clients require this legacy field while deserializing.
+        remainingToday: LEGACY_UNBOUNDED_REMAINING_TODAY,
       };
     },
   );
@@ -145,6 +140,7 @@ export function buildApp(dependencies: AppDependencies): FastifyInstance {
 }
 
 const DAY_MILLIS = 24 * 60 * 60 * 1_000;
+const LEGACY_UNBOUNDED_REMAINING_TODAY = 2_147_483_647;
 
 function validateTransitTimeWindow(request: RouteRequest, nowMillis: number): void {
   if (request.mode !== "TRANSIT") return;
@@ -170,12 +166,6 @@ function normalizeError(error: unknown): ApiError {
     return new ApiError("INVALID_ARGUMENT", { cause: error });
   }
   return new ApiError("BACKEND_UNAVAILABLE", { cause: error });
-}
-
-function requireUid(map: WeakMap<FastifyRequest, string>, request: FastifyRequest): string {
-  const uid = map.get(request);
-  if (uid === undefined) throw new ApiError("UNAUTHENTICATED");
-  return uid;
 }
 
 function isJsonContentType(value: string | undefined): boolean {

@@ -6,8 +6,6 @@ type Bucket = {
 };
 
 export type TokenBucketOptions = Readonly<{
-  uidCapacity: number;
-  uidRefillPerSecond: number;
   ipCapacity: number;
   ipRefillPerSecond: number;
   ipHmacKey: Uint8Array;
@@ -15,7 +13,6 @@ export type TokenBucketOptions = Readonly<{
 }>;
 
 export class TokenBucketLimiter {
-  private readonly uidBuckets = new Map<string, Bucket>();
   private readonly ipBuckets = new Map<string, Bucket>();
   private readonly now: () => number;
 
@@ -26,30 +23,16 @@ export class TokenBucketLimiter {
     this.now = options.now ?? Date.now;
   }
 
-  consume(uid: string, rawIp: string): boolean {
+  consume(rawIp: string): boolean {
     const now = this.now();
     const ipKey = createHmac("sha256", this.options.ipHmacKey).update(rawIp).digest("hex");
-    const uidAllowed = this.take(
-      this.uidBuckets,
-      uid,
-      this.options.uidCapacity,
-      this.options.uidRefillPerSecond,
-      now,
-    );
-    if (!uidAllowed) return false;
-
-    const ipAllowed = this.take(
+    return this.take(
       this.ipBuckets,
       ipKey,
       this.options.ipCapacity,
       this.options.ipRefillPerSecond,
       now,
     );
-    if (!ipAllowed) {
-      this.refund(this.uidBuckets, uid, this.options.uidCapacity);
-      return false;
-    }
-    return true;
   }
 
   private take(
@@ -68,10 +51,5 @@ export class TokenBucketLimiter {
     }
     buckets.set(key, { tokens: tokens - 1, updatedAtMillis: now });
     return true;
-  }
-
-  private refund(buckets: Map<string, Bucket>, key: string, capacity: number): void {
-    const bucket = buckets.get(key);
-    if (bucket !== undefined) bucket.tokens = Math.min(capacity, bucket.tokens + 1);
   }
 }

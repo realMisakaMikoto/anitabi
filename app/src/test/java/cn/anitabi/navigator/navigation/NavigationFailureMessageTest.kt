@@ -16,9 +16,9 @@ import org.junit.Test
 
 class NavigationFailureMessageTest {
     @Test
-    fun `quota error is localized and explains that billing has stopped`() {
+    fun `shared monthly quota error is localized and explains that billing has stopped`() {
         assertEquals(
-            "路线额度已用尽，暂时无法开始；不会继续产生费用",
+            "本月共享路线额度已用尽，暂时无法开始；不会继续产生费用",
             navigationFailureMessage(ApiException.QuotaExhausted()),
         )
     }

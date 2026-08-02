@@ -7,34 +7,56 @@ import { Worker } from "node:worker_threads";
 import Database from "better-sqlite3";
 import { SqliteQuotaLedger } from "../src/quota/ledger.js";
 
-test("quota ledger enforces daily and monthly boundaries and UTC period changes", () => {
+test("quota ledger ignores legacy UID rows and enforces only shared UTC monthly limits", () => {
   const fixture = createFixture();
   try {
     const now = new Date("2026-07-31T23:59:59Z");
-    const first = fixture.ledger.reserve({ bucket: "navigation", units: 20, uid: "uid-a", now });
-    assert.equal(first.dailyRemaining, 0);
+    const legacy = new Database(fixture.path);
+    const insertLegacy = legacy.prepare(`
+      INSERT INTO quota_usage(dimension, bucket, subject, period, used)
+      VALUES ('uid', ?, 'legacy-uid', '2026-07-31', ?)
+    `);
+    insertLegacy.run("matrix", 2_000);
+    insertLegacy.run("route", 200);
+    insertLegacy.run("navigation", 20);
+    legacy.close();
+
+    assert.equal(
+      fixture.ledger.reserve({ bucket: "matrix", units: 2_001, now }).monthlyRemaining,
+      6_999,
+    );
+    assert.equal(
+      fixture.ledger.reserve({ bucket: "route", units: 201, now }).monthlyRemaining,
+      8_799,
+    );
+    assert.equal(
+      fixture.ledger.reserve({ bucket: "navigation", units: 21, now }).monthlyRemaining,
+      879,
+    );
+
+    fixture.ledger.reserve({ bucket: "route", units: 8_799, now });
     assert.throws(
-      () => fixture.ledger.reserve({ bucket: "navigation", units: 1, uid: "uid-a", now }),
+      () => fixture.ledger.reserve({ bucket: "route", units: 1, now }),
       hasCode("QUOTA_EXHAUSTED"),
     );
     assert.doesNotThrow(() =>
       fixture.ledger.reserve({
-        bucket: "navigation",
-        units: 20,
-        uid: "uid-a",
+        bucket: "route",
+        units: 1,
         now: new Date("2026-08-01T00:00:00Z"),
       }),
     );
 
-    for (let uidIndex = 0; uidIndex < 9; uidIndex += 1) {
-      for (let requestIndex = 0; requestIndex < 10; requestIndex += 1) {
-        fixture.ledger.reserve({ bucket: "matrix", units: 100, uid: `uid-${uidIndex}`, now });
-      }
-    }
-    assert.throws(
-      () => fixture.ledger.reserve({ bucket: "matrix", units: 1, uid: "last-uid", now }),
-      hasCode("QUOTA_EXHAUSTED"),
-    );
+    const audit = new Database(fixture.path, { readonly: true });
+    const legacyRows = audit
+      .prepare("SELECT bucket, used FROM quota_usage WHERE dimension = 'uid' ORDER BY bucket")
+      .all();
+    audit.close();
+    assert.deepEqual(legacyRows, [
+      { bucket: "matrix", used: 2_000 },
+      { bucket: "navigation", used: 20 },
+      { bucket: "route", used: 200 },
+    ]);
   } finally {
     fixture.close();
   }
@@ -46,7 +68,7 @@ test("quota ledger fails closed when billing is disabled", () => {
     fixture.ledger.setBillingEnabled(false);
     assert.deepEqual(fixture.ledger.health(), { healthy: true, billingEnabled: false });
     assert.throws(
-      () => fixture.ledger.reserve({ bucket: "route", units: 1, uid: "uid-a" }),
+      () => fixture.ledger.reserve({ bucket: "route", units: 1 }),
       hasCode("BACKEND_UNAVAILABLE"),
     );
   } finally {
@@ -64,7 +86,6 @@ test("independent concurrent SQLite connections never exceed the monthly matrix 
         path: databasePath,
         attempts: 10,
         units: 100,
-        uid: `worker-${index}`,
         now: "2026-07-30T00:00:00Z",
       }),
     );

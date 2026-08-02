@@ -1,6 +1,6 @@
 # 巡礼手帳 v0.2.3
 
-v0.2.3 为日本公共交通新增独立的外部 Google 地图分段执行策略，同时保留日本以外地区原有的 Google Routes 应用内公交和全部道路模式。版本号为 `versionName=0.2.3`、`versionCode=9`；Room schema 仍为 2，后端协议和 VPS 不变。
+v0.2.3 为日本公共交通新增独立的外部 Google 地图分段执行策略，同时保留日本以外地区原有的 Google Routes 应用内公交和全部道路模式。同版本更新移除了按匿名用户计算的日额度与突发限制，并把道路导航生产批次恢复为 Google Navigation SDK 的 25 目的地技术上限。版本号仍为 `versionName=0.2.3`、`versionCode=9`；Room schema 仍为 2，后端公开请求与响应结构保持兼容。
 
 ## 日本公交分流
 
@@ -42,6 +42,7 @@ Google 官方 FAQ 明确说明 Routes 的公交数据不包含日本 Transit 合
 
 - 支持 Android 8.0（API 26）及以上版本。
 - 从 v0.2.2 更新时请直接覆盖安装，不要卸载或清除应用数据。
+- 已安装较早 v0.2.3 资产时，也请下载当前 Release APK 直接覆盖安装；版本号不变，请以 Release 当前提供的校验文件为准。
 - Room schema 仍为 2，不执行数据库迁移；现有作品、点位、顺序、设置和导航进度继续保留。
 - 地图、道路导航和非日本路线仍需要联网及设备上可用的 Google Play 服务。日本公交交接需要 Google 地图应用或能够处理同一 HTTPS 链接的应用。
 
@@ -49,7 +50,9 @@ Google 官方 FAQ 明确说明 Routes 的公交数据不包含日本 Transit 合
 
 - 全日本公交的地区分类、排序和占位分段完全在本机完成，不调用项目 VPS、`/v1/matrix`、`/v1/route` 或 Google Routes，因此不消耗项目 Routes 配额。
 - 只有用户主动打开某一段时，应用才把该段精确起终点和公交模式交给 Google 地图或 HTTPS 处理应用；应用不读取外部路线、班次或导航状态。
-- 非日本公交与道路路线继续使用现有项目 API、Firebase 匿名鉴权和 Google 服务；个人每日额度、共享月度额度、网络状态与费用熔断仍可能限制刷新，已保存行程与进度不会因此删除。
+- 非日本公交与道路路线继续使用现有项目 API、Firebase 匿名鉴权和 Google 服务；Firebase 匿名身份只验证访问资格，不再用于每日额度或突发限速。
+- 项目只保留共享月度额度：Matrix 9,000 个元素、Route 9,000 次、Navigation 900 个目的地。道路导航按 Navigation SDK 的技术上限每批最多预留 25 个目的地。
+- 服务继续使用基于 HMAC-IP 的防滥用限速，原始 IP 不进入日志或配额账本。共享月度额度、网络状态、费用熔断或防滥用限速仍可能限制刷新，已保存行程与进度不会因此删除。
 - Google 路线、折线、步骤、ETA 和公交详情仍只保存在当前进程内存。Analytics 与 Crashlytics 继续默认关闭，可分别选择加入和撤回。
 
 完整边界见 [隐私说明](https://github.com/realMisakaMikoto/junrei_navi/blob/main/PRIVACY.md)。
