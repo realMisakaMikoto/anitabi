@@ -63,7 +63,9 @@ class TourRepository(
         if (
             !stored.matches(expectedPlan, expectedProgress) ||
             resolvedRoutes[updatedPlan.id]?.let { it != expectedPlan } == true ||
-            resolvedProgress[updatedPlan.id]?.let { it != expectedProgress } == true
+            resolvedProgress[updatedPlan.id]?.let {
+                !it.matchesAfterStartNormalization(expectedProgress, stored.startPointId)
+            } == true
         ) {
             return@writeAtomically false
         }
@@ -132,7 +134,9 @@ class TourRepository(
         if (
             stored.matches(basePlan, updatedProgress) &&
             latestPlan?.let { it != basePlan } != true &&
-            latestProgress?.let { it != updatedProgress } != true
+            latestProgress?.let {
+                !it.matchesAfterStartNormalization(updatedProgress, stored.startPointId)
+            } != true
         ) {
             if (keepResolved) {
                 publishResolved(basePlan, updatedProgress)
@@ -148,7 +152,7 @@ class TourRepository(
             ?.progress
         if (
             latestPlan != null && latestPlan != basePlan &&
-            latestProgress == expectedProgress &&
+            latestProgress?.matchesAfterStartNormalization(expectedProgress, stored.startPointId) == true &&
             stored.matches(latestPlan, expectedProgress) &&
             priorityProgress != null
         ) {
@@ -164,7 +168,10 @@ class TourRepository(
         if (!stored.matches(basePlan, expectedProgress)) {
             throw ConcurrentTourUpdateException()
         }
-        if (latestProgress != null && latestProgress != expectedProgress) {
+        if (
+            latestProgress != null &&
+            !latestProgress.matchesAfterStartNormalization(expectedProgress, stored.startPointId)
+        ) {
             throw ConcurrentTourUpdateException()
         }
         if (latestPlan != null && latestPlan != basePlan) {
@@ -284,6 +291,17 @@ class TourRepository(
             activeLegIndex = restoredProgress.legIndex,
             executionStrategy = strategy,
         )
+        return normalized == expected
+    }
+
+    private fun NavigationProgress.matchesAfterStartNormalization(
+        expected: NavigationProgress,
+        deterministicStartPointId: String?,
+    ): Boolean {
+        val normalized = deterministicStartPointId
+            ?.takeIf { it in expected.completedPointIds }
+            ?.let { copy(completedPointIds = completedPointIds + it) }
+            ?: this
         return normalized == expected
     }
 

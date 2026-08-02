@@ -1610,6 +1610,10 @@ class NavigationService : Service(), LocationListener, TextToSpeech.OnInitListen
                                     progress,
                                 )
                             }
+                        }.onSuccess {
+                            if (expectedGeneration == navigationGeneration) {
+                                ActiveNavigationStore.clear(this@NavigationService, currentPlan.id)
+                            }
                         }
                     }
                 },
