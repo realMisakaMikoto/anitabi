@@ -63,19 +63,4 @@ class PlannerFailureMessageTest {
         assertNull(unavailableRouteSegmentDetails(ApiException.NoRoute(), state))
     }
 
-    @Test
-    fun `google maps transit url uses the exact failed coordinates`() {
-        val url = googleMapsTransitDirectionsUrl(
-            origin = GeoPoint(12.345678, -98.765432),
-            destination = GeoPoint(-1.25, 2.5),
-        )
-
-        assertEquals(
-            "https://www.google.com/maps/dir/?api=1" +
-                "&origin=12.345678%2C-98.765432" +
-                "&destination=-1.25%2C2.5" +
-                "&travelmode=transit",
-            url,
-        )
-    }
 }

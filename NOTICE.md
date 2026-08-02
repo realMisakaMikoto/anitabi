@@ -7,6 +7,7 @@
 - 匿名鉴权与可选遥测：[Firebase Authentication、Analytics 与 Crashlytics](https://firebase.google.com/)。Analytics 和 Crashlytics 在本应用中默认关闭，分别取得用户同意后启用。
 - 动漫元数据：[Bangumi API](https://bangumi.github.io/api/)。
 - 巡礼点与截图：[Anitabi API](https://github.com/anitabi/anitabi.cn-document/blob/main/api.md)，仅用于非商业用途；数据采用 CC BY-NC-SA 4.0。应用保留截图的 `origin` 与 `originURL`，只缓存用户实际访问的数据。
+- 日本国界判定：[Natural Earth](https://www.naturalearthdata.com/) 1:10m Admin-0 Countries v5.1.1。应用随包携带从该固定版本提取的日本 MultiPolygon；Natural Earth 地图数据属于公共领域，具体来源与校验值见资产目录内的 `NOTICE.txt`。
 - 服务端运行时与依赖：Node.js、Fastify、SQLite 及其依赖分别遵守各自开源许可证。
 
 v0.2.1 不再使用 MapLibre、OpenFreeMap、OpenMapTiles、openrouteservice 或 Transitous。相关 v0.2.0 文档与发布记录仅作为历史证据保留，不代表当前版本仍加载或请求这些服务。

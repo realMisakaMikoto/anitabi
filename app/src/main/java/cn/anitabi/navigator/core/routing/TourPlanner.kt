@@ -8,10 +8,12 @@ import cn.anitabi.navigator.core.model.PilgrimagePoint
 import cn.anitabi.navigator.core.model.RouteObjective
 import cn.anitabi.navigator.core.model.TourLeg
 import cn.anitabi.navigator.core.model.TourPlan
+import cn.anitabi.navigator.core.model.TransitExecutionStrategy
 import cn.anitabi.navigator.core.model.TransitRoutingPreference
 import cn.anitabi.navigator.core.model.TransitTimeMode
 import cn.anitabi.navigator.core.model.TransitTravelMode
 import cn.anitabi.navigator.core.model.TravelMode
+import cn.anitabi.navigator.core.region.JapanRegion
 import cn.anitabi.navigator.data.network.ApiException
 import java.time.Duration
 import java.time.OffsetDateTime
@@ -26,7 +28,11 @@ class TourPlanner(
     private val roadProvider: RoadRoutingProvider,
     private val transitProvider: TransitJourneyProvider,
     private val optimizer: TourOptimizer = TourOptimizer(),
+    private val classifyRegion: (GeoPoint) -> JapanRegion = { JapanRegion.NON_JAPAN },
 ) {
+    fun transitExecutionStrategy(points: List<PilgrimagePoint>): TransitExecutionStrategy =
+        classifyTransitExecutionStrategy(points, classifyRegion)
+
     suspend fun planRoad(request: RoadPlanRequest): TourPlan {
         require(request.mode != TravelMode.TRANSIT) { "Road planner requires drive, bike or walk mode" }
         require(request.selectedPoints.size >= 2) { "Select at least 2 pilgrimage points" }
@@ -81,6 +87,10 @@ class TourPlanner(
     ): TourPlan {
         require(request.selectedPoints.size >= 2) { "Select at least 2 pilgrimage points" }
         require(request.dwellMinutes >= 0) { "Dwell time cannot be negative" }
+        val executionStrategy = transitExecutionStrategy(request.selectedPoints)
+        if (executionStrategy == TransitExecutionStrategy.EXTERNAL_GOOGLE_MAPS_JAPAN) {
+            return planExternalJapanTransit(request)
+        }
         val startPoint = request.startPointId?.let { id ->
             request.selectedPoints.singleOrNull { it.id == id }
                 ?: throw IllegalArgumentException("Start point must be selected")
@@ -96,7 +106,7 @@ class TourPlanner(
             start = request.start,
             orderedStops = orderedStops,
             timeMode = request.timeMode,
-            anchorTime = request.anchorTime,
+            anchorTime = requireNotNull(request.anchorTime) { "In-app transit requires an anchor time" },
             routingPreference = request.routingPreference,
             transitTravelModes = request.transitTravelModes,
             dwellMinutes = request.dwellMinutes,
@@ -129,6 +139,7 @@ class TourPlanner(
             dwellMinutes = request.dwellMinutes,
             initialStart = request.start,
             state = NavigationState.PLANNED,
+            executionStrategy = executionStrategy,
         )
     }
 
@@ -138,6 +149,9 @@ class TourPlanner(
         completedPointIds: Set<String>,
         currentTime: String,
     ): TourPlan {
+        if (plan.executionStrategy == TransitExecutionStrategy.EXTERNAL_GOOGLE_MAPS_JAPAN) {
+            return replanExternalJapanTransit(plan, currentLocation, completedPointIds)
+        }
         val remaining = plan.orderedPoints.filterNot { it.id in completedPointIds }
         val originalStart = plan.initialStart ?: plan.legs.firstOrNull()?.from ?: currentLocation
         if (remaining.isEmpty()) {
@@ -246,6 +260,20 @@ class TourPlanner(
         ) {
             "Manual order must contain every selected point exactly once"
         }
+        if (plan.executionStrategy == TransitExecutionStrategy.EXTERNAL_GOOGLE_MAPS_JAPAN) {
+            val start = plan.initialStart ?: orderedPoints.first().coordinate
+            return plan.copy(
+                orderedPoints = orderedPoints,
+                legs = externalJapanLegs(start, orderedPoints, plan.endPolicy),
+                estimatedDurationSeconds = 0.0,
+                departureTime = null,
+                arrivalTime = null,
+                transitTimeMode = TransitTimeMode.NOW,
+                transitAnchorTime = null,
+                transitRoutingPreference = TransitRoutingPreference.RECOMMENDED,
+                transitTravelModes = emptySet(),
+            )
+        }
         val start = plan.initialStart ?: plan.legs.firstOrNull()?.from ?: orderedPoints.first().coordinate
         val visits = if (orderedPoints.firstOrNull()?.coordinate == start) orderedPoints.drop(1) else orderedPoints
         var transitItinerary: BuiltTransitItinerary? = null
@@ -284,6 +312,67 @@ class TourPlanner(
             ) ?: legs.sumOf(TourLeg::durationSeconds),
             departureTime = transitItinerary?.departureTime ?: plan.departureTime,
             arrivalTime = transitItinerary?.arrivalTime ?: plan.arrivalTime,
+        )
+    }
+
+    internal suspend fun rebuildActiveFutureSuffix(
+        plan: TourPlan,
+        start: GeoPoint,
+        orderedFuturePoints: List<PilgrimagePoint>,
+        transitAnchorTime: String,
+        reusableRoadLegs: List<TourLeg>,
+    ): ActiveFutureSuffix {
+        val originalStart = plan.initialStart ?: start
+        if (plan.executionStrategy == TransitExecutionStrategy.EXTERNAL_GOOGLE_MAPS_JAPAN) {
+            val legs = externalJapanLegs(
+                start = start,
+                orderedPoints = orderedFuturePoints,
+                endPolicy = plan.endPolicy,
+                returnDestination = originalStart,
+            )
+            return ActiveFutureSuffix(legs = legs, estimatedDurationSeconds = 0.0)
+        }
+        if (plan.mode == TravelMode.TRANSIT) {
+            val itinerary = buildTransitItinerary(
+                start = start,
+                orderedStops = orderedFuturePoints,
+                timeMode = TransitTimeMode.NOW,
+                anchorTime = transitAnchorTime,
+                routingPreference = plan.transitRoutingPreference,
+                transitTravelModes = plan.transitTravelModes,
+                dwellMinutes = plan.dwellMinutes,
+                returnToStart = plan.endPolicy == EndPolicy.RETURN_TO_START,
+                returnDestination = originalStart,
+            )
+            return ActiveFutureSuffix(
+                legs = itinerary.legs,
+                estimatedDurationSeconds = itinerary.estimatedDurationSeconds(
+                    finalDwellMinutes = if (plan.endPolicy == EndPolicy.RETURN_TO_START) {
+                        0
+                    } else {
+                        plan.dwellMinutes
+                    },
+                ),
+                arrivalTime = itinerary.arrivalTime,
+            )
+        }
+
+        val coordinates = listOf(start) + orderedFuturePoints.map(PilgrimagePoint::coordinate) +
+            if (plan.endPolicy == EndPolicy.RETURN_TO_START) listOf(originalStart) else emptyList()
+        val destinationPointIds = orderedFuturePoints.map(PilgrimagePoint::id) +
+            if (plan.endPolicy == EndPolicy.RETURN_TO_START) listOf(null) else emptyList()
+        val legs = if (coordinates.size < 2) {
+            emptyList()
+        } else {
+            refreshChangedRoadLegs(
+                plan = plan.copy(legs = reusableRoadLegs),
+                coordinates = coordinates,
+                destinationPointIds = destinationPointIds,
+            )
+        }
+        return ActiveFutureSuffix(
+            legs = legs,
+            estimatedDurationSeconds = legs.sumOf(TourLeg::durationSeconds),
         )
     }
 
@@ -552,21 +641,27 @@ class TourPlanner(
         coordinates: List<GeoPoint>,
         destinationPointIds: List<String?>,
     ): List<TourLeg> {
-        if (plan.legs.size != coordinates.size - 1 || plan.legs.any { it.mode != plan.mode }) {
-            return roadDirections(plan.mode, coordinates).toTourLegs(
-                points = coordinates,
-                mode = plan.mode,
-                destinationPointIds = destinationPointIds,
-            )
+        val legCount = coordinates.size - 1
+        val usedLegIndexes = mutableSetOf<Int>()
+        val refreshed = MutableList<TourLeg?>(legCount) { index ->
+            val reusableIndex = plan.legs.indices.firstOrNull { candidateIndex ->
+                candidateIndex !in usedLegIndexes && plan.legs[candidateIndex].let { candidate ->
+                    candidate.mode == plan.mode &&
+                        candidate.from == coordinates[index] &&
+                        candidate.to == coordinates[index + 1] &&
+                        candidate.destinationPointId == destinationPointIds.getOrNull(index)
+                }
+            }
+            if (reusableIndex == null) {
+                null
+            } else {
+                usedLegIndexes += reusableIndex
+                plan.legs[reusableIndex]
+            }
         }
-        val changedIndexes = plan.legs.indices.filter { index ->
-            plan.legs[index].from != coordinates[index] ||
-                plan.legs[index].to != coordinates[index + 1] ||
-                plan.legs[index].destinationPointId != destinationPointIds.getOrNull(index)
-        }
-        if (changedIndexes.isEmpty()) return plan.legs
+        val changedIndexes = refreshed.indices.filter { refreshed[it] == null }
+        if (changedIndexes.isEmpty()) return refreshed.map { requireNotNull(it) }
 
-        val refreshed = plan.legs.toMutableList()
         changedLegRanges(changedIndexes).forEach { range ->
             val requestPoints = coordinates.slice(range.first..range.last + 1)
             val segments = roadProvider.directions(plan.mode, requestPoints).segments
@@ -586,7 +681,7 @@ class TourPlanner(
                 )
             }
         }
-        return refreshed
+        return refreshed.map { requireNotNull(it) }
     }
 
     private fun changedLegRanges(changedIndexes: List<Int>): List<IntRange> {
@@ -626,6 +721,101 @@ class TourPlanner(
             )
         }
 
+    private fun planExternalJapanTransit(request: TransitPlanRequest): TourPlan {
+        val selectedStart = request.startPointId?.let { id ->
+            request.selectedPoints.singleOrNull { it.id == id }
+                ?: throw IllegalArgumentException("Start point must be selected")
+        }
+        val orderedPoints = if (selectedStart == null) {
+            optimizer.approximateGlobalOrder(
+                start = request.start,
+                points = request.selectedPoints,
+                endPolicy = request.endPolicy,
+                fixedEndPointId = request.fixedEndPointId,
+            )
+        } else {
+            val remaining = request.selectedPoints.filterNot { it.id == selectedStart.id }
+            listOf(selectedStart) + optimizer.approximateGlobalOrder(
+                start = selectedStart.coordinate,
+                points = remaining,
+                endPolicy = request.endPolicy,
+                fixedEndPointId = request.fixedEndPointId,
+            )
+        }
+        return TourPlan(
+            id = UUID.randomUUID().toString(),
+            anime = request.anime,
+            selectedPoints = request.selectedPoints,
+            orderedPoints = orderedPoints,
+            legs = externalJapanLegs(request.start, orderedPoints, request.endPolicy),
+            mode = TravelMode.TRANSIT,
+            objective = RouteObjective.FASTEST,
+            endPolicy = request.endPolicy,
+            estimatedDurationSeconds = 0.0,
+            attribution = listOf(EXTERNAL_GOOGLE_MAPS_SOURCE),
+            transitTimeMode = TransitTimeMode.NOW,
+            transitRoutingPreference = TransitRoutingPreference.RECOMMENDED,
+            transitTravelModes = emptySet(),
+            dwellMinutes = request.dwellMinutes,
+            initialStart = request.start,
+            state = NavigationState.PLANNED,
+            executionStrategy = TransitExecutionStrategy.EXTERNAL_GOOGLE_MAPS_JAPAN,
+        )
+    }
+
+    private fun replanExternalJapanTransit(
+        plan: TourPlan,
+        currentLocation: GeoPoint,
+        completedPointIds: Set<String>,
+    ): TourPlan {
+        val remaining = plan.orderedPoints.filterNot { it.id in completedPointIds }
+        val originalStart = plan.initialStart ?: currentLocation
+        val legs = externalJapanLegs(
+            start = currentLocation,
+            orderedPoints = remaining,
+            endPolicy = plan.endPolicy,
+            returnDestination = originalStart,
+        )
+        return plan.copy(
+            orderedPoints = remaining,
+            legs = legs,
+            estimatedDurationSeconds = 0.0,
+            departureTime = null,
+            arrivalTime = null,
+            transitTimeMode = TransitTimeMode.NOW,
+            transitAnchorTime = null,
+            transitRoutingPreference = TransitRoutingPreference.RECOMMENDED,
+            transitTravelModes = emptySet(),
+            initialStart = originalStart,
+        )
+    }
+
+    private fun externalJapanLegs(
+        start: GeoPoint,
+        orderedPoints: List<PilgrimagePoint>,
+        endPolicy: EndPolicy,
+        returnDestination: GeoPoint = start,
+    ): List<TourLeg> {
+        val destinations = orderedPoints.map(PilgrimagePoint::coordinate) +
+            if (endPolicy == EndPolicy.RETURN_TO_START) listOf(returnDestination) else emptyList()
+        val destinationIds = orderedPoints.map(PilgrimagePoint::id) +
+            if (endPolicy == EndPolicy.RETURN_TO_START) listOf(null) else emptyList()
+        var origin = start
+        return destinations.mapIndexed { index, destination ->
+            TourLeg(
+                from = origin,
+                to = destination,
+                mode = TravelMode.TRANSIT,
+                geometry = emptyList(),
+                steps = emptyList(),
+                distanceMeters = TourOptimizer.haversineMeters(origin, destination),
+                durationSeconds = 0.0,
+                source = EXTERNAL_GOOGLE_MAPS_SOURCE,
+                destinationPointId = destinationIds[index],
+            ).also { origin = destination }
+        }
+    }
+
 }
 
 private val transitDepartureTimeFormatter = DateTimeFormatterBuilder()
@@ -658,7 +848,7 @@ data class TransitPlanRequest(
     val endPolicy: EndPolicy,
     val fixedEndPointId: String? = null,
     val timeMode: TransitTimeMode,
-    val anchorTime: String,
+    val anchorTime: String? = null,
     val routingPreference: TransitRoutingPreference = TransitRoutingPreference.RECOMMENDED,
     val transitTravelModes: Set<TransitTravelMode> = emptySet(),
     val dwellMinutes: Int = 15,
@@ -676,6 +866,12 @@ private data class BuiltTransitItinerary(
         ).seconds.coerceAtLeast(0).toDouble() + finalDwellMinutes * 60.0
 }
 
+internal data class ActiveFutureSuffix(
+    val legs: List<TourLeg>,
+    val estimatedDurationSeconds: Double,
+    val arrivalTime: String? = null,
+)
+
 class TransitSegmentUnavailableException(
     val segmentNumber: Int,
     val segmentCount: Int,
@@ -685,3 +881,23 @@ class TransitSegmentUnavailableException(
 ) : Exception("Transit segment $segmentNumber of $segmentCount has no transit or walking route", cause)
 
 class TransitRideUnavailableException : Exception("Transit itinerary contains no transit ride")
+
+const val MIXED_TRANSIT_REGION_MESSAGE = "不支持此操作，请去除日本或日本以外的点。"
+const val REGION_DATA_ERROR_MESSAGE = "地区数据无法读取，请重新安装应用后重试"
+const val EXTERNAL_GOOGLE_MAPS_SOURCE = "Google Maps"
+
+class MixedTransitRegionException : IllegalArgumentException(MIXED_TRANSIT_REGION_MESSAGE)
+
+fun classifyTransitExecutionStrategy(
+    points: List<PilgrimagePoint>,
+    classifyRegion: (GeoPoint) -> JapanRegion,
+): TransitExecutionStrategy {
+    require(points.isNotEmpty()) { "Select at least one pilgrimage point" }
+    val regions = points.mapTo(mutableSetOf()) { classifyRegion(it.coordinate) }
+    if (regions.size > 1) throw MixedTransitRegionException()
+    return if (regions.single() == JapanRegion.JAPAN) {
+        TransitExecutionStrategy.EXTERNAL_GOOGLE_MAPS_JAPAN
+    } else {
+        TransitExecutionStrategy.IN_APP_GOOGLE_ROUTES
+    }
+}

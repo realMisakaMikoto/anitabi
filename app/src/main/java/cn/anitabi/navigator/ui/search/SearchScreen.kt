@@ -108,7 +108,9 @@ fun SearchRoute(
     val navigationPlanId = navigationState.plan?.id
     val hasRecoverableNavigation = navigationPlanId != null &&
         navigationState.errorMessage != null &&
-        navigationState.progress?.state?.let { state -> state != NavigationState.COMPLETED } == true
+        navigationState.progress?.state?.let { progressState ->
+            progressState !in setOf(NavigationState.COMPLETED, NavigationState.ENDED)
+        } == true
     val showNavigation = state.navigationOpen ||
         ((navigationState.isRunning || hasRecoverableNavigation) &&
             navigationPlanId != state.hiddenNavigationTourId)
@@ -126,7 +128,11 @@ fun SearchRoute(
     )
 
     if (showNavigation) {
-        NavigationRoute(viewModel = navigationViewModel, onBack = viewModel::closeNavigation)
+        NavigationRoute(
+            viewModel = navigationViewModel,
+            availablePoints = state.combinedPilgrimageData?.points.orEmpty(),
+            onBack = viewModel::closeNavigation,
+        )
     } else if (state.aboutOpen) {
         AboutScreen(
             onBack = viewModel::closeAbout,

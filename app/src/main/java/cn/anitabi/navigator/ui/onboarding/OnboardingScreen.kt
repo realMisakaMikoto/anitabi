@@ -110,7 +110,7 @@ fun OnboardingRoute(
     ) {
         permissionAttempted = true
         refreshPermissions()
-        if (hasLocationPermission && hasNotificationPermission) currentStep = SERVICE_STEP
+        if (hasLocationPermission) currentStep = SERVICE_STEP
     }
 
     DisposableEffect(lifecycleOwner) {
@@ -190,7 +190,7 @@ fun OnboardingRoute(
             }
             OnboardingActionBar(
                 currentStep = currentStep,
-                permissionsReady = hasLocationPermission && hasNotificationPermission,
+                permissionsReady = hasLocationPermission,
                 onClick = when (currentStep) {
                     WELCOME_STEP -> ({ currentStep = PERMISSION_STEP })
                     PERMISSION_STEP -> requestPermissions
@@ -310,7 +310,7 @@ private fun PermissionStep(
     permissionAttempted: Boolean,
     onOpenSettings: () -> Unit,
 ) {
-    val permissionsReady = hasLocationPermission && hasNotificationPermission
+    val permissionsReady = hasLocationPermission
     Text("允许导航所需权限", style = MaterialTheme.typography.headlineMedium, color = Ink)
     Text(
         "系统会依次显示权限弹窗。巡礼手帳只会在对应功能需要时使用这些权限。",
@@ -339,7 +339,7 @@ private fun PermissionStep(
                 icon = Icons.Rounded.NotificationsActive,
                 title = "通知",
                 description = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    "锁屏或切到后台时继续显示导航"
+                    "可选；锁屏或切到后台时继续显示导航"
                 } else {
                     "此 Android 版本无需单独授权"
                 },
@@ -494,7 +494,7 @@ private fun OnboardingActionBar(
                 Text(
                     when (currentStep) {
                         WELCOME_STEP -> "开始设置"
-                        PERMISSION_STEP -> if (permissionsReady) "权限已就绪，继续" else "授权定位与通知"
+                        PERMISSION_STEP -> if (permissionsReady) "定位已就绪，继续" else "授权定位与通知"
                         else -> "确认并进入地图"
                     },
                 )

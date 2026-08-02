@@ -1,0 +1,17 @@
+Natural Earth data notice
+
+Dataset: Natural Earth 1:10m Admin-0 Countries
+Version: 5.1.1
+Source file: geojson/ne_10m_admin_0_countries.geojson
+Source URL: https://raw.githubusercontent.com/nvkelso/natural-earth-vector/v5.1.1/geojson/ne_10m_admin_0_countries.geojson
+Source SHA-256: 239eec57ac17f100a11e2536cffc56752c318b50ae765b0918ff7aab4ce8f255
+
+Packaged derivative: ne_10m_admin_0_countries_japan_v5.1.1.geojson
+Derivative SHA-256: f1cab5b0a94ef1873f9ee349652a80801ad9fc8c829e3c79970cf6752278cd8c
+The derivative contains the unchanged Japan feature geometry selected by
+ADM0_A3=JPN. Non-geometry properties were reduced to name, source, and version.
+
+Natural Earth terms state that all Natural Earth raster and vector map data
+published on its website are in the public domain and may be modified and
+redistributed without permission. Terms:
+https://www.naturalearthdata.com/about/terms-of-use/

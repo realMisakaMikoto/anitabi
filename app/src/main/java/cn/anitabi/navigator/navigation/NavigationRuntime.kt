@@ -14,6 +14,7 @@ data class NavigationRuntimeState(
     val currentLocation: GeoPoint? = null,
     val instruction: String = "准备开始巡礼",
     val remainingDistanceMeters: Double = 0.0,
+    val currentTargetDistanceMeters: Double? = null,
     val isRunning: Boolean = false,
     val isRerouting: Boolean = false,
     val errorMessage: String? = null,

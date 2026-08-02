@@ -8,14 +8,14 @@ import org.junit.Test
 
 class OnboardingReadinessTest {
     @Test
-    fun `cannot finish until required permissions are ready`() {
+    fun `location is required while notification can be deferred`() {
         assertFalse(
             OnboardingReadiness(
                 hasLocationPermission = false,
                 hasNotificationPermission = true,
             ).canFinish,
         )
-        assertFalse(
+        assertTrue(
             OnboardingReadiness(
                 hasLocationPermission = true,
                 hasNotificationPermission = false,
@@ -30,9 +30,9 @@ class OnboardingReadinessTest {
     }
 
     @Test
-    fun `permission error names every missing permission`() {
+    fun `permission error only blocks missing location`() {
         assertEquals(
-            "还需要定位和通知权限，请授权后继续",
+            "还需要定位权限，请授权后继续",
             onboardingPermissionError(
                 hasLocationPermission = false,
                 hasNotificationPermission = false,
@@ -45,8 +45,7 @@ class OnboardingReadinessTest {
                 hasNotificationPermission = true,
             ),
         )
-        assertEquals(
-            "还需要通知权限，请授权后继续",
+        assertNull(
             onboardingPermissionError(
                 hasLocationPermission = true,
                 hasNotificationPermission = false,

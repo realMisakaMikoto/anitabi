@@ -1,5 +1,7 @@
 package cn.anitabi.navigator.ui.navigation
 
+import android.content.Intent
+import android.provider.Settings
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -34,6 +36,7 @@ import androidx.compose.material.icons.rounded.Flag
 import androidx.compose.material.icons.rounded.MyLocation
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -41,10 +44,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
@@ -53,13 +58,17 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cn.anitabi.navigator.core.model.NavigationState
+import cn.anitabi.navigator.core.model.PilgrimagePoint
 import cn.anitabi.navigator.core.model.TourLeg
 import cn.anitabi.navigator.core.model.TourPlan
+import cn.anitabi.navigator.core.model.TransitExecutionStrategy
 import cn.anitabi.navigator.core.model.TravelMode
 import cn.anitabi.navigator.navigation.NavigationRuntimeState
 import cn.anitabi.navigator.navigation.NavigationViewModel
+import cn.anitabi.navigator.navigation.ActiveTourEditUiState
 import cn.anitabi.navigator.ui.map.NavigationMapView
 import cn.anitabi.navigator.ui.planner.RoutePreviewMap
 import cn.anitabi.navigator.ui.theme.Ink
@@ -71,8 +80,13 @@ import cn.anitabi.navigator.ui.theme.Vermilion
 private val WideNavigationBreakpoint = 840.dp
 
 @Composable
-fun NavigationRoute(viewModel: NavigationViewModel, onBack: (String?) -> Unit) {
+fun NavigationRoute(
+    viewModel: NavigationViewModel,
+    availablePoints: List<PilgrimagePoint>,
+    onBack: (String?) -> Unit,
+) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val editState by viewModel.editState.collectAsStateWithLifecycle()
     val plan = state.plan
     BackHandler { onBack(plan?.id) }
 
@@ -93,7 +107,10 @@ fun NavigationRoute(viewModel: NavigationViewModel, onBack: (String?) -> Unit) {
             )
             BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
                 val useSidePanel = maxWidth >= WideNavigationBreakpoint || maxWidth > maxHeight
-                val hasTransitJourney = plan.mode == TravelMode.TRANSIT && plan.legs.isNotEmpty()
+                val externalJapan =
+                    plan.executionStrategy == TransitExecutionStrategy.EXTERNAL_GOOGLE_MAPS_JAPAN
+                val hasTransitJourney =
+                    plan.mode == TravelMode.TRANSIT && plan.legs.isNotEmpty() && !externalJapan
                 val compactPanelHeight = minOf(maxHeight * 0.5f, 360.dp)
 
                 if (useSidePanel) {
@@ -108,10 +125,15 @@ fun NavigationRoute(viewModel: NavigationViewModel, onBack: (String?) -> Unit) {
                             state = state,
                             onStop = {
                                 viewModel.stop()
-                                onBack(plan.id)
+                                if (!externalJapan) onBack(plan.id)
                             },
                             onArrived = viewModel::markArrived,
                             onRefreshTransit = viewModel::refreshTransit,
+                            onOpenExternalLeg = viewModel::openCurrentExternalLeg,
+                            onStartNextExternalLeg = viewModel::startNextExternalLeg,
+                            onPauseExternal = viewModel::pauseExternal,
+                            onResumeExternal = viewModel::resumeExternal,
+                            onEditFuture = { viewModel.openFutureEditor(availablePoints) },
                             modifier = Modifier
                                 .fillMaxHeight()
                                 .widthIn(min = 360.dp, max = 440.dp),
@@ -131,10 +153,15 @@ fun NavigationRoute(viewModel: NavigationViewModel, onBack: (String?) -> Unit) {
                             state = state,
                             onStop = {
                                 viewModel.stop()
-                                onBack(plan.id)
+                                if (!externalJapan) onBack(plan.id)
                             },
                             onArrived = viewModel::markArrived,
                             onRefreshTransit = viewModel::refreshTransit,
+                            onOpenExternalLeg = viewModel::openCurrentExternalLeg,
+                            onStartNextExternalLeg = viewModel::startNextExternalLeg,
+                            onPauseExternal = viewModel::pauseExternal,
+                            onResumeExternal = viewModel::resumeExternal,
+                            onEditFuture = { viewModel.openFutureEditor(availablePoints) },
                             modifier = if (hasTransitJourney) {
                                 Modifier
                                     .fillMaxWidth()
@@ -149,6 +176,16 @@ fun NavigationRoute(viewModel: NavigationViewModel, onBack: (String?) -> Unit) {
                 }
             }
         }
+    }
+    if (editState.isOpen) {
+        ActiveFutureEditorDialog(
+            state = editState,
+            onDismiss = viewModel::closeFutureEditor,
+            onAdd = viewModel::addFuturePoint,
+            onRemove = viewModel::removeFuturePoint,
+            onMove = viewModel::moveFuturePoint,
+            onSave = viewModel::saveFuturePoints,
+        )
     }
 }
 
@@ -275,6 +312,11 @@ internal fun NavigationDetailPanel(
     onStop: () -> Unit,
     onArrived: () -> Unit,
     onRefreshTransit: () -> Unit,
+    onOpenExternalLeg: () -> Unit,
+    onStartNextExternalLeg: () -> Unit,
+    onPauseExternal: () -> Unit,
+    onResumeExternal: () -> Unit,
+    onEditFuture: () -> Unit,
     modifier: Modifier = Modifier,
     transitDetailsScrollable: Boolean,
     fillAvailableHeight: Boolean,
@@ -334,10 +376,37 @@ internal fun NavigationDetailPanel(
                 )
             }
 
+            if (
+                state.progress?.state?.let { progressState ->
+                    progressState !in setOf(
+                        NavigationState.PLANNED,
+                        NavigationState.COMPLETED,
+                        NavigationState.ENDED,
+                    ) && plan.legs.indices
+                        .drop(state.progress.legIndex.coerceAtLeast(0))
+                        .any { plan.legs[it].destinationPointId != null }
+                } == true
+            ) {
+                OutlinedButton(
+                    onClick = onEditFuture,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 18.dp, vertical = 8.dp)
+                        .heightIn(min = 48.dp),
+                    shape = RoundedCornerShape(12.dp),
+                ) {
+                    Text("编辑后续点")
+                }
+            }
             NavigationActions(
+                plan = plan,
                 state = state,
                 onStop = onStop,
                 onArrived = onArrived,
+                onOpenExternalLeg = onOpenExternalLeg,
+                onStartNextExternalLeg = onStartNextExternalLeg,
+                onPauseExternal = onPauseExternal,
+                onResumeExternal = onResumeExternal,
             )
         }
     }
@@ -373,7 +442,13 @@ private fun NavigationSummary(
                     modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
                 )
                 Text(
-                    text = "剩余约 ${formatDistance(state.remainingDistanceMeters)}  ·  " +
+                    text = (if (
+                        plan.executionStrategy == TransitExecutionStrategy.EXTERNAL_GOOGLE_MAPS_JAPAN
+                    ) {
+                        "直线距离 ${state.currentTargetDistanceMeters?.let(::formatDistance) ?: "等待定位"}"
+                    } else {
+                        "剩余约 ${formatDistance(state.remainingDistanceMeters)}"
+                    }) + "  ·  " +
                         "第 ${(state.progress?.legIndex ?: 0) + 1}/${plan.legs.size.coerceAtLeast(1)} 段",
                     color = MutedInk,
                     style = MaterialTheme.typography.bodyMedium,
@@ -384,6 +459,7 @@ private fun NavigationSummary(
         Text(
             text = when {
                 state.progress?.state == NavigationState.COMPLETED -> "全部巡礼点已完成"
+                state.progress?.state == NavigationState.ENDED -> "本次巡礼已结束，顺序和进度已保留"
                 targetName != null -> "当前目标：$targetName"
                 plan.mode == TravelMode.TRANSIT -> "当前目标：完成本换乘段"
                 else -> "当前目标：返回起点"
@@ -394,7 +470,10 @@ private fun NavigationSummary(
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(top = 8.dp),
         )
-        if (state.isRerouting) {
+        if (
+            state.isRerouting &&
+            plan.executionStrategy != TransitExecutionStrategy.EXTERNAL_GOOGLE_MAPS_JAPAN
+        ) {
             Text(
                 "检测到持续偏航，正在重算剩余路线…",
                 color = Vermilion,
@@ -416,7 +495,12 @@ private fun NavigationSummary(
             )
         }
         Text(
-            text = (if (plan.mode == TravelMode.TRANSIT) "Google Routes" else "Google Navigation") +
+            text = (when {
+                plan.executionStrategy == TransitExecutionStrategy.EXTERNAL_GOOGLE_MAPS_JAPAN ->
+                    "Google Maps 外部分段公交"
+                plan.mode == TravelMode.TRANSIT -> "Google Routes"
+                else -> "Google Navigation"
+            }) +
                 plan.legs.firstOrNull()?.source?.let { "  ·  $it" }.orEmpty(),
             color = MutedInk,
             style = MaterialTheme.typography.labelSmall,
@@ -538,10 +622,18 @@ private fun TransitStop(
 
 @Composable
 private fun NavigationActions(
+    plan: TourPlan,
     state: NavigationRuntimeState,
     onStop: () -> Unit,
     onArrived: () -> Unit,
+    onOpenExternalLeg: () -> Unit,
+    onStartNextExternalLeg: () -> Unit,
+    onPauseExternal: () -> Unit,
+    onResumeExternal: () -> Unit,
 ) {
+    val externalJapan = plan.executionStrategy == TransitExecutionStrategy.EXTERNAL_GOOGLE_MAPS_JAPAN
+    val progress = state.progress
+    val context = LocalContext.current
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -549,6 +641,86 @@ private fun NavigationActions(
             .navigationBarsPadding(),
     ) {
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        if (externalJapan && progress != null) {
+            val terminal = progress.state in setOf(NavigationState.COMPLETED, NavigationState.ENDED)
+            if (progress.isPaused && state.errorMessage?.contains("悬浮窗或可见的导航通知") == true) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    OutlinedButton(
+                        onClick = {
+                            context.startActivity(
+                                Intent(
+                                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                    "package:${context.packageName}".toUri(),
+                                ),
+                            )
+                        },
+                        modifier = Modifier.weight(1f),
+                    ) { Text("悬浮窗设置") }
+                    OutlinedButton(
+                        onClick = {
+                            context.startActivity(
+                                Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                                    .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName),
+                            )
+                        },
+                        modifier = Modifier.weight(1f),
+                    ) { Text("通知设置") }
+                }
+            }
+            if (!terminal && !progress.isPaused) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    when (progress.state) {
+                        NavigationState.NEXT_STOP -> Button(
+                            onClick = onStartNextExternalLeg,
+                            modifier = Modifier.weight(1f).heightIn(min = 50.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Vermilion),
+                        ) { Text("开始下一段") }
+                        NavigationState.NAVIGATING,
+                        NavigationState.ARRIVING,
+                        NavigationState.PLANNED,
+                        -> Button(
+                            onClick = onOpenExternalLeg,
+                            modifier = Modifier.weight(1f).heightIn(min = 50.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Vermilion),
+                        ) { Text("打开本段") }
+                        else -> Unit
+                    }
+                    if (
+                        state.isRunning &&
+                        progress.state in setOf(NavigationState.NAVIGATING, NavigationState.ARRIVING)
+                    ) {
+                        OutlinedButton(
+                            onClick = onArrived,
+                            modifier = Modifier.weight(1f).heightIn(min = 50.dp),
+                        ) { Text("确认到达") }
+                    }
+                }
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                val needsResume = externalTransitNeedsResume(state.isRunning, progress.isPaused)
+                if (!terminal) {
+                    OutlinedButton(
+                        onClick = if (needsResume) onResumeExternal else onPauseExternal,
+                        modifier = Modifier.weight(1f).heightIn(min = 50.dp),
+                    ) { Text(if (needsResume) "恢复行程" else "暂停行程") }
+                }
+                OutlinedButton(
+                    onClick = onStop,
+                    enabled = !terminal,
+                    modifier = Modifier.weight(1f).heightIn(min = 50.dp),
+                ) { Text("结束行程") }
+            }
+            return@Column
+        }
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 12.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -572,6 +744,111 @@ private fun NavigationActions(
             }
         }
     }
+}
+
+internal fun externalTransitNeedsResume(isRunning: Boolean, isPaused: Boolean): Boolean =
+    isPaused || !isRunning
+
+@Composable
+private fun ActiveFutureEditorDialog(
+    state: ActiveTourEditUiState,
+    onDismiss: () -> Unit,
+    onAdd: (String) -> Unit,
+    onRemove: (String) -> Unit,
+    onMove: (Int, Int) -> Unit,
+    onSave: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = { if (!state.isSaving) onDismiss() },
+        title = { Text("编辑后续巡礼点") },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 480.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(
+                    "已完成点和当前目标已锁定；这里只会重建当前目标之后的分段。",
+                    color = MutedInk,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                state.errorMessage?.let { message ->
+                    Text(
+                        message,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Assertive },
+                    )
+                }
+                Text("后续顺序", fontWeight = FontWeight.SemiBold)
+                if (state.futurePoints.isEmpty()) {
+                    Text("没有后续巡礼点", color = MutedInk)
+                }
+                state.futurePoints.forEachIndexed { index, point ->
+                    val fixedEnd = point.id == state.fixedEndPointId
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Text(
+                            "${index + 1}. ${point.name}${if (fixedEnd) "（固定终点）" else ""}",
+                            modifier = Modifier.weight(1f),
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        TextButton(
+                            onClick = { onMove(index, -1) },
+                            enabled = index > 0 && !fixedEnd && !state.isSaving,
+                        ) {
+                            Text("上移")
+                        }
+                        TextButton(
+                            onClick = { onMove(index, 1) },
+                            enabled = index < state.futurePoints.lastIndex &&
+                                state.futurePoints[index + 1].id != state.fixedEndPointId &&
+                                !state.isSaving,
+                        ) { Text("下移") }
+                        TextButton(
+                            onClick = { onRemove(point.id) },
+                            enabled = !fixedEnd && !state.isSaving,
+                        ) {
+                            Text("删除")
+                        }
+                    }
+                }
+                if (state.addablePoints.isNotEmpty()) {
+                    HorizontalDivider()
+                    Text("可插入点", fontWeight = FontWeight.SemiBold)
+                    state.addablePoints.forEach { point ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                point.name,
+                                modifier = Modifier.weight(1f),
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            TextButton(onClick = { onAdd(point.id) }, enabled = !state.isSaving) {
+                                Text("插入")
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onSave, enabled = !state.isSaving) {
+                Text(if (state.isSaving) "保存中…" else "保存")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, enabled = !state.isSaving) { Text("取消") }
+        },
+    )
 }
 
 @Composable
@@ -640,6 +917,7 @@ private fun NavigationState.displayName(): String = when (this) {
     NavigationState.DWELLING -> "停留中"
     NavigationState.NEXT_STOP -> "下一站"
     NavigationState.COMPLETED -> "已完成"
+    NavigationState.ENDED -> "已结束"
 }
 
 private fun formatDistance(meters: Double): String =

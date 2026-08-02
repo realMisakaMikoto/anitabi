@@ -1,6 +1,6 @@
 # 项目执行上下文（压缩版）
 
-> 最后核对：2026-08-01。每个新任务开始前必须完整读取本文件；每个任务结束后必须更新当前状态、验证结果、剩余问题，并在“最近任务”追加一条简短真实记录。
+> 最后核对：2026-08-02。每个新任务开始前必须完整读取本文件；每个任务结束后必须更新当前状态、验证结果、剩余问题，并在“最近任务”追加一条简短真实记录。
 
 ## 维护方式
 
@@ -38,7 +38,7 @@
 
 - 规范仓库：`realMisakaMikoto/junrei_navi`。
 - 本地 `origin` 仍配置为旧地址 `https://github.com/realMisakaMikoto/anitabi.git`，目前由 GitHub 重定向；远程 API 和新链接应使用规范仓库。
-- 当前本地分支为 `main`。功能提交 `0423bd06e67694e28f15c378a948a9bcd9d4ff28` 经 [PR #11](https://github.com/realMisakaMikoto/junrei_navi/pull/11) rebase 合并；发布源码提交为 `308d4c2afcc9681335e9b60d68cbb2891b025442`。
+- 当前实施分支为 `codex/v0.2.3-japan-transit`，无上游；任务起点 `HEAD` 为 `8d999c5e4c102b2a43e663653ea18306af1b193c`，当时与本地 `main` 及其上游完全一致（ahead/behind 0/0）。v0.2.3 改动尚未提交、暂存或推送。v0.2.2 功能提交 `0423bd06e67694e28f15c378a948a9bcd9d4ff28` 经 [PR #11](https://github.com/realMisakaMikoto/junrei_navi/pull/11) rebase 合并；发布源码提交为 `308d4c2afcc9681335e9b60d68cbb2891b025442`。
 - 稳定标签 `v0.2.2` 指向上述发布源码提交；非草稿、非预发布的 [v0.2.2 Release](https://github.com/realMisakaMikoto/junrei_navi/releases/tag/v0.2.2) 已发布并成为 Latest Release。完整证据在 `docs/releases/v0.2.2.md`。
 - 功能分支 `codex/transit-no-route` 仍保留在远端；不要将其误当作当前发布分支。压缩前完整日志锚点仍为 `c92a92195d903ecb89ae563a509699f32e5737ef`。
 - `main` 已通过快进合并纳入相对原基线 `cbc29fa7acc3dd2e589d5849d2f6e66be53b9ea1` 的 6 个提交：
@@ -49,7 +49,7 @@
   - `e1b71e5`：压缩项目执行记录。
   - `c0e1e5c`：增加报错解决记录硬性约束。
 - 这些提交已合并进 `main`；`v0.2.1` 标签未移动，也未重写历史。
-- 当前唯一允许保留的未跟踪路径是用户的 `.codex-remote-attachments/`；不要暂存或清理。
+- 当前与任务无关且必须原样保留的未跟踪路径是用户的 `.codex-remote-attachments/`；不要读取、暂存或清理。其余未跟踪文件均为本次 v0.2.3 的源码、测试、固定地区资产和发布文档，提交时只能按本任务范围选择。
 - 2026-08-01 经用户在当前任务明确授权进行一次只读盘点：该路径是普通未跟踪目录，包含 2 个 JPEG 用户附件，共 124,294 字节，无链接、源码、APK、密钥或构建产物；未修改、删除或暂存。附件内容不写入项目记录，后续任务仍恢复默认禁止读取。
 
 ### 稳定 Release 的特殊边界
@@ -70,12 +70,12 @@
 
 - 用户可见名称：`巡礼手帳`。
 - 包名/namespace：`cn.anitabi.navigator`。
-- 当前稳定版本：`versionName=0.2.2`、`versionCode=8`；`minSdk=26`、`compileSdk=37`、`targetSdk=37`；Java 17。
+- 当前源码版本：`versionName=0.2.3`、`versionCode=9`；当前公开稳定版仍为 v0.2.2。`minSdk=26`、`compileSdk=37`、`targetSdk=37`；Java 17。
 - 主要工具链：Gradle 9.6.1、AGP 9.3.0、Kotlin 2.4.10、KSP 2.3.10、Compose BOM 2026.06.01。
 - Google Navigation SDK 7.8.0 负责地图、定位及驾车/步行/骑行道路导航；项目不得同时接入 Maps SDK for Android。
 - Google Routes 由自建 VPS 后端调用，Android 不包含服务账号。Firebase Anonymous Auth 只用于后端鉴权和配额归属。
 - 旧 MapLibre/OpenFreeMap、ORS、Transitous 仅属于 v0.2.0 历史；当前没有这些 Provider、Key UI 或回退路径。
-- Anitabi 数据只从 `https://api.anitabi.cn` 获取，图片只允许 HTTPS `image.anitabi.cn`；主站不得作为 API。保持人类访问频率和技术 User-Agent `AnitabiNavigator/0.2.2`。
+- Anitabi 数据只从 `https://api.anitabi.cn` 获取，图片只允许 HTTPS `image.anitabi.cn`；主站不得作为 API。保持人类访问频率，技术 User-Agent 随 `BuildConfig.VERSION_NAME`，当前为 `AnitabiNavigator/0.2.3`。
 - Bangumi 搜索使用官方 `https://api.bgm.tv/v0/search/subjects`。
 - 无 GMS、断网或后端故障时，只显示已保存点位、顺序、设置和进度；没有备用地图或路线服务。
 
@@ -103,7 +103,7 @@
 
 - Consumer Google Maps 能显示当地公交，不代表 Routes API 会返回相同数据。
 - Google 官方说明明确排除日本 Transit partners 与印度 IRCTC；当前 API 路径也无法提供本应用所需的中国大陆公交数据。
-- 稳定产品明确不支持中国大陆、日本和印度的应用内公交；短期不计划接入第三方公交 Provider。印度限制来自 Google API，不是项目主动屏蔽。
+- v0.2.3 当前源码仍不为日本提供 Routes 应用内公交，而是把全日本点行程切换为纯本地排序和用户主动的外部 Google 地图单段公交交接；中国大陆、印度及其他非日本地区仍只能以 Google Routes 实际返回结果为准，不接入第三方公交 Provider。印度限制来自 Google API，不是项目主动屏蔽。
 - 旧的“公交全部验收通过”结论已撤销；不要重新引用。其他地区也只能在 Google Routes 实际返回公交路线时使用。
 
 ### 2026-08-01 公交 `NO_ROUTE` 定向诊断（修复范围待确认）
@@ -142,6 +142,31 @@
 - 发布监控曾因 GitHub API `unexpected EOF` 退出，重新查询同一 run 后确认远端仍在运行，再恢复监控直至成功。公开资产复核后的递归及逐文件临时清理均被工具安全策略拒绝；没有绕过策略，Windows 临时目录 `%LOCALAPPDATA%\Temp\anitabi-v0.2.2-4ea7a5bb2ddb4e0eab20721ff81cc3f1` 暂留一份公开 APK 和校验文件，约 49 MB，不含秘密或用户数据。后续只能在再次确认该绝对目录后安全删除。
 - 用户的 `.codex-remote-attachments/` 仍未读取、修改、删除或暂存。
 
+### 2026-08-01—2026-08-02 v0.2.3 日本公共交通分段导航实施
+
+- Android 已提升为 `versionName=0.2.3` / `versionCode=9`。新增非空 `TransitExecutionStrategy`，日本公交使用 `EXTERNAL_GOOGLE_MAPS_JAPAN`，全部非日本点继续使用 `IN_APP_GOOGLE_ROUTES`；道路模式、VPS、后端公开协议、SSH、GitHub 工作流、Anitabi 点位模型和 Room schema 2 均未修改。
+- 地区判定只读取用户选择点坐标。APK 固定携带 Natural Earth 1:10m Admin-0 Countries v5.1.1 的日本 MultiPolygon 派生资产，支持外接框、孔洞和边界点；缺失、损坏、类型/版本错误一律停止规划。官方源 SHA-256 为 `239eec57ac17f100a11e2536cffc56752c318b50ae765b0918ff7aab4ce8f255`，派生/入包资产为 159,056 字节、SHA-256 `f1cab5b0a94ef1873f9ee349652a80801ad9fc8c829e3c79970cf6752278cd8c`；日本 feature geometry 保持不变，来源与公共领域条款见资产 `NOTICE.txt`。
+- 全日本公交复用本地 `approximateGlobalOrder`，保留手动顺序、固定/开放终点和返回起点，只生成端点、目标 ID、球面直线距离的占位段；100 点测试对 road matrix/directions 和 transit provider 均为 0 调用。日本与非日本混合会在定位和任何后端调用前抛出明确错误“**不支持此操作，请去除日本或日本以外的点。**”；日本设置/预览不显示时间、少步行/少换乘、交通工具筛选、ETA 或线路详情。
+- 单段交接由统一 `GoogleMapsTransitLauncher` 使用 `Uri.Builder` 生成只含 `api=1`、`origin`、`destination`、`travelmode=transit` 的 HTTPS URL；优先 `com.google.android.apps.maps`，再用同一 URL 回退通用处理器，两者失败保留当前段并重试。未导出的 `TransitHandoffActivity` 必须先让服务持久化当前段，用户可见且 Activity 处于 resumed 状态时才打开地图；服务不会后台自动打开首段或下一段。
+- 日本执行使用独立状态机：精度不差于 50 米、80 米内连续 15 秒进入 `ARRIVING`，超过 120 米重置；只提示不自动完成，人工提前确认有二次确认；确认后停留，停留结束保持 `NEXT_STOP`，最后一站进入 `COMPLETED`，主动结束进入 `ENDED`。暂停停止定位并冻结停留；所有进度推进先以 repository CAS 持久化，保存失败回滚内存状态，活跃编辑与服务进度竞争不会互相覆盖。
+- `TourRepository` 的读写现在线性化：等待写锁时仍可取消，一旦取得锁，本地 Room/JSON/缓存发布在 `NonCancellable` 临界区完成；DAO 即使在提交后抛错也会清空相关缓存，后续读取以持久状态为准。服务运行态以单调版本戳记进度，进度与未来点编辑竞争时进度优先，编辑会回滚到原计划并保留最新进度；STOP、终态和失败清理都只在持久化成功后清除活动入口。
+- 活跃编辑的 service reload 具有明确确认语义：新 reload 会使旧请求返回 `SUPERSEDED`；10 秒只表示 UI 等待 `TIMED_OUT`，两者都不会假报保存成功或关闭草稿。reload 失败后以持久化计划判断未来点编辑是否仍存在，允许进度合法推进；只有活动 ID、计划、进度和旧运行态均精确匹配时才允许安全停服。
+- 首段要求 30 秒内、精度不差于 100 米的精确定位。`location` 前台服务提供通知和可拖动、不可聚焦的 `TYPE_APPLICATION_OVERLAY`；任何需要提升 location FGS 的交接/确认/恢复动作都在 `startForeground` 前检查精确定位并处理权限竞态，暂停和结束不依赖该提升。两种控制入口都不可见时不打开地图并暂停/停止服务。通知、悬浮窗和应用按钮只通过用户操作进入交接 Activity；结束有二次确认。`TransitHandoffActivity`、`NavigationService` 和重启接收器均未导出。
+- 暂停、结束以及进度进入 `COMPLETED` / `ENDED` 时，在同步状态校验通过后、任何 Room 持久化之前立即移除悬浮窗；异步保存失败只在同一 generation/plan/engine 仍有效时回滚，并按恢复状态与当前权限重新渲染，避免慢 I/O 期间旧按钮仍可点击或错误复活。
+- `StoredTourV2` 的策略、活动段号和暂停字段均可空/有默认值；旧 v0.2.2 记录按已保存坐标重分类，不迁移数据库。进程死亡或旧版无 `ActiveNavigationStore` 时可从最近活跃记录恢复当前目标、段号、完成点、停留和暂停状态，绝不自动打开地图。BOOT 接收器只为可恢复的日本外部公交发布控制通知；道路和应用内公交候选保持原指针且不被接收器接管，数据库/分类异常也不清除指针。活跃编辑锁定已完成点、当前点和固定终点，只允许未来点插删重排，保存前重分类并只重建未来段。
+- 实现前查阅当时最新的 Google 官方 [Maps Platform FAQ](https://developers.google.com/maps/faq#transit_directions_countries)、[Maps URLs](https://developers.google.com/maps/documentation/urls/get-started)、[Android Maps intents](https://developer.android.com/guide/components/google-maps-intents)、[location FGS](https://developer.android.com/develop/background-work/services/fgs/service-types#location)、[后台 Activity 限制](https://developer.android.com/guide/components/activities/background-starts)、[后台启动 FGS 限制](https://developer.android.com/develop/background-work/services/fgs/restrictions-bg-start)、[FGS 类型与 specialUse](https://developer.android.com/develop/background-work/services/fgs/service-types)、[Android 15 行为变更](https://developer.android.com/about/versions/15/behavior-changes-15) 和 [通知权限](https://developer.android.com/develop/ui/views/notifications/notification-permission)。据此确认日本 Transit partners 不在 Routes 覆盖内、Maps URL 的受支持参数和 `api=1` 要求、while-in-use 定位/后台启动限制，以及 Android 13+ 通知可见性；实现没有添加 API Key、途经点、时间、`dir_action` 或后台 Activity 启动。重启时仅悬浮窗授权不足以安全创建 location FGS/Activity；新增 `specialUse` 服务还会扩大 manifest 与 Play 审核范围，因此未越过本任务要求的既有 location FGS 边界。
+- 最终本地自动证据：源码收口后强制重跑、最终断言扩展后再次全量执行，43 个 JVM 套件 / 225 个测试，0 失败、0 错误、0 跳过；Debug/Release Lint 均为 `No issues found`；Debug、AndroidTest APK 和 Debug/Release/AndroidTest Kotlin 编译通过；后端类型检查、构建、29/29 测试及生产依赖审计通过，0 漏洞；新的 Release R8 输出和 Navigation 反射审计通过；Debug APK/源码凭据审计通过，入包 Natural Earth 资产哈希匹配。Debug APK 为 `cn.anitabi.navigator` / `0.2.3 (9)`，78,581,900 字节，SHA-256 `702c2b8314a9792b8936ef70bed895ac59936a79287ec8f3e35fb4256b2518bc`；AndroidTest APK 为 1,170,750 字节，SHA-256 `44c38b01b6d84edd7204797955b74bc2465518da5564baed0d22e6068642d71b`。
+- 诚实边界：当前唯一连接设备是用户个人真机，未获本任务安装/运行授权，因此只构建 instrumentation APK，没有运行设备测试。Google 地图真实交接、通知/频道、悬浮窗撤权、真实定位、连续五段和重启仍待真机验收。设备重启且通知可见时接收器只发布恢复通知；若仅有悬浮窗权限而通知不可见，Android 后台限制下不能自动创建可见入口，用户必须手动打开应用恢复。
+- 正式签名环境阻塞已解除：工作区外原 keystore 和两份 Windows 当前用户范围 DPAPI 密码文件均完整，未重新生成签名。按既有流程只在单个 Gradle 子进程内恢复并注入四项 `ANITABI_*`，`finally` 清除环境变量；串行 `assembleRelease` 在 7 分 36 秒内成功。本地 Release APK 为 `cn.anitabi.navigator` / `0.2.3 (9)`，49,210,374 字节，SHA-256 `c48fdbbcf4ff90e4c97ea178ed0c7888297a895048b6047b6d791211083b9201`；`apksigner` 验证为 v2、单一 RSA-4096 签名者，证书 SHA-256 `9679c83769368c7150f629d9cba3c0e5d633fa7f1043ce251fdba6c7c64fb00a`，与 v0.2.2 完全一致。APK 内容、tracked-source 凭据和 Navigation R8 审计均通过；该本地产物尚不是公开 Release 资产，也未做真机覆盖安装。
+- 报错闭环（签名恢复与最终构建）：独立 `keytool` 初查先因命令不在 `PATH` 失败；定位到 Gradle 实际使用的 JDK 后，又发现该 JDK 17 不支持预期的 `-storepass:env` 形式，Windows PowerShell 5.1 的 `ProcessStartInfo.ArgumentList` 也不可用，手工标准输入探测因此给出“密码错误”的误导结果。实际根因是诊断调用方式不兼容，不是 keystore 或 DPAPI 密码损坏；改为恢复说明规定的 `ConvertTo-SecureString` + `PSCredential` 流程，并仅把值注入 Gradle 子进程后，`signingReport` 直接确认固定证书。首次强制重建虽生成有效 APK，但运行器未回传末尾摘要；随后把单测/Lint/assemble 组合门禁置于 604 秒工具窗口又被外部超时终止，没有测试或编译诊断。确认无遗留 Java 进程后拆出 `assembleRelease`，提高到 1,200 秒并保持单 worker，最终 7 分 36 秒明确 `BUILD SUCCESSFUL`。首版 `apksigner` 解析器还按旧的 `Signer #1` 字段匹配，面对当前工具的 `V2 Signer` / `Number of signers` 输出产生假阴性；按实际字段修正只读解析后，包名、版本、v2、单签名者、RSA-4096 和固定证书全部通过。
+- 报错闭环（资料与资产）：首选检索链先后遇到 Jina 请求 exit 28 超时、`mcporter` 未显式参数导致元数据加载失败、GitHub Jina 403、完整 zipball 在 124 秒超时并留下 612 MB 不完整下载，以及本机缺少 Python shapefile/`ogr2ogr`。根因分别是外部端点/调用格式、限流、下载范围过大和本机工具缺失；实际改为直接读取 Google/Natural Earth 官方页面、显式 CLI 参数、GitHub 官方 API/raw 单一 GeoJSON，并用标准 JSON 提取后核对官方源哈希、feature 选择和 geometry equality。最终固定资产、NOTICE、分类测试和 APK 内哈希均通过。
+- 报错闭环（并发构建与测试）：并行子任务期间曾出现 Kotlin 引用尚未落盘、AAPT 缺少 `drawable_anitabi_brand_mark.xml.flat`、Kotlin snapshot `dirty-sources.txt` 消失、定向执行器超时和测试报告 XML 被另一任务覆盖；根因是共享工作树尚在修改且多个 Gradle 进程并发争用中间目录，不是最终源码缺陷。等全部修改收敛后统一改为 `--no-parallel --max-workers=1` 串行；三套 Kotlin 编译、定向回归、全量 JVM 测试、两套 Lint、Debug/AndroidTest 构建和 R8 均通过，最终测试总数见本节自动证据。
+- 报错闭环（测试契约）：活跃公交编辑测试最初预期重建两次 provider 调用，但实现正确复用已完成前缀只请求一次；修正错误测试期望并补入停留时间锚点后通过。AndroidTest 契约新增回调时漏了五个调用点，补齐回调后编译通过。交接 Activity 首次强制重跑还受上述并发 AAPT 缺失影响，串行后其 5 个生命周期/幂等测试及最终总门禁通过。
+- 报错闭环（静态与产物审计）：首轮新代码 Lint 为 0 error / 11 warning，根因是 API 守卫识别、等价 KTX 建议、拖动句柄 `performClick` 可访问性契约和一处程序化中文文本；采用精确 API 注解、KTX 等价调用、`ACTION_UP` 可访问性处理和局部 `SetTextI18n` 说明后，Debug/Release 均为 0 问题。首次尝试用 `jar tf` 查 APK 资产因当前 shell 无 `jar` 命令失败；改用只读 .NET ZIP 流计算入包条目哈希，资产大小和 SHA-256 与源码一致。Google Navigation SDK 7.8.0 自带弃用/多语言资源提示仍为非阻断依赖输出，项目 Lint 没有对应问题。
+- 报错闭环（仓储与服务收口）：`TourRepository.commitProgressOnLatestPlan` 首次编译因块体函数缺显式 `return` 失败，补为返回已提交计划后通过；`NavigationService` 一处 nullable `Intent` 直接调用扩展导致编译失败，改为安全调用后通过；新增确定性测试最初把私有 `PostCommitGate` 暴露为构造参数而编译失败，调整测试可见性后通过。该阶段的全量 JVM、三套 Kotlin 编译、双 Lint 和 R8 均成功；最终总数以后续规格审计收口后的 225 个为准。
+- 报错闭环（最终门禁环境）：首轮 `lintDebug` 在 124 秒工具时限处被终止，根因是完整 Lint 超过命令窗口；改为 300 秒以上有界超时并保持单 worker 后通过。一次合并执行 Debug/AndroidTest/Release/R8 的命令在 304 秒工具时限终止且无编译诊断，拆分并把最终组合门禁上限提高到 900 秒后 2 分 49 秒成功。后端只读验证的临时镜像清理两次被工具安全策略在执行前拒绝；只读确认绝对目标位于系统临时目录且 `node_modules` 为 junction 后，改用 PowerShell/.NET 逐项删除并确认临时根不存在，仓库 `backend/` 保持干净。
+- 报错闭环（最终规格审计）：终审发现 BOOT 接收器曾对道路/应用内公交也发布日本外部地图措辞通知，且暂停/结束要等异步 Room 保存后才移除悬浮窗。根因分别是恢复候选只检查状态而未检查执行策略，以及 overlay removal 只放在提交成功/终态渲染回调。实际修复为三态 BOOT 决策（null/终态清 stale、非外部忽略、日本外部恢复），异常保留 pointer；并在外部进度目标为暂停或终态时于 repository 调用前移除 overlay，失败沿既有同代回滚重显。新增策略测试后强制全量 225 个 JVM 测试、双 Lint、Debug/AndroidTest/R8 及三项静态审计均通过；独立并发复核未发现旧 overlay 复活或道路模式回归。
+
 ## 后端与生产环境
 
 - 公共 API：`https://api.anitabi.afunnypersonlol0.site`。
@@ -168,6 +193,8 @@
 
 ## 当前验证基线与诚实边界
 
+- v0.2.3 当前工作树已有报告：225 个 JVM 测试 / 43 个套件，0 失败、0 错误、0 跳过；Debug/Release Lint 0 问题；Debug、AndroidTest APK 和 Debug/Release/AndroidTest Kotlin 编译通过；Release R8 与 Navigation 反射审计通过；后端 29 个测试、类型检查、构建和生产依赖审计通过，0 漏洞。
+- v0.2.3 已有本地正式签名 Release APK：49,210,374 字节、SHA-256 `c48fdbbcf4ff90e4c97ea178ed0c7888297a895048b6047b6d791211083b9201`，包名/版本、v2、单一 RSA-4096 签名者和固定证书均已独立核对；仍无 PR/CI、公开发布或真机证据。唯一连接设备是个人真机，本任务未获安装/运行授权，所以 instrumentation 仅编译未执行。不得把本地候选或旧 v0.2.2 证据冒充 v0.2.3 公开资产/真机结果。
 - v0.2.2 发布源码已有报告：127 个 JVM 测试 / 26 个套件，0 失败、0 错误、0 跳过；Debug/Release Lint 均为 0 个问题，Debug、正式签名 Release 和 AndroidTest APK 构建通过。
 - Navigation R8 反射契约、跟踪源码凭据和 Release APK 内容审计通过；后端 29 个测试、TypeScript 构建和生产依赖审计通过，生产依赖漏洞为 0。
 - v0.2.2 远端门禁：PR `30699060766`、main `30699662842` attempt 2、signed release `30700533745`、精确公开资产兼容 `30700823528` 全部成功。main API 26 attempt 1 的 SystemUI 竞态及处理见“v0.2.2 发布完成”。
@@ -200,6 +227,7 @@
 - RC1–RC6 的 Release 因已知缺陷被删除，tags 保留；RC7 修复地图/R8/道路/公交参数问题。后续公交证据促成更严格的 transit 真实性与错误处理。
 - 稳定 v0.2.1 已发布；随后修复 Navigation Future 取消崩溃、改名为 `巡礼手帳`，并生成/替换同版本 APK。相关提交现已合并进 `main`，但标签源码仍未同步。
 - 稳定 v0.2.2 已发布：完成前端与品牌重设计、地图本地 Key 注入修复、无线路详情及 Google 地图交接；PR、main、签名发布和精确公开 APK 的 API 26/API 37 门禁均通过，后端与路线行为未变。
+- v0.2.3 当前工作树已完整实现日本公交纯本地分流、用户主动的外部 Google 地图分段执行、独立状态机/控制入口、恢复和未来点编辑；本地 JVM/Lint/Debug/AndroidTest/R8/后端门禁及同一固定证书的正式签名候选均已完成，真机、PR/CI 和公开发布仍未完成。
 
 ## 常用权威入口
 
@@ -208,14 +236,14 @@
 - 安全：`SECURITY.md`
 - 构建：`docs/BUILD.md`
 - 后端运维：`backend/README.md`
-- 当前稳定版说明：`docs/RELEASE_NOTES_v0.2.2.md`；v0.2.1 历史说明保持不变。
+- 当前源码说明：`docs/RELEASE_NOTES_v0.2.3.md`；当前公开稳定版说明仍为 `docs/RELEASE_NOTES_v0.2.2.md`，v0.2.1 历史说明保持不变。
 - Release/真机证据：`docs/releases/`、`docs/PHYSICAL_DEVICE_ACCEPTANCE_v0.1.3.md`
 - 压缩前完整实施记录：提交 `c92a92195d903ecb89ae563a509699f32e5737ef` 中的 `AGENT.md`
 
 ## 最近任务（最多 5 条）
 
+- 2026-08-02：确认正式签名并未丢失，恢复工作区外原 keystore 与当前 Windows 用户 DPAPI 的既有单子进程注入流程；v0.2.3 正式签名 Release 构建成功，包名/版本、v2、单一 RSA-4096 和证书 SHA-256 均与 v0.2.2 连续，APK 内容、源码凭据与 R8 审计通过；未安装真机、未提交、未运行 CI 或发布。
+- 2026-08-02：在 `codex/v0.2.3-japan-transit` 完整实施日本公交离线地区分流、Google 地图单段交接、前台服务/悬浮窗/通知、到达停留状态机、恢复与活跃未来点编辑，并收口 repository/service 并发原子性、reload 确认、BOOT 策略隔离及 overlay 立即移除竞态；225 个 JVM 测试、双 Lint、Debug/AndroidTest、R8、后端和静态审计通过，正式签名与真机仍按证据边界未完成。
 - 2026-08-01：提交并发布稳定 v0.2.2；PR #11、main、签名 Release 与精确公开 APK 的 API 26/API 37 门禁全部通过，公开 APK 哈希、包名、版本和固定签名已重新下载核对；记录 API 26 模拟器 SystemUI 竞态，正式签名个人真机覆盖保持未验证。
 - 2026-08-01：为确切的公交/步行无线路分段增加红框内“详细信息”、失败两端名称与经纬度底部面板，以及预填两端并选中公交模式的 Google 地图跳转；未改路线行为，完成 JVM、Lint、Debug/AndroidTest 构建、定向 Compose 真机测试与真实 Google 地图交接验证。
 - 2026-08-01：完成公交首段 `NO_ROUTE` 的真机、生产安全日志和 Google 有界对照诊断，确认 raw 坐标接入点吸附是假阴性根因；因官方方案需要用户选择导航点、独立 Geocoding 配额及新的到达点语义，自动 address-label 试做已完整撤销，路线算法未改，后续仅增加了透明错误详情与外部核对入口。
-- 2026-08-01：截图定位并修复 debug 真机地图空白：本地 Key 未被 Gradle 读取导致 manifest 占位符为空；现仅为 Navigation Key 增加未跟踪 `local.properties` 后备读取，完成单测、Lint、构建、覆盖安装、授权日志和同页地图截图验证；修复已随 v0.2.2 发布。
-- 2026-08-01：真机截图定位并修复路线设置页出行方式内容贴上沿；将最小高度约束从外层卡片移到内部 Row，底栏与其他页面结构不变，新增中心对齐 bounds 回归测试并在 API 36 真机通过，已覆盖安装修复版并保存前后截图。

@@ -46,24 +46,32 @@ enum class TransitTravelMode {
 }
 
 @Serializable
+enum class TransitExecutionStrategy {
+    IN_APP_GOOGLE_ROUTES,
+    EXTERNAL_GOOGLE_MAPS_JAPAN,
+}
+
+@Serializable
 enum class NavigationState {
     PLANNED,
     NAVIGATING,
     ARRIVING,
     DWELLING,
     NEXT_STOP,
-    COMPLETED;
+    COMPLETED,
+    ENDED;
 
     fun canTransitionTo(next: NavigationState): Boolean = next in allowedTransitions.getValue(this)
 
     companion object {
         private val allowedTransitions = mapOf(
-            PLANNED to setOf(NAVIGATING),
-            NAVIGATING to setOf(ARRIVING),
-            ARRIVING to setOf(DWELLING, NEXT_STOP),
-            DWELLING to setOf(NEXT_STOP),
-            NEXT_STOP to setOf(NAVIGATING, COMPLETED),
+            PLANNED to setOf(NAVIGATING, ENDED),
+            NAVIGATING to setOf(ARRIVING, ENDED),
+            ARRIVING to setOf(DWELLING, NEXT_STOP, COMPLETED, ENDED),
+            DWELLING to setOf(NEXT_STOP, COMPLETED, ENDED),
+            NEXT_STOP to setOf(NAVIGATING, COMPLETED, ENDED),
             COMPLETED to emptySet(),
+            ENDED to emptySet(),
         )
     }
 }
@@ -149,6 +157,7 @@ data class TourPlan(
     val dwellMinutes: Int = 15,
     val initialStart: GeoPoint? = null,
     val state: NavigationState = NavigationState.PLANNED,
+    val executionStrategy: TransitExecutionStrategy = TransitExecutionStrategy.IN_APP_GOOGLE_ROUTES,
 )
 
 @Serializable
@@ -161,4 +170,6 @@ data class NavigationProgress(
     val dwellingUntilEpochMillis: Long? = null,
     val offRouteSinceEpochMillis: Long? = null,
     val lastRerouteEpochMillis: Long? = null,
+    val isPaused: Boolean = false,
+    val pausedAtEpochMillis: Long? = null,
 )

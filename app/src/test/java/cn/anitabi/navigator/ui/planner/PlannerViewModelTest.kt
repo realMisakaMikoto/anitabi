@@ -144,6 +144,9 @@ private class RecordingTourPlanDao : TourPlanDao {
 
     override suspend fun get(id: String): TourPlanEntity? = entities[id]
     override suspend fun getMostRecent(): TourPlanEntity? = entities.values.lastOrNull()
+    override suspend fun getIdsMostRecentFirst(): List<String> = entities.values
+        .sortedWith(compareByDescending<TourPlanEntity> { it.updatedAtEpochMillis }.thenByDescending { it.id })
+        .map(TourPlanEntity::id)
     override suspend fun upsert(entity: TourPlanEntity) {
         entities[entity.id] = entity
     }

@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.toArgb
 import cn.anitabi.navigator.core.model.GeoPoint
 import cn.anitabi.navigator.core.model.TourPlan
+import cn.anitabi.navigator.core.model.TransitExecutionStrategy
 import cn.anitabi.navigator.core.model.TravelMode
 import cn.anitabi.navigator.ui.map.NavigationMapView
 import cn.anitabi.navigator.ui.map.currentLocationMarkerOptions
@@ -57,7 +58,9 @@ fun RoutePreviewMap(
         val readyMap = map ?: return@LaunchedEffect
         try {
             readyMap.clear()
-            plan.legs.forEach { leg ->
+            plan.legs.takeUnless {
+                plan.executionStrategy == TransitExecutionStrategy.EXTERNAL_GOOGLE_MAPS_JAPAN
+            }.orEmpty().forEach { leg ->
                 val geometry = leg.geometry.ifEmpty { listOf(leg.from, leg.to) }
                     .fold(mutableListOf<GeoPoint>()) { coordinates, point ->
                         if (coordinates.lastOrNull() != point) coordinates += point
@@ -103,8 +106,12 @@ fun RoutePreviewMap(
 
     LaunchedEffect(plan.id, plan.legs, map, viewportWidth, viewportHeight) {
         val readyMap = map ?: return@LaunchedEffect
-        val coordinates = plan.legs.flatMap { leg -> leg.geometry.ifEmpty { listOf(leg.from, leg.to) } }
-            .ifEmpty { plan.orderedPoints.map { point -> point.coordinate } }
+        val coordinates = if (plan.executionStrategy == TransitExecutionStrategy.EXTERNAL_GOOGLE_MAPS_JAPAN) {
+            plan.orderedPoints.map { point -> point.coordinate }
+        } else {
+            plan.legs.flatMap { leg -> leg.geometry.ifEmpty { listOf(leg.from, leg.to) } }
+                .ifEmpty { plan.orderedPoints.map { point -> point.coordinate } }
+        }
         try {
             val cameraUpdate = withPositiveMapViewport(viewportWidth, viewportHeight) { width, height ->
                 when (coordinates.size) {
