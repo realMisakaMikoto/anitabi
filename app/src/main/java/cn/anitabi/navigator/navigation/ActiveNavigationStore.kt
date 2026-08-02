@@ -11,25 +11,40 @@ internal object ActiveNavigationStore {
         .getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
         .getString(KEY_TOUR_ID, null)
 
+    @Synchronized
     fun set(context: Context, tourId: String) {
         context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE).edit {
             putString(KEY_TOUR_ID, tourId)
         }
     }
 
-    fun clear(context: Context, expectedTourId: String? = null) {
+    @Synchronized
+    fun clear(
+        context: Context,
+        expectedTourId: String? = null,
+        durable: Boolean = false,
+    ): Boolean {
         val preferences = context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
-        if (expectedTourId != null && preferences.getString(KEY_TOUR_ID, null) != expectedTourId) return
-        preferences.edit { remove(KEY_TOUR_ID) }
+        if (expectedTourId != null && preferences.getString(KEY_TOUR_ID, null) != expectedTourId) return false
+        val editor = preferences.edit().remove(KEY_TOUR_ID)
+        if (durable) return editor.commit()
+        editor.apply()
+        return true
     }
 
     @Synchronized
-    fun replaceIfCurrent(context: Context, expectedTourId: String?, tourId: String?): Boolean {
+    fun replaceIfCurrent(
+        context: Context,
+        expectedTourId: String?,
+        tourId: String?,
+        durable: Boolean = false,
+    ): Boolean {
         val preferences = context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
         if (preferences.getString(KEY_TOUR_ID, null) != expectedTourId) return false
-        preferences.edit {
-            if (tourId == null) remove(KEY_TOUR_ID) else putString(KEY_TOUR_ID, tourId)
-        }
+        val editor = preferences.edit()
+        if (tourId == null) editor.remove(KEY_TOUR_ID) else editor.putString(KEY_TOUR_ID, tourId)
+        if (durable) return editor.commit()
+        editor.apply()
         return true
     }
 }

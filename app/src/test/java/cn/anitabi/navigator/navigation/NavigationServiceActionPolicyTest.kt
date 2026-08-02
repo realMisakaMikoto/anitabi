@@ -151,6 +151,40 @@ class NavigationServiceActionPolicyTest {
     }
 
     @Test
+    fun `only the current persisted terminal navigation can be finalized`() {
+        val plan = plan()
+        val terminal = NavigationProgress(tourId = plan.id, state = NavigationState.COMPLETED)
+        fun canFinalize(
+            persistedProgress: NavigationProgress = terminal,
+            expectedGeneration: Long = 7L,
+            currentGeneration: Long = 7L,
+            stopping: Boolean = false,
+            currentPlan: TourPlan? = plan,
+            currentProgress: NavigationProgress? = persistedProgress,
+        ): Boolean = shouldFinalizePersistedTerminalNavigation(
+                persistedPlan = plan,
+                persistedProgress = persistedProgress,
+                expectedGeneration = expectedGeneration,
+                currentGeneration = currentGeneration,
+                stopping = stopping,
+                currentPlan = currentPlan,
+                currentProgress = currentProgress,
+            )
+
+        assertTrue(canFinalize())
+        assertTrue(canFinalize(persistedProgress = terminal.copy(state = NavigationState.ENDED)))
+        assertFalse(canFinalize(expectedGeneration = 6L))
+        assertFalse(canFinalize(stopping = true))
+        assertFalse(canFinalize(currentPlan = plan.copy(attribution = listOf("newer"))))
+        assertFalse(canFinalize(currentProgress = terminal.copy(state = NavigationState.NAVIGATING)))
+        assertFalse(
+            canFinalize(
+                persistedProgress = terminal.copy(state = NavigationState.NAVIGATING),
+            ),
+        )
+    }
+
+    @Test
     fun `failed reload never stops a different loading or stored tour`() {
         val requested = plan()
         val other = requested.copy(id = "other-tour")

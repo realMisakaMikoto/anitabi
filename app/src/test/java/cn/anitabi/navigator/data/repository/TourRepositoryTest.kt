@@ -363,6 +363,34 @@ class TourRepositoryTest {
     }
 
     @Test
+    fun `progress commit result reports a terminal runtime that supersedes the queued update`() = runBlocking {
+        val repository = TourRepository(FakeTourPlanDao(), ApiHttpClient.defaultJson, now = { 123L })
+        val plan = fixturePlan()
+        val edited = plan.copy(attribution = listOf("edited"))
+        val before = NavigationProgress(tourId = plan.id, state = NavigationState.NAVIGATING)
+        val queuedUpdate = before.copy(legIndex = 1, completedPointIds = setOf("first"))
+        val terminal = queuedUpdate.copy(state = NavigationState.COMPLETED)
+        repository.save(plan, before)
+        assertTrue(
+            repository.saveActiveEditIfCurrent(
+                expectedPlan = plan,
+                expectedProgress = before,
+                updatedPlan = edited,
+                updatedProgress = before,
+            ),
+        )
+        repository.noteRuntimeProgress(terminal)
+
+        val committed = repository.saveProgressResultOnLatestPlan(plan, before, queuedUpdate)
+
+        assertEquals(plan, committed.plan)
+        assertEquals(terminal, committed.progress)
+        val restored = requireNotNull(repository.get(plan.id))
+        assertEquals(plan, restored.plan)
+        assertEquals(terminal, restored.progress)
+    }
+
+    @Test
     fun `cold recovered active edit compares the persisted snapshot when resolved caches are empty`() = runBlocking {
         val dao = FakeTourPlanDao()
         val repository = TourRepository(dao, ApiHttpClient.defaultJson, now = { 123L })

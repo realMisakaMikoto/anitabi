@@ -99,6 +99,7 @@ class NavigationRuntimeInstrumentedTest {
             }
             assertEquals("1", shell("settings get global airplane_mode_on").trim())
             assertNotNull(activeNavigationNotification())
+            assertEquals(plan.id, ActiveNavigationStore.get(application))
 
             sendServiceAction(NavigationService.ACTION_MANUAL_ARRIVAL)
             awaitCondition("navigation did not advance to the second leg") {
@@ -117,6 +118,9 @@ class NavigationRuntimeInstrumentedTest {
             }
             awaitCondition("completed navigation pointer was not cleared") {
                 ActiveNavigationStore.get(application) == null
+            }
+            awaitCondition("completed foreground notification was not removed") {
+                activeNavigationNotification() == null
             }
             val completed = application.container.tourRepository.get(plan.id)?.progress
             assertEquals(setOf(START_ID, FIRST_STOP_ID, SECOND_STOP_ID), completed?.completedPointIds)
