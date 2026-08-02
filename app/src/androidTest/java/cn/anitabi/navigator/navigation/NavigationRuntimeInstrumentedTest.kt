@@ -115,6 +115,9 @@ class NavigationRuntimeInstrumentedTest {
             awaitCondition("completed progress was not persisted") {
                 application.container.tourRepository.get(plan.id)?.progress?.state == NavigationState.COMPLETED
             }
+            awaitCondition("completed navigation pointer was not cleared") {
+                ActiveNavigationStore.get(application) == null
+            }
             val completed = application.container.tourRepository.get(plan.id)?.progress
             assertEquals(setOf(START_ID, FIRST_STOP_ID, SECOND_STOP_ID), completed?.completedPointIds)
             assertTrue(NavigationRuntime.state.value.errorMessage == null)
@@ -132,6 +135,12 @@ class NavigationRuntimeInstrumentedTest {
         NavigationRuntime.set(NavigationRuntimeState())
         val locationManager = installMockGpsProvider()
         val powerManager = application.getSystemService(Context.POWER_SERVICE) as PowerManager
+        val stalePlan = fixturePlan(STALE_TERMINAL_TOUR_ID)
+        application.container.tourRepository.save(
+            stalePlan,
+            NavigationProgress(tourId = stalePlan.id, state = NavigationState.COMPLETED),
+        )
+        ActiveNavigationStore.set(application, stalePlan.id)
         val plan = fixturePlan(AUTOMATIC_TOUR_ID)
         application.container.tourRepository.save(
             plan,
@@ -332,6 +341,7 @@ class NavigationRuntimeInstrumentedTest {
     companion object {
         private const val RECOVERY_TOUR_ID = "runtime-recovery-fixture"
         private const val SERVICE_TOUR_ID = "runtime-service-fixture"
+        private const val STALE_TERMINAL_TOUR_ID = "runtime-000-stale-terminal-fixture"
         private const val AUTOMATIC_TOUR_ID = "runtime-automatic-fixture"
         private const val START_ID = "runtime-start"
         private const val FIRST_STOP_ID = "runtime-stop-a"

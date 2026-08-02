@@ -226,13 +226,28 @@ class TourRepository(
     suspend fun getMostRecent(): SavedTour? = readConsistently { dao.getMostRecent()?.toSavedTour() }
 
     suspend fun getMostRecentInStates(states: Set<NavigationState>): SavedTour? = readConsistently {
+        findMostRecentInStates(states)
+    }
+
+    suspend fun getMostRecentInStatesNewerThan(
+        states: Set<NavigationState>,
+        tourId: String,
+    ): SavedTour? = readConsistently {
+        findMostRecentInStates(states, stopAtTourId = tourId)
+    }
+
+    private suspend fun findMostRecentInStates(
+        states: Set<NavigationState>,
+        stopAtTourId: String? = null,
+    ): SavedTour? {
         for (id in dao.getIdsMostRecentFirst()) {
+            if (id == stopAtTourId) return null
             val entity = dao.get(id) ?: continue
             val stored = entity.toStoredTour() ?: continue
             if (stored.navigationState !in states) continue
-            return@readConsistently entity.toSavedTour(stored)
+            return entity.toSavedTour(stored)
         }
-        null
+        return null
     }
 
     suspend fun getMostRecentRecoveryError(): String? = readConsistently { dao.getMostRecentMigrationError() }

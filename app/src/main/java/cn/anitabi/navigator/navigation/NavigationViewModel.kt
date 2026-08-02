@@ -506,7 +506,13 @@ internal suspend fun loadNavigationRecoveryCandidate(
     repository: TourRepository,
 ): SavedTour? {
     if (storedActiveTourId != null) {
-        repository.get(storedActiveTourId)?.let { return it }
+        repository.get(storedActiveTourId)?.let { stored ->
+            if (stored.progress?.state in RECOVERABLE_LEGACY_STATES) return stored
+            return repository.getMostRecentInStatesNewerThan(
+                states = RECOVERABLE_LEGACY_STATES,
+                tourId = storedActiveTourId,
+            ) ?: stored
+        }
     }
     return repository.getMostRecentInStates(RECOVERABLE_LEGACY_STATES)
 }
