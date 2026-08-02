@@ -38,7 +38,7 @@
 
 - 规范仓库：`realMisakaMikoto/junrei_navi`。
 - 本地 `origin` 仍配置为旧地址 `https://github.com/realMisakaMikoto/anitabi.git`，目前由 GitHub 重定向；远程 API 和新链接应使用规范仓库。
-- 当前实施分支为 `codex/v0.2.3-japan-transit`，已跟踪同名上游。v0.2.3 主实现提交为 `ff75d8b63ce8ffc7bc97ca84c7733cc2d47cf814`，前三轮恢复/并发修复依次为 `ae835fb040d4b9747510c30f0a66011b22df6fba`、`c6e393ab235fea1479a21f49d86b8ddac6331ce6`、`cfac4bd96190ac756fa6d6e5ae0b8e74ead8b558`，均已推送到 ready [PR #12](https://github.com/realMisakaMikoto/junrei_navi/pull/12)；第四轮终态 writer 收口已成为当前本地 `HEAD` 且全量验证通过，待推送和 PR 新 CI，PR 尚未合并。当前分支相对同名上游 ahead 1 / behind 0，相对本地 `main` ahead 5 / behind 0；任务起点 `8d999c5e4c102b2a43e663653ea18306af1b193c` 当时与 `main` 及其上游一致。v0.2.2 功能提交 `0423bd06e67694e28f15c378a948a9bcd9d4ff28` 经 [PR #11](https://github.com/realMisakaMikoto/junrei_navi/pull/11) rebase 合并；发布源码提交为 `308d4c2afcc9681335e9b60d68cbb2891b025442`。
+- 当前实施分支为 `codex/v0.2.3-japan-transit`，已跟踪同名上游。v0.2.3 主实现提交为 `ff75d8b63ce8ffc7bc97ca84c7733cc2d47cf814`，四轮恢复/并发修复依次为 `ae835fb040d4b9747510c30f0a66011b22df6fba`、`c6e393ab235fea1479a21f49d86b8ddac6331ce6`、`cfac4bd96190ac756fa6d6e5ae0b8e74ead8b558`、`8c140d3`，均已推送到 ready [PR #12](https://github.com/realMisakaMikoto/junrei_navi/pull/12)；第四轮全量本地验证通过，等待 PR 新 CI，PR 尚未合并。当前分支与同名上游同步，相对本地 `main` ahead 6 / behind 0；任务起点 `8d999c5e4c102b2a43e663653ea18306af1b193c` 当时与 `main` 及其上游一致。v0.2.2 功能提交 `0423bd06e67694e28f15c378a948a9bcd9d4ff28` 经 [PR #11](https://github.com/realMisakaMikoto/junrei_navi/pull/11) rebase 合并；发布源码提交为 `308d4c2afcc9681335e9b60d68cbb2891b025442`。
 - 稳定标签 `v0.2.2` 指向上述发布源码提交；非草稿、非预发布的 [v0.2.2 Release](https://github.com/realMisakaMikoto/junrei_navi/releases/tag/v0.2.2) 已发布并成为 Latest Release。完整证据在 `docs/releases/v0.2.2.md`。
 - 功能分支 `codex/transit-no-route` 仍保留在远端；不要将其误当作当前发布分支。压缩前完整日志锚点仍为 `c92a92195d903ecb89ae563a509699f32e5737ef`。
 - `main` 已通过快进合并纳入相对原基线 `cbc29fa7acc3dd2e589d5849d2f6e66be53b9ea1` 的 6 个提交：
@@ -247,7 +247,7 @@
 
 ## 最近任务（最多 5 条）
 
-- 2026-08-02：定位 PR #12 第四轮 CI run `30730687079` 的 API 26/API 37 同源失败：最后一站的本地重规划直接把 Room 写为 `COMPLETED`，但 `lastSavedProgress` 预先同步后令 `processUpdate` 跳过旧终态清理分支，故 pointer/通知/服务未收口。已在当前本地提交统一普通队列保存与重规划 terminal writer 的实际提交结果收口，使用同代 plan/progress 严格 ownership 和 durable pointer CAS；231 个全量 JVM、双 Lint、Debug/AndroidTest、Release R8 及后端 29/29 通过，待推送和新 CI，未合并或发布。
+- 2026-08-02：定位 PR #12 第四轮 CI run `30730687079` 的 API 26/API 37 同源失败：最后一站的本地重规划直接把 Room 写为 `COMPLETED`，但 `lastSavedProgress` 预先同步后令 `processUpdate` 跳过旧终态清理分支，故 pointer/通知/服务未收口。已在 `8c140d3` 统一普通队列保存与重规划 terminal writer 的实际提交结果收口，使用同代 plan/progress 严格 ownership 和 durable pointer CAS；231 个全量 JVM、双 Lint、Debug/AndroidTest、Release R8 及后端 29/29 通过，修复已推送并等待新 CI，未合并或发布。
 - 2026-08-02：定位 PR #12 第三轮 CI run `30729670623`：backend、verify、API 37 与 API 26 前两项运行态用例通过，仅 API 26 自动 GPS 用例因 Room 已提交终态、活动指针尚未清理时进程被结束而未启动服务。已限定为“非可恢复 pointer 只可被排序上更新的可恢复行程接管”，保留旧行程不复活边界并强化确定性 instrumentation；8/8 定向、229 个全量 JVM、双 Lint 和三变体 Kotlin 编译通过，待提交和新 CI，未合并或发布。
 - 2026-08-02：定位 PR #12 第二轮 CI：API 26 被成功回滚后残留的活动行程指针遮蔽新行程，API 37 因 warm `resolvedProgress` 未接受仅缺确定性起点而误判并发、丢失首次到达。已限定为“回滚成功且同 generation 才清 pointer”及“只补持久起点后全对象严格相等”，加入 instrumentation 指针断言、warm 正向与非起点负向回归；16/16 仓储测试、228 个全量 JVM 测试、双 Lint 和三变体 Kotlin 编译通过，修复已进入当前分支并等待新 CI，未合并或发布。
 - 2026-08-02：提交并推送 v0.2.3 主实现 `ff75d8b`，通过 Chrome 创建 ready PR #12；首轮 CI 的 backend/verify 通过、API 26/API 37 同因冷恢复起点规范化与严格 CAS 不等而失败。已将等价范围收紧到持久起点这一确定性差异，新增回归并通过 226 个 JVM 测试与 AndroidTest 编译；修复提交和新 PR CI 待继续完成，未合并或发布。
