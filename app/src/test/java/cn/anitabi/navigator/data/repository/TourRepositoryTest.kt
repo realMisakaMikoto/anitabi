@@ -80,6 +80,36 @@ class TourRepositoryTest {
     }
 
     @Test
+    fun `cold unresolved rollback accepts deterministic start normalization`() = runBlocking {
+        val dao = FakeTourPlanDao()
+        val plan = fixturePlan()
+        val persistedProgress = NavigationProgress(
+            tourId = plan.id,
+            state = NavigationState.NAVIGATING,
+        )
+        TourRepository(dao, ApiHttpClient.defaultJson, now = { 123L }).save(plan, persistedProgress)
+        val repository = TourRepository(dao, ApiHttpClient.defaultJson, now = { 123L })
+        val recovered = requireNotNull(repository.get(plan.id))
+        val activeProgress = requireNotNull(recovered.progress).copy(
+            completedPointIds = setOf("first"),
+        )
+        val rollback = activeProgress.copy(
+            state = NavigationState.PLANNED,
+        )
+
+        repository.saveUnresolvedProgressOnLatestPlan(
+            basePlan = recovered.plan,
+            expectedProgress = activeProgress,
+            updatedProgress = rollback,
+        )
+
+        val restored = requireNotNull(repository.get(plan.id))
+        assertTrue(restored.routeNeedsRefresh)
+        assertTrue(restored.plan.legs.isEmpty())
+        assertEquals(rollback, restored.progress)
+    }
+
+    @Test
     fun `cancellation after a repository write starts completes database and cache publication`() = runBlocking {
         val upsertGate = CompletableDeferred<Unit>()
         val dao = FakeTourPlanDao(upsertGate)

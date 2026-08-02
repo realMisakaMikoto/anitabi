@@ -271,10 +271,15 @@ class TourRepository(
         val expected = StoredTourV2.from(expectedPlan, expectedProgress)
         val restoredPlan = toUnresolvedPlan(strategy)
         val restoredProgress = toNavigationProgress(strategy)
+        val normalizedCompletedPointIds = startPointId
+            ?.takeIf { it in expected.completedPointIds }
+            ?.let { completedPointIds + it }
+            ?: completedPointIds
         val normalized = copy(
             departureTime = null,
             transitTimeMode = restoredPlan.transitTimeMode,
             transitAnchorTime = restoredPlan.transitAnchorTime,
+            completedPointIds = normalizedCompletedPointIds,
             activePointId = activePointId ?: expected.activePointId,
             activeLegIndex = restoredProgress.legIndex,
             executionStrategy = strategy,
