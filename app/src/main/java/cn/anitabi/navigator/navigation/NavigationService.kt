@@ -773,8 +773,8 @@ class NavigationService : Service(), LocationListener, TextToSpeech.OnInitListen
             progressSaveJob = serviceScope.launch {
                 previousSave?.join()
                 if (expectedGeneration != navigationGeneration) return@launch
-                try {
-                    container.tourRepository.saveProgressOnLatestPlan(
+                val committed = try {
+                    container.tourRepository.saveProgressResultOnLatestPlan(
                         basePlan = currentPlan,
                         expectedProgress = expectedProgress,
                         updatedProgress = update.progress,
@@ -796,14 +796,11 @@ class NavigationService : Service(), LocationListener, TextToSpeech.OnInitListen
                     }
                     return@launch
                 }
-                if (
-                    expectedGeneration == navigationGeneration &&
-                    update.progress.state in setOf(NavigationState.COMPLETED, NavigationState.ENDED)
-                ) {
-                    ActiveNavigationStore.clear(this@NavigationService, currentPlan.id)
-                    container.tourRepository.clearRuntimeProgress(currentPlan.id, update.progress)
-                    finishCompletedNavigation(expectedGeneration, waitForProgressSave = false)
-                }
+                finishPersistedTerminalIfCurrent(
+                    persistedPlan = committed.plan,
+                    persistedProgress = committed.progress,
+                    expectedGeneration = expectedGeneration,
+                )
             }
         }
         updateNotification(displayedText)
@@ -812,6 +809,32 @@ class NavigationService : Service(), LocationListener, TextToSpeech.OnInitListen
         }
         synchronizeRoadNavigation(update.progress, expectedGeneration)
         refreshTransitWhenNeeded(update, expectedGeneration)
+    }
+
+    private fun finishPersistedTerminalIfCurrent(
+        persistedPlan: TourPlan,
+        persistedProgress: NavigationProgress,
+        expectedGeneration: Long,
+    ) {
+        if (
+            !shouldFinalizePersistedTerminalNavigation(
+                persistedPlan = persistedPlan,
+                persistedProgress = persistedProgress,
+                expectedGeneration = expectedGeneration,
+                currentGeneration = navigationGeneration,
+                stopping = stopping,
+                currentPlan = plan,
+                currentProgress = engine?.progress,
+            )
+        ) return
+        ActiveNavigationStore.replaceIfCurrent(
+            context = this,
+            expectedTourId = persistedPlan.id,
+            tourId = null,
+            durable = true,
+        )
+        container.tourRepository.clearRuntimeProgress(persistedPlan.id, persistedProgress)
+        finishCompletedNavigation(expectedGeneration, waitForProgressSave = false)
     }
 
     private fun stopAfterProgressPersistenceFailure(
@@ -901,6 +924,7 @@ class NavigationService : Service(), LocationListener, TextToSpeech.OnInitListen
         val oldPlan = plan ?: return
         if (oldPlan.isExternalJapanTransit()) return
         NavigationRuntime.update { it.copy(isRerouting = true, errorMessage = null) }
+        var persistedTerminal: Pair<TourPlan, NavigationProgress>? = null
         try {
             val updatedPlan = container.tourPlanner.replanRemaining(
                 plan = oldPlan,
@@ -937,6 +961,9 @@ class NavigationService : Service(), LocationListener, TextToSpeech.OnInitListen
             lastSavedProgress = updatedProgress
             if (expectedGeneration != navigationGeneration) return
             processUpdate(engine?.onTick(System.currentTimeMillis()), expectedGeneration)
+            if (updatedProgress.state in setOf(NavigationState.COMPLETED, NavigationState.ENDED)) {
+                persistedTerminal = updatedPlan to updatedProgress
+            }
         } catch (exception: CancellationException) {
             throw exception
         } catch (exception: Exception) {
@@ -949,6 +976,13 @@ class NavigationService : Service(), LocationListener, TextToSpeech.OnInitListen
             if (expectedGeneration == navigationGeneration) {
                 NavigationRuntime.update { it.copy(isRerouting = false) }
             }
+        }
+        persistedTerminal?.let { (persistedPlan, persistedProgress) ->
+            finishPersistedTerminalIfCurrent(
+                persistedPlan = persistedPlan,
+                persistedProgress = persistedProgress,
+                expectedGeneration = expectedGeneration,
+            )
         }
     }
 
@@ -1814,6 +1848,21 @@ private fun TourPlan?.isExternalJapanTransit(): Boolean =
 
 internal fun externalTransitOverlayMustHideImmediately(progress: NavigationProgress): Boolean =
     progress.isPaused || progress.state in setOf(NavigationState.COMPLETED, NavigationState.ENDED)
+
+internal fun shouldFinalizePersistedTerminalNavigation(
+    persistedPlan: TourPlan,
+    persistedProgress: NavigationProgress,
+    expectedGeneration: Long,
+    currentGeneration: Long,
+    stopping: Boolean,
+    currentPlan: TourPlan?,
+    currentProgress: NavigationProgress?,
+): Boolean =
+    persistedProgress.state in setOf(NavigationState.COMPLETED, NavigationState.ENDED) &&
+        expectedGeneration == currentGeneration &&
+        !stopping &&
+        currentPlan == persistedPlan &&
+        currentProgress == persistedProgress
 
 @Suppress("DEPRECATION")
 private fun Intent.resultReceiver(): ResultReceiver? =

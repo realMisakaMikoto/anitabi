@@ -88,7 +88,17 @@ class TourRepository(
         basePlan: TourPlan,
         expectedProgress: NavigationProgress,
         updatedProgress: NavigationProgress,
-    ): TourPlan = writeAtomically {
+    ): TourPlan = saveProgressResultOnLatestPlan(
+        basePlan = basePlan,
+        expectedProgress = expectedProgress,
+        updatedProgress = updatedProgress,
+    ).plan
+
+    internal suspend fun saveProgressResultOnLatestPlan(
+        basePlan: TourPlan,
+        expectedProgress: NavigationProgress,
+        updatedProgress: NavigationProgress,
+    ): ProgressCommitResult = writeAtomically {
         commitProgressOnLatestPlan(basePlan, expectedProgress, updatedProgress, keepResolved = true)
     }
 
@@ -97,7 +107,7 @@ class TourRepository(
         expectedProgress: NavigationProgress,
         updatedProgress: NavigationProgress,
     ): TourPlan = writeAtomically {
-        commitProgressOnLatestPlan(basePlan, expectedProgress, updatedProgress, keepResolved = false)
+        commitProgressOnLatestPlan(basePlan, expectedProgress, updatedProgress, keepResolved = false).plan
     }
 
     fun noteRuntimeProgress(progress: NavigationProgress) {
@@ -126,7 +136,7 @@ class TourRepository(
         expectedProgress: NavigationProgress,
         updatedProgress: NavigationProgress,
         keepResolved: Boolean,
-    ): TourPlan {
+    ): ProgressCommitResult {
         require(expectedProgress.tourId == basePlan.id && updatedProgress.tourId == basePlan.id)
         val stored = dao.get(basePlan.id)?.toStoredTour() ?: throw ConcurrentTourUpdateException()
         val latestProgress = resolvedProgress[basePlan.id]
@@ -144,7 +154,7 @@ class TourRepository(
                 resolvedRoutes.remove(basePlan.id)
                 resolvedProgress.remove(basePlan.id)
             }
-            return basePlan
+            return ProgressCommitResult(basePlan, updatedProgress)
         }
         val runtimeStamp = runtimeProgress.get()
         val priorityProgress = runtimeStamp
@@ -163,7 +173,7 @@ class TourRepository(
                 resolvedRoutes.remove(basePlan.id)
                 resolvedProgress.remove(basePlan.id)
             }
-            return basePlan
+            return ProgressCommitResult(basePlan, priorityProgress)
         }
         if (!stored.matches(basePlan, expectedProgress)) {
             throw ConcurrentTourUpdateException()
@@ -185,7 +195,7 @@ class TourRepository(
             resolvedRoutes.remove(committedPlan.id)
             resolvedProgress.remove(committedPlan.id)
         }
-        return committedPlan
+        return ProgressCommitResult(committedPlan, updatedProgress)
     }
 
     private suspend fun <T> writeAtomically(block: suspend () -> T): T = writeMutex.withLock {
@@ -351,6 +361,11 @@ private data class RuntimeProgressStamp(
 )
 
 class ConcurrentTourUpdateException : IllegalStateException("行程状态已变化，请重试")
+
+internal data class ProgressCommitResult(
+    val plan: TourPlan,
+    val progress: NavigationProgress,
+)
 
 data class SavedTour(
     val storedTour: StoredTourV2,
