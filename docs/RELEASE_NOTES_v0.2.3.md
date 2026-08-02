@@ -23,9 +23,9 @@ Google 官方 FAQ 明确说明 Routes 的公交数据不包含日本 Transit 合
 ## 连续控制、到达和恢复
 
 - 先启动 `location` 类型前台服务，再由未导出的交接 Activity 持久化当前段并打开 Google 地图；服务不会在后台自动拉起第一段或下一段。
-- 日本模式可使用可拖动、不可聚焦的系统悬浮窗；未授权时使用前台服务通知。Android 13 及以上会同时检查通知权限、全局通知开关和导航频道。两种入口都不可用时不打开外部地图。
+- 日本模式可使用可拖动、可缩放、可收起为 60dp 悬浮球的不可聚焦系统悬浮窗；形态、尺寸和安全区内位置会本地保留。未授权时使用前台服务通知。Android 13 及以上会同时检查通知权限、全局通知开关和导航频道。两种入口都不可用时不打开外部地图。
 - 精度不差于 50 米且连续 15 秒位于目标 80 米内时只进入接近提示；超过 120 米会清除候选。用户仍须确认到达，提前确认会再次询问。
-- 确认后进入停留；停留结束保持“下一站”，必须由用户点击才推进。暂停会冻结停留截止时间并停止到达判定，结束需要二次确认并进入 `ENDED`；暂停或结束一经接受即先移除悬浮窗，保存失败时才按回滚状态恢复。
+- 确认后进入停留；停留中可由用户点击“提前离开”，立即持久化并打开下一段，最后一站则完成行程。自然停留结束仍保持“下一站”，必须由用户点击才推进。暂停会冻结停留截止时间并停止到达判定，结束需要二次确认并进入 `ENDED`；暂停或结束一经接受即先移除悬浮窗，保存失败时才按回滚状态恢复。
 - 进程死亡后按持久化 tour ID、当前目标、段号、完成点和暂停/停留状态恢复控制，不自动打开 Google 地图；设备重启且通知可见时只为日本外部公交发布恢复通知，不改变道路或应用内公交的既有恢复行为，也不启动定位前台服务或 Activity。若重启后只有悬浮窗权限而通知不可见，Android 后台限制不允许自动建立可见控制入口，用户需手动打开应用恢复。
 
 实现依据：[location 前台服务](https://developer.android.com/develop/background-work/services/fgs/service-types#location)、[后台启动 FGS 限制](https://developer.android.com/develop/background-work/services/fgs/restrictions-bg-start)、[后台 Activity 限制](https://developer.android.com/guide/components/activities/background-starts) 和 [通知运行时权限](https://developer.android.com/develop/ui/views/notifications/notification-permission)。
