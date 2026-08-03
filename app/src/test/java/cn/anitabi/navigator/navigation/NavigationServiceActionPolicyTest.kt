@@ -83,6 +83,12 @@ class NavigationServiceActionPolicyTest {
     }
 
     @Test
+    fun `external transit keeps receiving location fixes while stationary`() {
+        assertEquals(0f, navigationLocationUpdateMinDistanceMeters(isExternalJapanTransit = true), 0f)
+        assertEquals(2f, navigationLocationUpdateMinDistanceMeters(isExternalJapanTransit = false), 0f)
+    }
+
+    @Test
     fun `foreground promotion failure preserves recovery data and stops running flags`() {
         val plan = plan()
         val progress = NavigationProgress(

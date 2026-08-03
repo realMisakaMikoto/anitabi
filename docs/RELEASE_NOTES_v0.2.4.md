@@ -1,6 +1,6 @@
 # 巡礼手帳 v0.2.4
 
-v0.2.4 改进首次启动的权限导览，帮助用户在切换应用或锁屏后保持连续导航。版本号为 `versionName=0.2.4`、`versionCode=10`；Room schema 仍为 2，后端协议、Google 地图/Routes 行为、日本公交分流和路线额度策略均未改变。
+v0.2.4 改进首次启动的权限导览，并修复日本外部公交在用户静止于目标附近时可能无法进入到达确认的问题。版本号为 `versionName=0.2.4`、`versionCode=10`；Room schema 仍为 2，后端协议、Google 地图/Routes 行为、日本公交分流和路线额度策略均未改变。
 
 ## 首次导览后台设置
 
@@ -12,6 +12,12 @@ v0.2.4 改进首次启动的权限导览，帮助用户在切换应用或锁屏�
 - 系统没有对应设置 Activity 时会回退到应用详情页；若仍无法打开，会在当前页面显示错误而不是崩溃。
 
 Android 行为依据：[Settings API](https://developer.android.com/reference/android/provider/Settings.html)、[Doze 与应用待机](https://developer.android.com/training/monitoring-device-state/doze-standby) 和 [后台启动前台服务限制](https://developer.android.com/develop/background-work/services/fgs/restrictions-bg-start)。
+
+## 日本公交到达判定
+
+- 日本外部公交现在允许在用户静止时继续接收定位更新，避免最小位移门槛反复中断到达候选计时。
+- 到达规则保持不变：定位精度不差于 50 米、在目标 80 米内连续 15 秒后进入到达确认，超过 120 米时重置候选。
+- 道路导航和非日本公交的定位订阅保持原行为；Google 地图交接 URL、Routes 请求和后端均未修改。
 
 ## 安装与升级
 
