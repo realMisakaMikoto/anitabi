@@ -19,3 +19,4 @@ backend/node_modules/
 backend/dist/
 backend/*.sqlite*
 backend/.env
+/AGENT.md
