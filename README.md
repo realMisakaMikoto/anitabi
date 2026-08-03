@@ -6,14 +6,15 @@
 本项目不负责中国大陆与印度点位的可用性。
 ## 下载与更新
 
-- 当前源码和公开稳定版均为 v0.2.3。
-- [下载 v0.2.3](https://github.com/realMisakaMikoto/junrei_navi/releases/tag/v0.2.3)：当前稳定版，包含日本公共交通分段交接、连续控制和同版本路线额度策略更新。
+- 当前源码和公开稳定版均为 v0.2.4。
+- [下载 v0.2.4](https://github.com/realMisakaMikoto/junrei_navi/releases/tag/v0.2.4)：当前稳定版，首次导览会提示后台导航所需的电池优化、后台锁定和悬浮窗设置。
+- [下载 v0.2.3](https://github.com/realMisakaMikoto/junrei_navi/releases/tag/v0.2.3)：旧稳定版，包含日本公共交通分段交接、连续控制和同版本路线额度策略更新。
 - [下载 v0.2.2](https://github.com/realMisakaMikoto/junrei_navi/releases/tag/v0.2.2)：旧稳定版，包含全新界面、地图显示修复和无线路详情。
 - [下载 v0.2.1](https://github.com/realMisakaMikoto/junrei_navi/releases/tag/v0.2.1)：旧稳定版，使用 Google 地图、道路导航和自建路线服务。
 - [下载 v0.2.0](https://github.com/realMisakaMikoto/anitabi/releases/tag/v0.2.0)：旧版，仍使用个人 ORS Key 和旧地图/路线服务。
 - 支持 Android 8.0 及以上版本。
 
-从 v0.2.2 更新到 v0.2.3 时，请直接覆盖安装，不要先卸载应用或清除数据。应用会保留导览状态、作品与点位选择、行程顺序、设置和导航进度；Room schema 仍为 2，没有数据库迁移。
+从 v0.2.3 更新到 v0.2.4 时，请直接覆盖安装，不要先卸载应用或清除数据。应用会保留导览状态、作品与点位选择、行程顺序、设置和导航进度；Room schema 仍为 2，没有数据库迁移。
 
 ## 你可以做什么
 
@@ -75,7 +76,7 @@
 
 ### 日本公共交通如何工作？
 
-Google 的[官方说明](https://developers.google.com/maps/faq#transit_directions_countries)指出 Routes 的公交数据不包含日本合作方。因此 v0.2.3 会用随 APK 固定携带的 Natural Earth v5.1.1 日本边界离线检查用户选择的巡礼点：全部在日本时不请求 VPS/Routes，而是本机排序，并在用户点击后每次只向 Google 地图提交一对端点和 `travelmode=transit`。当前位置不参与地区判定；日本点与日本以外点混合时会直接拒绝。消费版 Google 地图是否能找到公交、显示哪条路线和班次，均由 Google 地图负责。
+Google 的[官方说明](https://developers.google.com/maps/faq#transit_directions_countries)指出 Routes 的公交数据不包含日本合作方。因此从 v0.2.3 起，应用会用随 APK 固定携带的 Natural Earth v5.1.1 日本边界离线检查用户选择的巡礼点：全部在日本时不请求 VPS/Routes，而是本机排序，并在用户点击后每次只向 Google 地图提交一对端点和 `travelmode=transit`。当前位置不参与地区判定；日本点与日本以外点混合时会直接拒绝。消费版 Google 地图是否能找到公交、显示哪条路线和班次，均由 Google 地图负责。
 
 ### 哪些地区仍可能没有应用内公交？
 
@@ -91,7 +92,7 @@ Bangumi 与 Anitabi 是独立公共服务。部分网络出口可能被其防护
 
 ### 更新会丢失数据吗？
 
-从 v0.2.2 直接覆盖安装 v0.2.3 不需要数据库迁移。不要卸载、不要清除应用数据；旧记录缺少执行策略时会按已保存巡礼点坐标重新分类，行程顺序和导航进度继续保留。
+从 v0.2.3 直接覆盖安装 v0.2.4 不需要数据库迁移。不要卸载、不要清除应用数据；行程顺序、设置和导航进度会继续保留。
 
 ### 这个应用收费吗？
 

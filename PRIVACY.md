@@ -1,6 +1,6 @@
-# 巡礼手帳 v0.2.3 隐私说明
+# 巡礼手帳 v0.2.4 隐私说明
 
-最后更新：2026-08-02
+最后更新：2026-08-03
 
 ## 本机保存的数据
 
@@ -39,7 +39,7 @@ Firebase Analytics 与 Firebase Crashlytics 为两个独立、可选的开关：
 
 ## Bangumi 与 Anitabi
 
-动漫搜索直接访问 Bangumi API。巡礼点 JSON 和图片由 Android 以可识别的 `AnitabiNavigator/0.2.3` User-Agent、按用户操作低频访问 Anitabi 官方 API 与图片域名，不经过项目 VPS。应用不抓取 Anitabi 主站，也不打包或批量下载全站数据。
+动漫搜索直接访问 Bangumi API。巡礼点 JSON 和图片由 Android 以可识别的 `AnitabiNavigator/0.2.4` User-Agent、按用户操作低频访问 Anitabi 官方 API 与图片域名，不经过项目 VPS。应用不抓取 Anitabi 主站，也不打包或批量下载全站数据。
 
 ## 保留、故障与联系
 
