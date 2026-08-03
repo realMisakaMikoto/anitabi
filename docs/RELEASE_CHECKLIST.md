@@ -1,16 +1,16 @@
-# v0.2.3 发布检查清单
+# v0.2.4 发布检查清单
 
-稳定 `v0.2.3` 发布前必须完成版本、自动验证、固定签名以及日本外部公交的真机权限、定位、悬浮窗、通知和 Google 地图交接验收。精确公开 Release APK 的 API 26/API 37 验证只能在资产发布后进行；失败时必须立即停止宣称发布完成并修复。Debug、JVM 或模拟器证据不得冒充正式签名 APK 真机证据。
+稳定 `v0.2.4` 发布前必须完成版本、自动验证、固定签名和首次导览后台设置回归，并确认继承的日本外部公交边界没有变化。精确公开 Release APK 的 API 26/API 37 验证只能在资产发布后进行；失败时必须立即停止宣称发布完成并修复。Debug、JVM 或模拟器证据不得冒充正式签名 APK 真机证据。
 
 每个版本或 RC 在 `docs/releases/` 保存一份带证据的实际记录；未验证项保持未勾选。
 
 ## 版本、许可与文档
 
-- [ ] `versionCode=9`、`versionName=0.2.3`，RC 标签为 `v0.2.3-rc.N`，稳定标签为 `v0.2.3`。
+- [ ] `versionCode=10`、`versionName=0.2.4`，RC 标签为 `v0.2.4-rc.N`，稳定标签为 `v0.2.4`。
 - [ ] README、NOTICE、隐私说明、关于页和发布说明只描述 Google/Firebase/VPS 当前架构；MapLibre、OpenFreeMap、ORS 与 Transitous 只出现在明确标注的历史记录中。
 - [ ] GPL-3.0-or-later 与 `LICENSE` 中仅针对 Google Navigation/Firebase SDK 的窄范围链接例外一致。
 - [ ] Google Maps Platform、Navigation SDK、Routes API、Firebase、Bangumi 与 Anitabi 的署名和链接可见。
-- [ ] v0.2.0、v0.2.1、v0.2.2 及 RC 的发布记录、哈希与真机证据保持历史原文，没有改写成 v0.2.3 结果。
+- [ ] v0.2.0、v0.2.1、v0.2.2、v0.2.3 及 RC 的发布记录、哈希与真机证据保持历史原文，没有改写成 v0.2.4 结果。
 - [ ] Natural Earth v5.1.1 日本派生资产的来源、公共领域条款、源/派生 SHA-256 和精确 geometry equality 证据可核对。
 
 ## Google、Firebase 与费用控制
@@ -43,6 +43,7 @@
 - [ ] Google Maps URL 只含 `api=1`、编码后的起终点和 `travelmode=transit`；Maps 应用、同 URL 浏览器回退、双失败保留/重试全部覆盖。
 - [ ] 日本状态机覆盖 50 米精度、80/120 米滞回、持续 15 秒、人工/提前确认、停留、暂停冻结、手动换段、返回起点、ENDED 与连续五段。
 - [ ] 控制入口覆盖仅悬浮窗、仅通知、两者均无、运行中撤权、通知全局/频道关闭；服务从不自行启动 Google 地图或下一段 Activity。
+- [ ] 首次导览显示电池优化、后台锁定和悬浮窗三个非阻断建议；电池与悬浮窗使用真实系统状态，设置返回后刷新，厂商后台锁定不伪造统一 API 或完成状态。
 - [ ] v0.2.2 缺执行策略记录、进程死亡、设备重启、暂停、当前段和未来点插删重排恢复后不自动打开 Google 地图。
 - [ ] API 26/API 37 均通过冷启动、完整权限导览、迁移、遥测设置、两次离线恢复、前台服务、息屏模拟位置到达、崩溃检查和证据上传。
 - [ ] tracked-source audit 与 APK audit 通过；APK 不含服务端 Google 私钥、VPS 凭据、签名密码、ORS Key、Transitous/ORS/OpenFreeMap/MapLibre 请求路径或 keystore。
@@ -51,8 +52,8 @@
 ## 真机与正式签名证据边界
 
 - [ ] 实体设备候选完成日本/非日本/混合规划、Google 地图分段交接、悬浮窗拖动、通知动作、撤权、暂停、停留、换段、结束和恢复验收。
-- [ ] 本地和 GitHub Actions 正式包均沿用固定签名，`versionName=0.2.3` / `versionCode=9`，并通过签名、R8、源码和 APK 内容审计。
-- [ ] 正式签名 v0.2.3 从公开 v0.2.2 原位覆盖安装并保留 Room schema 2 数据；未执行时保持未勾选且不得声明升级已真机验证。
+- [ ] 本地和 GitHub Actions 正式包均沿用固定签名，`versionName=0.2.4` / `versionCode=10`，并通过签名、R8、源码和 APK 内容审计。
+- [ ] 正式签名 v0.2.4 从公开 v0.2.3 原位覆盖安装并保留 Room schema 2 数据；未执行时保持未勾选且不得声明升级已真机验证。
 - [ ] 用户明确同意 Google Navigation 条款，GMS 地图与当前位置正常。
 - [ ] 驾车、骑行或步行完成 Google 原生语音、锁屏、偏航重路由、到达/停留/下一站和服务结束。
 - [ ] 长行程跨生产 25 目的地技术批次，批次边界前为下一批完成共享月度额度原子预留；共享额度耗尽时不绕过。
@@ -61,8 +62,8 @@
 
 ## 发布
 
-- [ ] RC 在 GitHub 标记为 Prerelease；稳定 v0.2.3 仅在自动门禁、固定签名核验及日本外部公交真机验收完成后发布。
+- [ ] RC 在 GitHub 标记为 Prerelease；稳定 v0.2.4 仅在自动门禁、固定签名核验和明确的真机证据边界记录完成后发布。
 - [ ] 固定签名 keystore 位于工作区外且有离线加密备份；Actions Secrets 完整，日志未输出秘密或 Base64 keystore。
 - [ ] 发布说明列出升级迁移、GMS 要求、联网要求、费用熔断、隐私变化、已知限制和证据边界。
 - [ ] 精确 Release APK 在 API 26/API 37 完成下载、版本检查、安装、冷启动、首次导览和空崩溃缓冲区验证。
-- [ ] 稳定 `v0.2.3` 发布后更新“Latest”状态和最终验收记录；RC 不标记为 Latest。
+- [ ] 稳定 `v0.2.4` 发布后更新“Latest”状态和最终验收记录；RC 不标记为 Latest。
