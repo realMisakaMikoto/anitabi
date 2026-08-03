@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
+import android.os.PowerManager
 import android.provider.Settings
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -30,8 +31,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.BatterySaver
 import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.Layers
 import androidx.compose.material.icons.rounded.LocationOn
+import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.NotificationsActive
 import androidx.compose.material.icons.rounded.RadioButtonUnchecked
 import androidx.compose.material.icons.rounded.Settings
@@ -97,12 +101,21 @@ fun OnboardingRoute(
     var hasNotificationPermission by remember {
         mutableStateOf(hasNotificationPermission(context))
     }
+    var batteryOptimizationDisabled by remember {
+        mutableStateOf(isIgnoringBatteryOptimizations(context))
+    }
+    var hasOverlayPermission by remember {
+        mutableStateOf(Settings.canDrawOverlays(context))
+    }
     var permissionAttempted by rememberSaveable { mutableStateOf(false) }
+    var permissionSettingsError by rememberSaveable { mutableStateOf<String?>(null) }
     var setupError by rememberSaveable { mutableStateOf<String?>(null) }
 
     fun refreshPermissions() {
         hasLocationPermission = AndroidLocationProvider.hasLocationPermission(context)
         hasNotificationPermission = hasNotificationPermission(context)
+        batteryOptimizationDisabled = isIgnoringBatteryOptimizations(context)
+        hasOverlayPermission = Settings.canDrawOverlays(context)
     }
 
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -110,7 +123,22 @@ fun OnboardingRoute(
     ) {
         permissionAttempted = true
         refreshPermissions()
-        if (hasLocationPermission) currentStep = SERVICE_STEP
+    }
+
+    val settingsLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult(),
+    ) {
+        refreshPermissions()
+    }
+
+    val openSystemSettings: (Intent) -> Unit = { intent ->
+        permissionSettingsError = null
+        if (runCatching { settingsLauncher.launch(intent) }.isFailure) {
+            runCatching { settingsLauncher.launch(appDetailsSettingsIntent(context)) }
+                .onFailure {
+                    permissionSettingsError = "无法打开系统设置，请手动在设置中找到“巡礼手帳”"
+                }
+        }
     }
 
     DisposableEffect(lifecycleOwner) {
@@ -124,6 +152,7 @@ fun OnboardingRoute(
     val goBack: () -> Unit = {
         if (currentStep > WELCOME_STEP) {
             currentStep -= 1
+            permissionSettingsError = null
             setupError = null
         }
     }
@@ -181,8 +210,21 @@ fun OnboardingRoute(
                         PERMISSION_STEP -> PermissionStep(
                             hasLocationPermission = hasLocationPermission,
                             hasNotificationPermission = hasNotificationPermission,
+                            batteryOptimizationDisabled = batteryOptimizationDisabled,
+                            hasOverlayPermission = hasOverlayPermission,
                             permissionAttempted = permissionAttempted,
-                            onOpenSettings = { openAppSettings(context) },
+                            settingsError = permissionSettingsError,
+                            onOpenSettings = {
+                                openSystemSettings(appDetailsSettingsIntent(context))
+                            },
+                            onOpenBatterySettings = {
+                                openSystemSettings(
+                                    Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS),
+                                )
+                            },
+                            onOpenOverlaySettings = {
+                                openSystemSettings(overlaySettingsIntent(context))
+                            },
                         )
                         else -> ServiceStep(error = setupError)
                     }
@@ -307,13 +349,18 @@ private fun WelcomeStep() {
 private fun PermissionStep(
     hasLocationPermission: Boolean,
     hasNotificationPermission: Boolean,
+    batteryOptimizationDisabled: Boolean,
+    hasOverlayPermission: Boolean,
     permissionAttempted: Boolean,
+    settingsError: String?,
     onOpenSettings: () -> Unit,
+    onOpenBatterySettings: () -> Unit,
+    onOpenOverlaySettings: () -> Unit,
 ) {
     val permissionsReady = hasLocationPermission
-    Text("允许导航所需权限", style = MaterialTheme.typography.headlineMedium, color = Ink)
+    Text("设置导航所需权限", style = MaterialTheme.typography.headlineMedium, color = Ink)
     Text(
-        "系统会依次显示权限弹窗。巡礼手帳只会在对应功能需要时使用这些权限。",
+        "先完成系统授权，再按需要调整后台设置。巡礼手帳只会在对应功能需要时使用这些权限。",
         style = MaterialTheme.typography.bodyLarge,
         color = MutedInk,
         modifier = Modifier.padding(top = 10.dp),
@@ -347,6 +394,76 @@ private fun PermissionStep(
             )
         }
     }
+    Text(
+        "后台导航建议",
+        style = MaterialTheme.typography.titleLarge,
+        color = Ink,
+        modifier = Modifier.padding(top = 24.dp),
+    )
+    Text(
+        "以下设置不会阻止你继续，但能减少锁屏或切换应用后导航被系统暂停。",
+        style = MaterialTheme.typography.bodyMedium,
+        color = MutedInk,
+        modifier = Modifier.padding(top = 6.dp),
+    )
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 12.dp)
+            .testTag("onboarding-background-guidance"),
+        color = MaterialTheme.colorScheme.surface,
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+    ) {
+        Column {
+            BackgroundSetupStatus(
+                icon = Icons.Rounded.BatterySaver,
+                title = "关闭电池优化",
+                description = "在系统列表中找到巡礼手帳并设为“不优化”，减少锁屏后导航被暂停的可能。",
+                stateLabel = if (batteryOptimizationDisabled) "已关闭电池优化" else "建议设置",
+                completed = batteryOptimizationDisabled,
+                actionLabel = if (batteryOptimizationDisabled) "查看设置" else "去关闭",
+                actionTag = "onboarding-battery-settings",
+                onClick = onOpenBatterySettings,
+            )
+            HorizontalDivider(
+                color = MaterialTheme.colorScheme.outlineVariant,
+                modifier = Modifier.padding(start = 64.dp),
+            )
+            BackgroundSetupStatus(
+                icon = Icons.Rounded.Lock,
+                title = "在后台锁定应用",
+                description = "打开最近任务，长按或下拉巡礼手帳卡片并选择锁定。不同系统入口可能不同；没有此选项可跳过。",
+                stateLabel = "需手动完成",
+                completed = false,
+            )
+            HorizontalDivider(
+                color = MaterialTheme.colorScheme.outlineVariant,
+                modifier = Modifier.padding(start = 64.dp),
+            )
+            BackgroundSetupStatus(
+                icon = Icons.Rounded.Layers,
+                title = "允许悬浮窗",
+                description = "日本公交切到 Google 地图后显示可拖动控制入口；不开启时仍可使用可见通知。",
+                stateLabel = if (hasOverlayPermission) "已允许悬浮窗" else "尚未允许",
+                completed = hasOverlayPermission,
+                actionLabel = if (hasOverlayPermission) "查看设置" else "去开启",
+                actionTag = "onboarding-overlay-settings",
+                onClick = onOpenOverlaySettings,
+            )
+        }
+    }
+    settingsError?.let {
+        Text(
+            it,
+            color = MaterialTheme.colorScheme.error,
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier
+                .padding(top = 12.dp)
+                .testTag("onboarding-settings-error")
+                .semantics { liveRegion = LiveRegionMode.Assertive },
+        )
+    }
     if (permissionAttempted && !permissionsReady) {
         Text(
             onboardingPermissionError(hasLocationPermission, hasNotificationPermission).orEmpty(),
@@ -363,6 +480,62 @@ private fun PermissionStep(
         ) {
             Icon(Icons.Rounded.Settings, contentDescription = null)
             Text("打开系统设置", modifier = Modifier.padding(start = 8.dp))
+        }
+    }
+}
+
+@Composable
+private fun BackgroundSetupStatus(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    description: String,
+    stateLabel: String,
+    completed: Boolean,
+    actionLabel: String? = null,
+    actionTag: String? = null,
+    onClick: (() -> Unit)? = null,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+    ) {
+        Row(
+            modifier = Modifier.semantics(mergeDescendants = true) {
+                stateDescription = stateLabel
+            },
+            verticalAlignment = Alignment.Top,
+        ) {
+            Icon(icon, contentDescription = null, tint = if (completed) Moss else Vermilion)
+            Column(modifier = Modifier.weight(1f).padding(start = 16.dp)) {
+                Text(title, style = MaterialTheme.typography.titleMedium, color = Ink)
+                Text(
+                    stateLabel,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = if (completed) Moss else Vermilion,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+                Text(
+                    description,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MutedInk,
+                    modifier = Modifier.padding(top = 4.dp),
+                )
+            }
+        }
+        if (actionLabel != null && onClick != null) {
+            OutlinedButton(
+                onClick = onClick,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 40.dp, top = 12.dp)
+                    .heightIn(min = 48.dp)
+                    .then(if (actionTag == null) Modifier else Modifier.testTag(actionTag)),
+                shape = RoundedCornerShape(12.dp),
+            ) {
+                Text(actionLabel)
+            }
         }
     }
 }
@@ -494,7 +667,7 @@ private fun OnboardingActionBar(
                 Text(
                     when (currentStep) {
                         WELCOME_STEP -> "开始设置"
-                        PERMISSION_STEP -> if (permissionsReady) "定位已就绪，继续" else "授权定位与通知"
+                        PERMISSION_STEP -> if (permissionsReady) "主要权限已就绪，继续" else "授权定位与通知"
                         else -> "确认并进入地图"
                     },
                 )
@@ -508,8 +681,12 @@ private fun hasNotificationPermission(context: Context): Boolean =
         ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) ==
         PackageManager.PERMISSION_GRANTED
 
-private fun openAppSettings(context: Context) {
-    context.startActivity(
-        Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, "package:${context.packageName}".toUri()),
-    )
-}
+private fun appDetailsSettingsIntent(context: Context): Intent =
+    Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, "package:${context.packageName}".toUri())
+
+private fun overlaySettingsIntent(context: Context): Intent =
+    Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, "package:${context.packageName}".toUri())
+
+private fun isIgnoringBatteryOptimizations(context: Context): Boolean =
+    (context.getSystemService(Context.POWER_SERVICE) as? PowerManager)
+        ?.isIgnoringBatteryOptimizations(context.packageName) == true
