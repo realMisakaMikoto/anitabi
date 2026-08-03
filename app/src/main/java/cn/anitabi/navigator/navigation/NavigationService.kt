@@ -551,9 +551,16 @@ class NavigationService : Service(), LocationListener, TextToSpeech.OnInitListen
             throw MissingLocationPermissionException()
         }
         var requested = false
+        val minDistanceMeters = navigationLocationUpdateMinDistanceMeters(plan.isExternalJapanTransit())
         listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER).forEach { provider ->
             if (locationManager.isProviderEnabled(provider)) {
-                locationManager.requestLocationUpdates(provider, 2_000L, 2f, this, Looper.getMainLooper())
+                locationManager.requestLocationUpdates(
+                    provider,
+                    2_000L,
+                    minDistanceMeters,
+                    this,
+                    Looper.getMainLooper(),
+                )
                 requested = true
             }
         }
@@ -1871,6 +1878,9 @@ private fun TourPlan?.isExternalJapanTransit(): Boolean =
 
 internal fun externalTransitOverlayMustHideImmediately(progress: NavigationProgress): Boolean =
     progress.isPaused || progress.state in setOf(NavigationState.COMPLETED, NavigationState.ENDED)
+
+internal fun navigationLocationUpdateMinDistanceMeters(isExternalJapanTransit: Boolean): Float =
+    if (isExternalJapanTransit) 0f else 2f
 
 internal fun shouldFinalizePersistedTerminalNavigation(
     persistedPlan: TourPlan,
